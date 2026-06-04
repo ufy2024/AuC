@@ -142,6 +142,35 @@ class ReActLoop:
 
 完整端到端示例见 [examples/minimal-react.md](examples/minimal-react.md)。
 
+## ToolPrivilegeGate 与 Loop 协作
+
+ReActLoop 在工具执行前**必须**经 `ToolPrivilegeGate`（不可在 Loop 内绕过）：
+
+```python
+# 伪代码：工具执行路径
+policy = ctx.tools.get_policy(tool_name)
+outcome = await ctx.privilege_gate.check_and_invoke(tool, policy, args, ctx=ctx)
+if isinstance(outcome, PendingApproval):
+    decision = await ctx.approval.wait_decision(outcome.request_id)
+    if not decision.approved:
+        ctx.cancelled = True
+        return LoopStepResult(..., done=True)
+    outcome = await gate.resume_invoke(...)
+```
+
+详见 [tool-privilege.md](tool-privilege.md)。
+
+## HumanInTheLoopLoop（可选）
+
+在标准 ReAct 之上，对**预计为 L3** 的 tool 在调用前额外 `emit(approval_required)`，改善 IM/CLI 体验。生产环境仍以 **Gate 强制拦截** 为准，Loop 仅作提示层。
+
+```python
+class HumanInTheLoopLoop(ReActLoop):
+    async def step(self, ctx: LoopContext) -> LoopStepResult:
+        # 可在 model 返回 tool_calls 后、gate 之前预发事件
+        return await super().step(ctx)
+```
+
 ## 自定义 Loop
 
 实现 `AgentLoop` 即可替换默认 ReAct，无需修改 `Agent` 门面。
@@ -197,6 +226,8 @@ agent = DefaultAgent(config)
 
 ## 相关文档
 
+- [tool-privilege.md](tool-privilege.md) — L3 挂起与恢复
+- [context-slicer.md](context-slicer.md) — `LoopContext.context_package`
 - [interfaces.md](interfaces.md) — `LoopContext`、`LoopStepResult`
 - [architecture.md](architecture.md) — Run 级数据流
 - [aum-integration.md](aum-integration.md) — recall / remember 挂载点

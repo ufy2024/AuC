@@ -1,28 +1,38 @@
 # AuC 与 AuM 集成
 
-AuC 是**单智能体核心**；AuM（Agents-ufy-Memory，规划中）在 AuC 定义的端口上提供**长期记忆、检索与会话持久化**。本文说明边界、挂载方式与无 AuM 时的降级行为。
+AuC 是**单智能体执行核心**；AuM（**Agents-ufy-Meta / Memory**）是调度与认知层：长期记忆、**Au-Context Slicer**、**Au-Rules Matrix**、**IM 二次授权**，以及未来的 `Au-Nuggets` 技能固化。本文说明边界、挂载方式与降级行为。
+
+设计总览见 [design-philosophy.md](design-philosophy.md)。
 
 ## 责任划分
 
 | 责任 | AuC | AuM |
 |------|-----|-----|
 | 单轮推理循环（AgentLoop） | 是 | 否 |
-| 工具注册与执行 | 是 | 可选：包装/审计工具 |
+| Specialist 任务分派 | 否 | 是 |
+| 工具注册与执行 | 是 | 可选：包装/审计 |
+| 工具 L1/L2/L3 门控 | `ToolPrivilegeGate` | `.aurules` 策略 + L3 IM 批复 |
 | 当前 Run 工作区（ContextWindow） | 是 | 否 |
 | 跨 Run / 长期记忆 | 定义 `MemoryPort` | 实现 |
-| 上下文组装策略 | 定义 `ContextComposer` | 默认或定制实现 |
+| 代码上下文切片 | `ContextPackage` 类型 | `SemanticSlicer` + grep/索引 |
+| 项目军规 | `ProjectRulesPort` | 解析 `.aurules` / `AUM.md` |
+| L3 人工审批 | `ApprovalPort` 类型 | Telegram 等 IM 网关 |
+| 上下文组装 | 定义 `ContextComposer` | 默认实现（Rules+Package+Memory+Window） |
 | 智能截断 / 摘要 | `TruncatePolicy` 接口 | 可提供实现 |
-| Embedding、向量库、chunking | 否 | 是 |
-| 会话持久化（SessionStore） | 否 | 是（AuM 专有类型） |
+| Embedding、向量库 | 否 | 是 |
+| 会话持久化（SessionStore） | 否 | 是 |
+| Au-Nuggets 金块技能 | 否 | YAML 固化（Hermes 式进化） |
 
-AuC **不**依赖 AuM 即可运行：未配置 `memory` 时，Agent 仅使用 `ContextWindow` 内的消息。
+AuC **可不挂载 AuM** 运行（开发模式）；**生产 Specialist** 建议 AuM 分派时同时提供 Slicer、Rules，并配置 `ApprovalPort`。
 
 ## 端口协议
 
 AuC 在 `auc/ports/memory.py`（实现阶段）中声明：
 
 - **`MemoryPort`** — `recall` / `remember`
-- **`ContextComposer`** — 合并 recall 与 window
+- **`ContextComposer`** — 合并 Rules、Package、recall 与 window
+- **`ProjectRulesPort`** — 加载 `ProjectRules`
+- **`ApprovalPort`** — L3 `request_approval` / `wait_decision`
 
 完整签名见 [interfaces.md](interfaces.md)。
 
@@ -32,7 +42,37 @@ AuM 应：
 2. 在自身文档中说明存储后端、索引与隐私策略。
 3. 反向引用 AuC 版本，保证 `ChatMessage` 字段兼容。
 
-## 挂载流程
+## Specialist 分派全流程（推荐生产路径）
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant M as AuM调度器
+  participant SL as Slicer
+  participant RL as RulesMatrix
+  participant A as AuCSpecialist
+  participant G as PrivilegeGate
+  participant IM as IM网关
+
+  U->>M: 修改止损逻辑
+  M->>SL: slice(intent, repo)
+  SL-->>M: ContextPackage
+  M->>RL: load_rules(repo_root)
+  RL-->>M: ProjectRules
+  M->>A: RunRequest package + rules
+  A->>A: inject RulesBlock
+  loop ReAct step
+    A->>G: tool invoke
+    alt L3 git push
+      G->>IM: ApprovalRequest + Diff
+      IM->>U: Telegram卡片
+      U->>IM: 允许/拒绝
+      IM-->>G: ApprovalDecision
+    end
+  end
+```
+
+## 挂载流程（记忆 + 组装）
 
 ```mermaid
 sequenceDiagram
@@ -42,55 +82,77 @@ sequenceDiagram
   participant MP as MemoryPort
   participant CC as ContextComposer
 
-  App->>A: AgentConfig(memory, composer)
+  App->>A: AgentConfig(memory, composer, rules, approval)
   Note over App,A: composer 通常由 AuM 工厂提供
 
-  A->>L: LoopContext(memory, composer)
+  A->>L: LoopContext(memory, composer, package, project_rules)
   loop each step
     L->>MP: recall(query)
     MP-->>L: past messages
-    L->>CC: compose(window, recall)
+    L->>CC: compose(window, recall, package, rules)
     CC-->>L: messages for model
-    L->>L: model + tools
+    L->>L: model + PrivilegeGate + tools
     opt remember_each_step
       L->>MP: remember(window.view())
     end
   end
 ```
 
-### 应用层伪代码
+### 应用层伪代码（完整挂载）
 
 ```python
-from aum import AuMMemoryPort, DefaultComposer  # AuM 包，未来实现
+from aum import (
+    AuMMemoryPort,
+    DefaultComposer,
+    SemanticSlicer,
+    RulesMatrix,
+    TelegramApprovalPort,
+)
 from auc import AgentConfig, DefaultAgent, ReActLoop
-from auc.tools import ToolRegistry
+from auc.policy import DefaultToolPrivilegeGate
 
 memory = AuMMemoryPort(session_id="user-123", store=...)
-composer = DefaultComposer(max_recall=10, insert_recall_after_system=True)
+composer = DefaultComposer()
+rules_port = RulesMatrix()
+approval = TelegramApprovalPort(bot_token=...)
+gate = DefaultToolPrivilegeGate(approval=approval)
+
+# AuM 分派前切片 + 军规
+package = await SemanticSlicer().slice(
+    intent="修改量化策略止损逻辑", repo_root="/workspace/proj"
+)
+project_rules = await rules_port.load_rules("/workspace/proj")
 
 config = AgentConfig(
-    agent_id="assistant",
+    agent_id="specialist-quant",
     model=model_client,
     tools=registry,
     loop=ReActLoop(),
     memory=memory,
     composer=composer,
-    loop_config=LoopConfig(remember_each_step=True),
+    rules=rules_port,
+    approval=approval,
+    privilege_gate=gate,
+    slicer_policy=SlicerPolicy(require_package=True),
 )
 
 agent = DefaultAgent(config)
-result = await agent.run(RunRequest(input="继续上次的话题"))
+result = await agent.run(
+    RunRequest(input="修改 stop_loss 阈值", context_package=package)
+)
 ```
 
 ### 挂载检查清单
 
 | 步骤 | 说明 |
 |------|------|
-| 1 | 创建 AuM `MemoryPort`，绑定 user/session/agent 作用域 |
-| 2 | 创建 `ContextComposer`（或使用 AuM 默认） |
-| 3 | 传入 `AgentConfig(memory=..., composer=...)` |
-| 4 | 按需设置 `LoopConfig.remember_each_step` 或在 Run 结束时单次 `remember` |
-| 5 | 订阅 `EventBus` 做审计（可选） |
+| 1 | 项目根提供 `.aurules` 或 `AUM.md`（见 [aurules.md](aurules.md)） |
+| 2 | AuM `SemanticSlicer` 生成分派用 `ContextPackage` |
+| 3 | 创建 `MemoryPort`、`ContextComposer`、`ProjectRulesPort`、`ApprovalPort` |
+| 4 | 配置 `ToolPrivilegeGate` 并注册工具 L1/L2/L3 |
+| 5 | 传入 `AgentConfig`；`RunRequest.context_package` 携带切片 |
+| 6 | 配置 IM 机器人接收 L3 卡片（见 [tool-privilege.md](tool-privilege.md)） |
+| 7 | 订阅 `EventBus`（含 `approval_*` 事件）做审计 |
 
 ## recall 与 remember 调用点
 
@@ -156,8 +218,19 @@ AuC 仅接收 `run_id` / `agent_id` 作为可选关键字参数传入 `recall` /
 - AuC 发布接口变更时，在 CHANGELOG 标注对 `MemoryPort` / `ContextComposer` 的影响。
 - AuM 应针对 AuC 主版本做兼容测试（实现阶段建立联调示例仓库或集成测试）。
 
+## Au-Nuggets（AuM 进化层，概要）
+
+AuM 将多次 Specialist 试错中**验证成功**的路径剥离噪音，固化为 YAML 格式 **Au-Nuggets**，供后续分派注入（类比 Hermes 认知提炼）。AuC 仅通过 `MemoryPort.recall` 或专用 `SkillsPort`（未来）消费，不在本仓库实现。
+
 ## 相关文档
 
+- [design-philosophy.md](design-philosophy.md)
+- [context-slicer.md](context-slicer.md)
+- [aurules.md](aurules.md)
+- [tool-privilege.md](tool-privilege.md)
 - [architecture.md](architecture.md)
 - [interfaces.md](interfaces.md)
 - [adr/002-memory-boundary.md](adr/002-memory-boundary.md)
+- [adr/003-context-slicer.md](adr/003-context-slicer.md)
+- [adr/004-project-rules.md](adr/004-project-rules.md)
+- [adr/005-tool-privilege-2fa.md](adr/005-tool-privilege-2fa.md)

@@ -10,7 +10,21 @@ AuC 文档与接口中使用的核心术语。
 | **AgentLoopRunner** | Loop Runner | 循环调用 `step` 直至终止，产出 `RunResult` |
 | **AssistantMessage** | — | `ModelClient.complete` 的返回：文本与/或 `tool_calls` |
 | **AuC** | Agents-ufy-Core | 本仓库：单智能体 Python 核心框架 |
-| **AuM** | Agents-ufy-Memory | 记忆与持久化层（独立仓库），实现 AuC 端口 |
+| **AuM** | Agents-ufy-Meta/Memory | 调度、记忆、Slicer、Rules、IM 2FA（独立仓库） |
+| **Au-Context Slicer** | Context Slicer | AuM 语义代码切片器，产出 `ContextPackage` |
+| **Au-Rules Matrix** | Rules Matrix | AuM 对 `.aurules` / `AUM.md` 的解析与缓存 |
+| **Au-Nuggets** | — | AuM 固化的 YAML 技能金块（进化层） |
+| **ApprovalPort** | — | L3 人工批复端口（AuM IM 实现） |
+| **ContextPackage** | — | 任务相关代码片段包，挂载于 `RunRequest` |
+| **CodeSnippet** | — | Package 内单文件片段与行号范围 |
+| **.pending_approval** | — | Run 等待 L3 批复的状态 |
+| **ProjectRules** | — | 军规结构化对象（Build/Test/Style/tool_policy） |
+| **ProjectRulesPort** | — | 加载项目军规的协议（AuM 实现） |
+| **SemanticSlicer** | — | AuM 内建切片管线（grep/索引/调用图） |
+| **Specialist** | Specialist Agent | 由 AuM 分派的 AuC Agent 实例 |
+| **ToolPrivilege** | L1/L2/L3 | 工具风险分级 |
+| **ToolPrivilegeGate** | — | AuC 工具调用前门控 |
+| **SlicerPolicy** | — | 是否强制 `ContextPackage` 等策略 |
 | **ChatMessage** | — | 统一消息结构：system / user / assistant / tool |
 | **ContextComposer** | — | 合并 `MemoryPort` 召回与 `ContextWindow` 的协议 |
 | **ContextWindow** | — | 当前 Run 的短期消息工作区 |

@@ -11,8 +11,12 @@ from typing import Any, AsyncIterator, Literal, Protocol
 AgentId = str
 RunId = str
 
-RunStatus = Literal["completed", "max_steps", "cancelled", "error"]
+RunStatus = Literal[
+    "completed", "max_steps", "cancelled", "error",
+    "pending_approval", "denied",
+]
 MessageRole = Literal["system", "user", "assistant", "tool"]
+ToolPrivilege = Literal["L1", "L2", "L3"]
 ```
 
 ## 消息与运行
@@ -55,6 +59,7 @@ class ToolResult:
 class RunRequest:
     input: str | list[ChatMessage]
     run_id: RunId | None = None
+    context_package: "ContextPackage | None" = None  # AuM Slicer 交付
     metadata: dict[str, Any] = field(default_factory=dict)
 
 @dataclass
@@ -97,6 +102,10 @@ class AgentConfig:
     loop: "AgentLoop" | None = None          # 默认 ReActLoop
     memory: "MemoryPort | None" = None
     composer: "ContextComposer | None" = None
+    rules: "ProjectRulesPort | None" = None
+    approval: "ApprovalPort | None" = None
+    privilege_gate: "ToolPrivilegeGate | None" = None
+    slicer_policy: "SlicerPolicy | None" = None
     loop_config: "LoopConfig" = field(default_factory=lambda: LoopConfig())
     system_prompt: str | None = None
 ```
@@ -159,13 +168,36 @@ class Tool(Protocol):
 
     async def invoke(self, arguments: dict[str, Any]) -> ToolResult: ...
 
+@dataclass
+class ToolPolicy:
+    name: str
+    privilege: ToolPrivilege
+    sandbox_only: bool = False
+
 class ToolRegistry(Protocol):
-    def register(self, tool: Tool) -> None: ...
+    def register(self, tool: Tool, policy: ToolPolicy | None = None) -> None: ...
     def get(self, name: str) -> Tool | None: ...
+    def get_policy(self, name: str) -> ToolPolicy: ...
     def list_schemas(self) -> list[ToolSchema]: ...
+
+class ToolPrivilegeGate(Protocol):
+    async def check_and_invoke(
+        self,
+        tool: Tool,
+        policy: ToolPolicy,
+        arguments: dict[str, Any],
+        *,
+        ctx: "LoopContext",
+    ) -> ToolResult | "PendingApproval": ...
+
+@dataclass
+class PendingApproval:
+    request_id: str
+    tool_call: ToolCall
+    run_id: RunId
 ```
 
-实现阶段可提供 `@tool` 装饰器，从函数签名生成 `ToolSchema`。
+实现阶段可提供 `@tool` 装饰器，从函数签名生成 `ToolSchema`；`privilege` 可由 `@tool(privilege="L2")` 指定。
 
 ### Tool 扩展说明（文档级）
 
@@ -232,6 +264,80 @@ class ContextComposer(Protocol):
 
 AuC **不**定义 embedding、chunking、存储后端；这些属于 AuM。
 
+## ContextPackage（AuM Slicer 产出）
+
+```python
+@dataclass
+class CodeSnippet:
+    path: str
+    content: str
+    line_range: tuple[int, int] | None = None
+    relevance_score: float | None = None
+
+@dataclass
+class ContextPackage:
+    package_id: str
+    intent_summary: str
+    snippets: list[CodeSnippet]
+    token_estimate: int
+    provenance: dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class SlicerPolicy:
+    require_package: bool = True
+    max_ad_hoc_read_bytes: int = 8192
+    allow_full_repo_grep: bool = False
+```
+
+详见 [context-slicer.md](context-slicer.md)。
+
+## ProjectRulesPort（AuM 解析 .aurules）
+
+```python
+@dataclass
+class ProjectRules:
+    version: int
+    build_commands: list[str]
+    test_commands: list[str]
+    style_notes: list[str]
+    tool_policy: dict[str, ToolPrivilege]  # 工具名 -> L1/L2/L3
+    sandbox_root: str | None = None
+    raw_markdown: str | None = None
+
+class ProjectRulesPort(Protocol):
+    async def load_rules(self, repo_root: str) -> ProjectRules: ...
+```
+
+`ContextComposer.compose` 增加可选参数：`rules: ProjectRules | None`、`package: ContextPackage | None`。详见 [aurules.md](aurules.md)。
+
+## ApprovalPort（AuM IM 2FA）
+
+```python
+@dataclass
+class ApprovalRequest:
+    request_id: str
+    run_id: RunId
+    agent_id: AgentId
+    tool_name: str
+    arguments: dict[str, Any]
+    diff_text: str
+    risk_summary: str
+
+@dataclass
+class ApprovalDecision:
+    approved: bool
+    decided_by: str | None = None  # user_id / telegram chat id
+    reason: str | None = None
+
+class ApprovalPort(Protocol):
+    async def request_approval(self, req: ApprovalRequest) -> str: ...
+    async def wait_decision(
+        self, request_id: str, timeout: float = 3600.0
+    ) -> ApprovalDecision: ...
+```
+
+详见 [tool-privilege.md](tool-privilege.md)。
+
 ## AgentLoop
 
 ```python
@@ -253,6 +359,10 @@ class LoopContext:
     config: LoopConfig
     memory: MemoryPort | None = None
     composer: ContextComposer | None = None
+    context_package: ContextPackage | None = None
+    project_rules: ProjectRules | None = None
+    privilege_gate: ToolPrivilegeGate | None = None
+    approval: ApprovalPort | None = None
     system_prompt: str | None = None
     cancelled: bool = False
 
@@ -292,6 +402,9 @@ RunEventType = Literal[
     "model_delta",
     "tool_start",
     "tool_end",
+    "approval_required",
+    "approval_granted",
+    "approval_denied",
     "step_end",
     "run_end",
 ]
@@ -324,6 +437,10 @@ class EventBus(Protocol):
 
 ## 相关文档
 
+- [design-philosophy.md](design-philosophy.md)
+- [context-slicer.md](context-slicer.md)
+- [aurules.md](aurules.md)
+- [tool-privilege.md](tool-privilege.md)
 - [architecture.md](architecture.md)
 - [loops.md](loops.md)
 - [aum-integration.md](aum-integration.md)
