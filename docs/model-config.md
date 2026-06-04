@@ -1,129 +1,69 @@
-# 大模型配置（OpenAI / Anthropic）
+# 大模型配置（Claude Code `settings.json` 格式）
 
-AuC 通过 **配置文件**、**环境变量** 或 **终端参数** 选择 OpenAI 兼容 API 或 Anthropic Messages API。优先级：
+AuC 与 Claude Code 一致：顶层 **`env`** 注入环境变量，并增加 **配置命名字段** 便于识别多套配置。
 
-**CLI 参数 > 环境变量 > 配置文件 > 默认值**
-
-## 配置文件
-
-搜索顺序（`auc config show` 可查看实际命中路径）：
-
-1. `--config /path/to/file`
-2. 环境变量 `AUC_CONFIG`（配置文件路径）
-3. **`~/.Au/AuC/config.yaml`**（默认用户配置）
-4. `~/.Au/AuC/config.yml`
-5. 项目目录 `./.auc.yaml`（可选覆盖）
-
-### 初始化
-
-```bash
-# 写入 ~/.Au/AuC/config.yaml（OpenAI 模板）
-auc config init
-
-# Anthropic 模板
-auc config init --provider anthropic
-
-# 自定义路径
-auc config init --path /path/to/custom.yaml
+```json
+{
+  "$schema": "https://github.com/ufy2024/AuC/blob/main/docs/schema/settings.schema.json",
+  "configName": "DeepSeek V4",
+  "configId": "deepseek-v4-anthropic",
+  "description": "经 DeepSeek Anthropic 兼容网关",
+  "env": {
+    "AUC_PROVIDER": "anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "${DEEPSEEK_API_KEY}",
+    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+    "API_TIMEOUT_MS": "300000",
+    "ANTHROPIC_MODEL": "deepseek-chat",
+    "ANTHROPIC_SMALL_FAST_MODEL": "deepseek-chat",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-chat",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-chat",
+    "AUC_MAX_TOKENS": "4096"
+  }
+}
 ```
 
-### OpenAI 示例
+合并优先级（后者覆盖前者）：`~/.Au/AuC/config.yaml`（legacy）→ `config.json` → **`settings.json`** → `.auc/settings.json` → `.auc/settings.local.json`
 
-```yaml
-provider: openai
-model: gpt-4o-mini
-api_key: ${OPENAI_API_KEY}
-base_url: https://api.openai.com/v1   # 兼容 DeepSeek 等可改此 URL
-timeout: 120
-max_tokens: 4096
-```
+运行时：**CLI > 进程环境变量 > 合并后的 `env` > 默认值**
 
-### Anthropic 示例
+## 命名字段
 
-```yaml
-provider: anthropic
-model: claude-sonnet-4-20250514
-api_key: ${ANTHROPIC_API_KEY}
-base_url: https://api.anthropic.com
-timeout: 120
-max_tokens: 4096
-```
+| 字段 | 说明 |
+|------|------|
+| `configName` | 显示名称（如「DeepSeek V4」） |
+| `configId` | 唯一 ID（如 `deepseek-v4-anthropic`），便于脚本切换 |
+| `description` | 配置说明 |
 
-### DeepSeek 示例（OpenAI 兼容接口）
-
-```yaml
-provider: deepseek
-model: deepseek-chat
-api_key: ${DEEPSEEK_API_KEY}
-base_url: https://api.deepseek.com
-timeout: 120
-max_tokens: 4096
-```
-
-一键生成 DeepSeek 配置：
-
-```bash
-auc config init --provider deepseek
-export DEEPSEEK_API_KEY=sk-...
-auc chat "你好"
-```
-
-可选模型：`deepseek-chat`（对话）、`deepseek-reasoner`（推理，若账号支持）。
-
-`api_key` 支持 `${ENV_NAME}`，启动时从环境变量展开。
-
-## 环境变量
+## 常用 `env` 键
 
 | 变量 | 说明 |
 |------|------|
-| `AUC_CONFIG` | 配置文件路径（等同 `--config`） |
 | `AUC_PROVIDER` | `openai` / `anthropic` / `deepseek` |
-| `AUC_MODEL` | 模型 ID |
-| `AUC_API_KEY` | 通用 API Key（覆盖文件） |
-| `AUC_BASE_URL` | API 根地址 |
-| `AUC_TIMEOUT` | 超时秒数 |
-| `AUC_MAX_TOKENS` | 最大输出 token（Anthropic） |
-| `OPENAI_API_KEY` | provider=openai 时默认 Key |
-| `ANTHROPIC_API_KEY` | provider=anthropic 时默认 Key |
-| `DEEPSEEK_API_KEY` | provider=deepseek 时默认 Key |
+| `ANTHROPIC_AUTH_TOKEN` | Anthropic 网关 Token（Claude Code 同名） |
+| `ANTHROPIC_API_KEY` | 原生 Anthropic Key |
+| `ANTHROPIC_BASE_URL` | API 根地址 |
+| `ANTHROPIC_MODEL` | 主模型 ID |
+| `OPENAI_API_KEY` / `OPENAI_BASE_URL` | OpenAI 兼容（含 DeepSeek OpenAI 模式） |
+| `DEEPSEEK_API_KEY` | DeepSeek Key |
+| `API_TIMEOUT_MS` | 超时（毫秒，与 Claude Code 一致） |
+| `AUC_MODEL` / `AUC_MAX_TOKENS` | AuC 扩展 |
 
-## 终端使用
+`env` 内值支持 `${ENV_NAME}` 占位，加载时从环境变量展开。
+
+## CLI
 
 ```bash
-# 使用配置文件
-auc chat "你好"
-
-# 临时指定 Anthropic / DeepSeek
-auc chat "你好" --provider anthropic --model claude-sonnet-4-20250514
-auc chat "你好" --provider deepseek --model deepseek-chat
-
-# 指定配置文件
-auc chat "你好" -c ~/.Au/AuC/config.yaml
-
-# 查看合并后的配置（Key 脱敏）
+auc config init --provider deepseek
+auc config init --config-name "我的 DeepSeek" --config-id my-ds
 auc config show
-
-# 修改默认配置文件
-auc config set --provider openai --model gpt-4o
+auc config migrate
+auc chat "你好"
 ```
 
-## Python API
-
-```python
-from auc.config import load_model_config
-from auc.model.factory import create_model_client, aclose_model_client
-
-cfg = load_model_config(
-    config_path="~/.Au/AuC/config.yaml",
-    provider="anthropic",  # 可选覆盖
-)
-model = create_model_client(cfg)
-# ... AgentConfig(model=model) ...
-await aclose_model_client(model)
-```
+仍兼容 legacy 顶层 `model` 对象；新配置请只用 `env` + 命名字段。
 
 ## 依赖
 
 ```bash
-pip install 'auc[openai]'   # 安装 httpx（OpenAI + Anthropic 均需）
+pip install 'auc[openai]'
 ```

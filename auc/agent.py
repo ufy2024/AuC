@@ -44,6 +44,7 @@ class DefaultAgent:
         self._runner = AgentLoopRunner()
         self._cancelled_runs: set[RunId] = set()
         self._active_events: dict[RunId, EventBus] = {}
+        self._last_run_result: RunResult | None = None
 
     @property
     def agent_id(self) -> AgentId:
@@ -82,9 +83,13 @@ class DefaultAgent:
                     break
         finally:
             bus.close_stream_queue(queue)
-            await task
+            self._last_run_result = await task
             self._active_events.pop(ctx.run_id, None)
             self._cancelled_runs.discard(ctx.run_id)
+
+    @property
+    def last_run_result(self) -> RunResult | None:
+        return self._last_run_result
 
     @staticmethod
     def _normalize_request(

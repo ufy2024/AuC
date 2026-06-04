@@ -13,6 +13,7 @@ from auc.loop.base import (
 )
 from auc.messages import ToolResult
 from auc.model.client import AssistantMessage
+from auc.model.streaming import stream_to_assistant
 from auc.policy.privilege import PendingApproval, ToolPrivilegeGate
 
 
@@ -30,19 +31,34 @@ class ReActLoop:
 
         messages = await default_compose(ctx, recall)
         schemas = ctx.tools.list_schemas()
-        assistant = await ctx.model.complete(messages, tools=schemas or None)
 
-        ctx.events.emit_typed(
-            "model_delta",
-            ctx.run_id,
-            ctx.agent_id,
-            {
-                "content": assistant.content,
-                "tool_calls": [
-                    {"name": tc.name, "id": tc.id} for tc in (assistant.tool_calls or [])
-                ],
-            },
+        async def _on_delta(text: str) -> None:
+            ctx.events.emit_typed(
+                "model_delta",
+                ctx.run_id,
+                ctx.agent_id,
+                {"delta": text},
+            )
+
+        assistant = await stream_to_assistant(
+            ctx.model,
+            messages,
+            schemas or None,
+            on_delta=_on_delta,
         )
+
+        if assistant.tool_calls:
+            ctx.events.emit_typed(
+                "model_delta",
+                ctx.run_id,
+                ctx.agent_id,
+                {
+                    "tool_calls": [
+                        {"name": tc.name, "id": tc.id}
+                        for tc in assistant.tool_calls
+                    ],
+                },
+            )
 
         tool_results: list[ToolResult] = []
         gate = ctx.privilege_gate or ToolPrivilegeGate(approval=ctx.approval)

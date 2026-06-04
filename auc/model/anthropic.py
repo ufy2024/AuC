@@ -177,11 +177,77 @@ class AnthropicClient:
         messages: list[ChatMessage],
         tools: list[ToolSchema] | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        msg = await self.complete(messages, tools)
-        if msg.content:
-            yield StreamChunk(delta_content=msg.content, finish_reason="end_turn")
-        if msg.tool_calls:
-            yield StreamChunk(delta_tool_calls=msg.tool_calls, finish_reason="end_turn")
+        client = self._get_client()
+        system, api_messages = _to_anthropic_messages(messages)
+        body: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": self.max_tokens,
+            "messages": api_messages,
+            "stream": True,
+        }
+        if system:
+            body["system"] = system
+        api_tools = _tools_to_anthropic(tools)
+        if api_tools:
+            body["tools"] = api_tools
+
+        tool_blocks: dict[int, dict[str, Any]] = {}
+        current_tool_idx: int | None = None
+
+        async with client.stream("POST", "/v1/messages", json=body) as resp:
+            resp.raise_for_status()
+            event_type = ""
+            async for line in resp.aiter_lines():
+                if line.startswith("event:"):
+                    event_type = line[6:].strip()
+                    continue
+                if not line.startswith("data:"):
+                    continue
+                try:
+                    data = json.loads(line[5:].strip())
+                except json.JSONDecodeError:
+                    continue
+
+                if event_type == "content_block_start":
+                    block = data.get("content_block") or {}
+                    if block.get("type") == "tool_use":
+                        current_tool_idx = data.get("index", 0)
+                        tool_blocks[current_tool_idx] = {
+                            "id": block.get("id", ""),
+                            "name": block.get("name", ""),
+                            "input_json": "",
+                        }
+                elif event_type == "content_block_delta":
+                    delta = data.get("delta") or {}
+                    if delta.get("type") == "text_delta":
+                        text = delta.get("text")
+                        if text:
+                            yield StreamChunk(delta_content=text)
+                    elif delta.get("type") == "input_json_delta":
+                        idx = current_tool_idx if current_tool_idx is not None else 0
+                        entry = tool_blocks.setdefault(
+                            idx, {"id": "", "name": "", "input_json": ""}
+                        )
+                        entry["input_json"] += delta.get("partial_json") or ""
+                elif event_type == "message_delta":
+                    stop = (data.get("delta") or {}).get("stop_reason")
+                    if stop:
+                        yield StreamChunk(finish_reason=stop)
+
+        if tool_blocks:
+            calls: list[ToolCall] = []
+            for idx in sorted(tool_blocks.keys()):
+                entry = tool_blocks[idx]
+                raw = entry.get("input_json") or "{}"
+                args = json.loads(raw) if raw else {}
+                calls.append(
+                    ToolCall(
+                        id=str(entry.get("id") or f"call_{idx}"),
+                        name=str(entry.get("name") or ""),
+                        arguments=args if isinstance(args, dict) else {},
+                    )
+                )
+            yield StreamChunk(delta_tool_calls=calls, finish_reason="tool_use")
 
     async def aclose(self) -> None:
         if self._client is not None:

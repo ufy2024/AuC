@@ -64,7 +64,13 @@ async def _test_run_stream_emits_run_end() -> None:
         AgentConfig(agent_id="s", model=model, tools=DefaultToolRegistry()),
     )
     types: list[str] = []
+    deltas: list[str] = []
     async for ev in agent.run_stream("hi"):
         types.append(ev.type)
+        if ev.type == "model_delta" and ev.payload.get("delta"):
+            deltas.append(ev.payload["delta"])
     assert "run_start" in types
     assert "run_end" in types
+    assert "".join(deltas) == "ok"
+    assert agent.last_run_result is not None
+    assert agent.last_run_result.output == "ok"

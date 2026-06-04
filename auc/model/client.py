@@ -64,6 +64,8 @@ class InMemoryModelClient:
     ) -> AsyncIterator[StreamChunk]:
         msg = await self.complete(messages, tools)
         if msg.content:
-            yield StreamChunk(delta_content=msg.content, finish_reason="stop")
+            for ch in msg.content:
+                yield StreamChunk(delta_content=ch)
+            yield StreamChunk(finish_reason="stop")
         if msg.tool_calls:
             yield StreamChunk(delta_tool_calls=msg.tool_calls, finish_reason="stop")

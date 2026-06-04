@@ -117,14 +117,7 @@ class OpenAICompatibleClient:
         tools: list[ToolSchema] | None = None,
     ) -> AssistantMessage:
         client = self._get_client()
-        body: dict[str, Any] = {
-            "model": self.model,
-            "messages": _messages_to_api(messages),
-        }
-        api_tools = _tools_to_api(tools)
-        if api_tools:
-            body["tools"] = api_tools
-            body["tool_choice"] = "auto"
+        body = self._build_body(messages, tools, stream=False)
 
         resp = await client.post("/chat/completions", json=body)
         resp.raise_for_status()
@@ -136,16 +129,81 @@ class OpenAICompatibleClient:
             raw=data,
         )
 
+    def _build_body(
+        self,
+        messages: list[ChatMessage],
+        tools: list[ToolSchema] | None,
+        *,
+        stream: bool,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "model": self.model,
+            "messages": _messages_to_api(messages),
+            "stream": stream,
+        }
+        api_tools = _tools_to_api(tools)
+        if api_tools:
+            body["tools"] = api_tools
+            body["tool_choice"] = "auto"
+        return body
+
     async def complete_stream(
         self,
         messages: list[ChatMessage],
         tools: list[ToolSchema] | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        msg = await self.complete(messages, tools)
-        if msg.content:
-            yield StreamChunk(delta_content=msg.content, finish_reason="stop")
-        if msg.tool_calls:
-            yield StreamChunk(delta_tool_calls=msg.tool_calls, finish_reason="stop")
+        client = self._get_client()
+        body = self._build_body(messages, tools, stream=True)
+        tool_acc: dict[int, dict[str, str]] = {}
+
+        async with client.stream(
+            "POST", "/chat/completions", json=body
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    data = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                for choice in data.get("choices") or []:
+                    delta = choice.get("delta") or {}
+                    text = delta.get("content")
+                    if text:
+                        yield StreamChunk(delta_content=text)
+                    for tc in delta.get("tool_calls") or []:
+                        idx = int(tc.get("index", 0))
+                        entry = tool_acc.setdefault(
+                            idx, {"id": "", "name": "", "arguments": ""}
+                        )
+                        if tc.get("id"):
+                            entry["id"] = tc["id"]
+                        fn = tc.get("function") or {}
+                        if fn.get("name"):
+                            entry["name"] += fn["name"]
+                        if fn.get("arguments"):
+                            entry["arguments"] += fn["arguments"]
+                    if choice.get("finish_reason"):
+                        yield StreamChunk(finish_reason=choice["finish_reason"])
+
+        if tool_acc:
+            calls = []
+            for idx in sorted(tool_acc.keys()):
+                entry = tool_acc[idx]
+                raw = entry.get("arguments") or "{}"
+                args = json.loads(raw) if raw else {}
+                calls.append(
+                    ToolCall(
+                        id=entry.get("id") or f"call_{idx}",
+                        name=entry.get("name") or "",
+                        arguments=args,
+                    )
+                )
+            yield StreamChunk(delta_tool_calls=calls, finish_reason="tool_calls")
 
     async def aclose(self) -> None:
         if self._client is not None:

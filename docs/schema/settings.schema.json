@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ufy2024/AuC/settings.schema.json",
+  "title": "AuC Settings",
+  "description": "AuC configuration (Claude Code ~/.claude/settings.json style)",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string" },
+    "configName": {
+      "type": "string",
+      "description": "配置显示名称（人类可读）"
+    },
+    "configId": {
+      "type": "string",
+      "description": "配置唯一标识（用于切换、引用）"
+    },
+    "description": {
+      "type": "string",
+      "description": "配置说明"
+    },
+    "env": {
+      "type": "object",
+      "description": "注入进程的环境变量（与 Claude Code 一致）",
+      "additionalProperties": { "type": "string" }
+    },
+    "model": {
+      "type": "object",
+      "description": "可选 legacy 模型块（建议改用 env）",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["openai", "anthropic", "deepseek"]
+        },
+        "id": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "baseUrl": { "type": "string" },
+        "timeoutSeconds": { "type": "number" },
+        "maxTokens": { "type": "integer" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
