@@ -13,8 +13,17 @@ __all__ = [
 ]
 
 try:
+    from auc.model.anthropic import AnthropicClient
+    from auc.model.factory import create_model_client, aclose_model_client
     from auc.model.openai import OpenAICompatibleClient
 
-    __all__.append("OpenAICompatibleClient")
+    __all__.extend(
+        [
+            "AnthropicClient",
+            "OpenAICompatibleClient",
+            "create_model_client",
+            "aclose_model_client",
+        ]
+    )
 except ImportError:  # pragma: no cover
     pass

@@ -4,19 +4,25 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
-**v0.2.0** — 路线图阶段 1–4 已在 `auc` 包内提供参考实现（含 OpenAI 适配器、SemanticSlicer、Telegram 审批、Au-Nuggets、MetaDispatcher）。
+**v0.2.0** — 支持 **OpenAI 兼容** 与 **Anthropic** 大模型，可通过 [配置文件](docs/model-config.md)、环境变量或 CLI 参数切换。
 
 ## 快速开始
 
 ```bash
 cd AuC
-pip install -e ".[dev]"   # 或: PYTHONPATH=. python ...
+pip install -e ".[dev]"   # 需 httpx: pip install 'auc[openai]'
+
+auc config init              # 生成 .auc.yaml
+export OPENAI_API_KEY=sk-... # 或 ANTHROPIC_API_KEY
+auc config show
+auc chat "你好"              # 按配置调用大模型
+auc chat "hi" -p anthropic -m claude-sonnet-4-20250514
+
 python examples/minimal_run.py
-python examples/aum_dispatch.py
-auc run "hello"
-auc slice "stop_loss" --repo tests/fixtures/sample_repo
 PYTHONPATH=. python -m pytest -q
 ```
+
+大模型配置详见 [docs/model-config.md](docs/model-config.md)。
 
 ```python
 import asyncio
@@ -55,6 +61,7 @@ asyncio.run(main())
 | [docs/design-philosophy.md](docs/design-philosophy.md) | 设计哲学与生态蓝图 |
 | [docs/architecture.md](docs/architecture.md) | 总体架构 |
 | [docs/interfaces.md](docs/interfaces.md) | 接口草案 |
+| [docs/model-config.md](docs/model-config.md) | OpenAI / Anthropic 配置 |
 | [docs/aum-compatibility.md](docs/aum-compatibility.md) | AuM 联调与版本 |
 | [docs/loops.md](docs/loops.md) | Loop 与 Gate |
 | [docs/adr/](docs/adr/) | ADR 001–005 |

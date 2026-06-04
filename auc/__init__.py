@@ -1,6 +1,7 @@
 """Agents-ufy-Core (AuC): asyncio single-agent framework."""
 
 from auc.agent import AgentConfig, DefaultAgent
+from auc.config import ModelConfig, load_model_config, discover_config_path
 from auc.context import ListContextWindow
 from auc.events import EventBus, RunEvent
 from auc.loop import AgentLoopRunner, LoopConfig, ReActLoop
@@ -21,7 +22,7 @@ from auc.policy import ToolPrivilegeGate
 from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 from auc.tools import DefaultToolRegistry, make_echo_tool, register_function_tools, tool
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 __all__ = [
     "__version__",
@@ -58,11 +59,23 @@ __all__ = [
 ]
 
 try:
+    from auc.model.anthropic import AnthropicClient
+    from auc.model.factory import create_model_client, aclose_model_client
     from auc.model.openai import OpenAICompatibleClient
 
-    __all__.append("OpenAICompatibleClient")
+    __all__.extend(
+        [
+            "AnthropicClient",
+            "OpenAICompatibleClient",
+            "create_model_client",
+            "aclose_model_client",
+            "ModelConfig",
+            "load_model_config",
+            "discover_config_path",
+        ]
+    )
 except ImportError:  # pragma: no cover
-    pass
+    __all__.extend(["ModelConfig", "load_model_config", "discover_config_path"])
 
 try:
     from auc.integration import (
