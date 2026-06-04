@@ -1,0 +1,12 @@
+---
+version: 1
+sandbox_root: .
+tool_policy:
+  git_push: L3
+---
+
+## Test Commands
+- `pytest tests/test_risk.py`
+
+## Code Style
+- Use type hints.

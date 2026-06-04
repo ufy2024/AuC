@@ -8,8 +8,8 @@ from auc.messages import ChatMessage, RunRequest, RunResult, ToolCall, ToolResul
 from auc.model import AssistantMessage, InMemoryModelClient
 from auc.ports import (
     AutoApprovePort,
-    ContextPackage,
     CodeSnippet,
+    ContextPackage,
     DefaultComposer,
     DenyApprovalPort,
     FileRulesPort,
@@ -18,9 +18,10 @@ from auc.ports import (
     SlicerPolicy,
 )
 from auc.policy import ToolPrivilegeGate
-from auc.tools import DefaultToolRegistry, make_echo_tool, tool, register_function_tools
+from auc.sandbox import SandboxViolationError, resolve_under_sandbox
+from auc.tools import DefaultToolRegistry, make_echo_tool, register_function_tools, tool
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
@@ -45,11 +46,47 @@ __all__ = [
     "RunEvent",
     "RunRequest",
     "RunResult",
+    "SandboxViolationError",
     "SlicerPolicy",
     "ToolCall",
     "ToolPrivilegeGate",
     "ToolResult",
     "make_echo_tool",
     "register_function_tools",
+    "resolve_under_sandbox",
     "tool",
 ]
+
+try:
+    from auc.model.openai import OpenAICompatibleClient
+
+    __all__.append("OpenAICompatibleClient")
+except ImportError:  # pragma: no cover
+    pass
+
+try:
+    from auc.integration import (
+        AuMStack,
+        MetaDispatcher,
+        NuggetsStore,
+        SemanticSlicer,
+        SpecialistRegistry,
+        SpecialistSpec,
+        ConsoleApprovalPort,
+        TelegramApprovalPort,
+    )
+
+    __all__.extend(
+        [
+            "AuMStack",
+            "MetaDispatcher",
+            "NuggetsStore",
+            "SemanticSlicer",
+            "SpecialistRegistry",
+            "SpecialistSpec",
+            "ConsoleApprovalPort",
+            "TelegramApprovalPort",
+        ]
+    )
+except ImportError:  # pragma: no cover
+    pass

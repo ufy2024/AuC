@@ -1,0 +1,4 @@
+nuggets:
+  - id: stop_loss_hint
+    tags: [quant, stop_loss]
+    content: After editing stop_loss, run pytest tests/test_risk_manager.py

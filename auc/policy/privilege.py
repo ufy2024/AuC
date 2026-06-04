@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from auc.messages import ToolCall, ToolResult
 from auc.ports.approval import ApprovalPort, ApprovalRequest
+from auc.sandbox import SandboxViolationError, validate_path_argument
 from auc.tools.base import Tool, ToolPolicy
 
 if TYPE_CHECKING:
@@ -64,6 +65,18 @@ class ToolPrivilegeGate:
                 {"request_id": req_id, "tool": tool.name},
             )
             return PendingApproval(request_id=req_id, tool_call=tc, run_id=ctx.run_id)
+
+        if policy.sandbox_only or policy.privilege == "L2":
+            root = ctx.project_rules.sandbox_root if ctx.project_rules else None
+            try:
+                validate_path_argument(root, arguments)
+            except SandboxViolationError as exc:
+                return ToolResult(
+                    tool_call_id="",
+                    name=tool.name,
+                    content=str(exc),
+                    is_error=True,
+                )
 
         result = await tool.invoke(arguments)
         result.tool_call_id = result.tool_call_id or ""

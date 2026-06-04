@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "auc"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agents-ufy-Core: asyncio single-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -18,11 +18,18 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "PyYAML>=6.0",
+]
 
 [project.optional-dependencies]
 openai = ["httpx>=0.27.0"]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+telegram = ["httpx>=0.27.0"]
+all = ["httpx>=0.27.0", "PyYAML>=6.0"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "httpx>=0.27.0"]
+
+[project.scripts]
+auc = "auc.cli:main"
 
 [project.urls]
 Repository = "https://github.com/ufy2024/AuC"
