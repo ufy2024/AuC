@@ -1,34 +1,46 @@
 import os
 from pathlib import Path
 
-from auc.config import load_model_config, save_config_file, ModelConfig, discover_config_path
+from auc.config import (
+    default_config_path,
+    discover_config_path,
+    load_model_config,
+    user_config_dir,
+)
+from auc.model.anthropic import AnthropicClient
 from auc.model.factory import create_model_client
 from auc.model.openai import OpenAICompatibleClient
-from auc.model.anthropic import AnthropicClient
 
 
-def test_load_from_file(tmp_path, monkeypatch) -> None:
-    monkeypatch.delenv("AUC_PROVIDER", raising=False)
-    cfg_file = tmp_path / ".auc.yaml"
+def test_user_config_dir(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert user_config_dir() == tmp_path / ".Au" / "AuC"
+    assert default_config_path() == tmp_path / ".Au" / "AuC" / "config.yaml"
+
+
+def test_load_from_user_dir(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cfg_dir = user_config_dir()
+    cfg_dir.mkdir(parents=True)
+    cfg_file = cfg_dir / "config.yaml"
     cfg_file.write_text(
         """
 provider: anthropic
 model: claude-test
 api_key: ${MY_KEY}
-base_url: https://api.anthropic.com
 """,
         encoding="utf-8",
     )
     monkeypatch.setenv("MY_KEY", "secret-key")
-    monkeypatch.chdir(tmp_path)
     cfg = load_model_config()
     assert cfg.provider == "anthropic"
     assert cfg.model == "claude-test"
     assert cfg.api_key == "secret-key"
+    assert cfg.config_path == str(cfg_file)
 
 
 def test_cli_overrides_file(tmp_path, monkeypatch) -> None:
-    cfg_file = tmp_path / ".auc.yaml"
+    cfg_file = tmp_path / "custom.yaml"
     cfg_file.write_text("provider: openai\nmodel: gpt-old\n", encoding="utf-8")
     cfg = load_model_config(
         config_path=str(cfg_file),
@@ -40,9 +52,18 @@ def test_cli_overrides_file(tmp_path, monkeypatch) -> None:
     assert cfg.model == "claude-new"
 
 
-def test_env_overrides_file(tmp_path, monkeypatch) -> None:
+def test_env_auc_config(monkeypatch, tmp_path) -> None:
+    f = tmp_path / "via-env.yaml"
+    f.write_text("provider: openai\nmodel: from-env-file\n", encoding="utf-8")
+    monkeypatch.setenv("AUC_CONFIG", str(f))
+    cfg = load_model_config()
+    assert cfg.model == "from-env-file"
+
+
+def test_env_model_overrides_file(tmp_path, monkeypatch) -> None:
     cfg_file = tmp_path / ".auc.yaml"
     cfg_file.write_text("provider: openai\nmodel: gpt-old\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("AUC_MODEL", "from-env")
     cfg = load_model_config(config_path=str(cfg_file))
     assert cfg.model == "from-env"

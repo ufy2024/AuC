@@ -1,7 +1,13 @@
 """Agents-ufy-Core (AuC): asyncio single-agent framework."""
 
 from auc.agent import AgentConfig, DefaultAgent
-from auc.config import ModelConfig, load_model_config, discover_config_path
+from auc.config import (
+    ModelConfig,
+    default_config_path,
+    discover_config_path,
+    load_model_config,
+    user_config_dir,
+)
 from auc.context import ListContextWindow
 from auc.events import EventBus, RunEvent
 from auc.loop import AgentLoopRunner, LoopConfig, ReActLoop
@@ -22,7 +28,7 @@ from auc.policy import ToolPrivilegeGate
 from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 from auc.tools import DefaultToolRegistry, make_echo_tool, register_function_tools, tool
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 __all__ = [
     "__version__",
@@ -72,10 +78,20 @@ try:
             "ModelConfig",
             "load_model_config",
             "discover_config_path",
+            "user_config_dir",
+            "default_config_path",
         ]
     )
 except ImportError:  # pragma: no cover
-    __all__.extend(["ModelConfig", "load_model_config", "discover_config_path"])
+    __all__.extend(
+        [
+            "ModelConfig",
+            "load_model_config",
+            "discover_config_path",
+            "user_config_dir",
+            "default_config_path",
+        ]
+    )
 
 try:
     from auc.integration import (

@@ -12,6 +12,11 @@ Provider = Literal["openai", "anthropic"]
 
 _ENV_REF = re.compile(r"^\$\{([^}]+)\}$")
 
+# 用户级配置目录：~/.Au/AuC/
+AUC_USER_DIR_NAME = ".Au"
+AUC_APP_DIR_NAME = "AuC"
+DEFAULT_CONFIG_FILENAME = "config.yaml"
+
 
 @dataclass
 class ModelConfig:
@@ -57,16 +62,34 @@ def _default_model(provider: Provider) -> str:
     return "gpt-4o-mini"
 
 
+def user_config_dir() -> Path:
+    """Return ~/.Au/AuC (created on demand by callers that write)."""
+    return Path.home() / AUC_USER_DIR_NAME / AUC_APP_DIR_NAME
+
+
+def default_config_path() -> Path:
+    """Default config file: ~/.Au/AuC/config.yaml"""
+    return user_config_dir() / DEFAULT_CONFIG_FILENAME
+
+
 def discover_config_path(explicit: str | None = None) -> Path | None:
     if explicit:
         p = Path(explicit).expanduser()
         return p if p.is_file() else None
+
+    env_path = os.environ.get("AUC_CONFIG")
+    if env_path:
+        p = Path(env_path).expanduser()
+        if p.is_file():
+            return p
+
+    udir = user_config_dir()
     candidates = [
+        udir / DEFAULT_CONFIG_FILENAME,
+        udir / "config.yml",
+        # 项目级覆盖（可选）
         Path.cwd() / ".auc.yaml",
         Path.cwd() / "auc.yaml",
-        Path.cwd() / ".auc.yml",
-        Path.home() / ".config" / "auc" / "config.yaml",
-        Path.home() / ".auc.yaml",
     ]
     for c in candidates:
         if c.is_file():
@@ -173,7 +196,8 @@ def save_config_file(
 
 
 DEFAULT_CONFIG_TEMPLATE = """# AuC model configuration
-# Search order: --config > ./.auc.yaml > ~/.config/auc/config.yaml
+# Default path: ~/.Au/AuC/config.yaml
+# Search order: --config / AUC_CONFIG > ~/.Au/AuC/config.yaml > ./.auc.yaml
 
 provider: openai   # openai | anthropic
 model: gpt-4o-mini

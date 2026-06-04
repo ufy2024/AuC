@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from auc.cli import main
 
 
@@ -15,7 +17,8 @@ def test_cli_run_scripted() -> None:
 
 
 def test_cli_config_init_show(tmp_path, monkeypatch) -> None:
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
     assert main(["config", "init"]) == 0
-    assert (tmp_path / ".auc.yaml").is_file()
+    cfg = Path(tmp_path) / ".Au" / "AuC" / "config.yaml"
+    assert cfg.is_file()
     assert main(["config", "show"]) == 0

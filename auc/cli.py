@@ -11,6 +11,7 @@ from auc import AgentConfig, DefaultAgent, DefaultToolRegistry, InMemoryModelCli
 from auc.config import (
     DEFAULT_CONFIG_TEMPLATE,
     ModelConfig,
+    default_config_path,
     discover_config_path,
     load_model_config,
     save_config_file,
@@ -29,7 +30,7 @@ def _add_model_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--config",
         "-c",
-        help="Config file path (.auc.yaml or ~/.config/auc/config.yaml)",
+        help="Config file path (default: ~/.Au/AuC/config.yaml)",
     )
     parser.add_argument(
         "--provider",
@@ -184,13 +185,18 @@ async def _run_dispatch(args: argparse.Namespace) -> int:
     return 0 if result.status == "completed" else 1
 
 
+def _resolve_config_path_arg(path: str | None) -> Path:
+    return Path(path).expanduser() if path else default_config_path()
+
+
 def _cmd_config_init(args: argparse.Namespace) -> int:
-    path = Path(args.path).expanduser()
+    path = _resolve_config_path_arg(args.path)
     if path.exists() and not args.force:
         print(f"exists: {path} (use --force to overwrite)", file=sys.stderr)
         return 1
     if args.force and path.exists():
         path.unlink()
+    path.parent.mkdir(parents=True, exist_ok=True)
     if args.provider == "anthropic":
         path.write_text(
             DEFAULT_CONFIG_TEMPLATE.replace(
@@ -234,7 +240,7 @@ def _cmd_config_show(args: argparse.Namespace) -> int:
 
 
 def _cmd_config_set(args: argparse.Namespace) -> int:
-    path = Path(args.path).expanduser()
+    path = _resolve_config_path_arg(args.path)
     existing = load_model_config(config_path=str(path) if path.is_file() else None)
     cfg = ModelConfig(
         provider=args.provider or existing.provider,
@@ -271,11 +277,11 @@ def main(argv: list[str] | None = None) -> int:
     p_cfg = sub.add_parser("config", help="Manage model configuration file")
     cfg_sub = p_cfg.add_subparsers(dest="config_cmd", required=True)
 
-    p_init = cfg_sub.add_parser("init", help="Write example .auc.yaml")
+    p_init = cfg_sub.add_parser("init", help="Write ~/.Au/AuC/config.yaml")
     p_init.add_argument(
         "--path",
-        default=".auc.yaml",
-        help="Output path (default: ./.auc.yaml)",
+        default=None,
+        help="Output path (default: ~/.Au/AuC/config.yaml)",
     )
     p_init.add_argument(
         "--provider",
@@ -288,7 +294,11 @@ def main(argv: list[str] | None = None) -> int:
     p_show.add_argument("--config", "-c", default=None)
 
     p_set = cfg_sub.add_parser("set", help="Update configuration file")
-    p_set.add_argument("--path", default=".auc.yaml")
+    p_set.add_argument(
+        "--path",
+        default=None,
+        help="Config path (default: ~/.Au/AuC/config.yaml)",
+    )
     p_set.add_argument("--provider", choices=("openai", "anthropic"))
     p_set.add_argument("--model")
     p_set.add_argument("--api-key")
