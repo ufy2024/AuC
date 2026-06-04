@@ -49,6 +49,27 @@ timeout: 120
 max_tokens: 4096
 ```
 
+### DeepSeek 示例（OpenAI 兼容接口）
+
+```yaml
+provider: deepseek
+model: deepseek-chat
+api_key: ${DEEPSEEK_API_KEY}
+base_url: https://api.deepseek.com
+timeout: 120
+max_tokens: 4096
+```
+
+一键生成 DeepSeek 配置：
+
+```bash
+auc config init --provider deepseek
+export DEEPSEEK_API_KEY=sk-...
+auc chat "你好"
+```
+
+可选模型：`deepseek-chat`（对话）、`deepseek-reasoner`（推理，若账号支持）。
+
 `api_key` 支持 `${ENV_NAME}`，启动时从环境变量展开。
 
 ## 环境变量
@@ -56,7 +77,7 @@ max_tokens: 4096
 | 变量 | 说明 |
 |------|------|
 | `AUC_CONFIG` | 配置文件路径（等同 `--config`） |
-| `AUC_PROVIDER` | `openai` 或 `anthropic` |
+| `AUC_PROVIDER` | `openai` / `anthropic` / `deepseek` |
 | `AUC_MODEL` | 模型 ID |
 | `AUC_API_KEY` | 通用 API Key（覆盖文件） |
 | `AUC_BASE_URL` | API 根地址 |
@@ -64,6 +85,7 @@ max_tokens: 4096
 | `AUC_MAX_TOKENS` | 最大输出 token（Anthropic） |
 | `OPENAI_API_KEY` | provider=openai 时默认 Key |
 | `ANTHROPIC_API_KEY` | provider=anthropic 时默认 Key |
+| `DEEPSEEK_API_KEY` | provider=deepseek 时默认 Key |
 
 ## 终端使用
 
@@ -71,8 +93,9 @@ max_tokens: 4096
 # 使用配置文件
 auc chat "你好"
 
-# 临时指定 Anthropic
+# 临时指定 Anthropic / DeepSeek
 auc chat "你好" --provider anthropic --model claude-sonnet-4-20250514
+auc chat "你好" --provider deepseek --model deepseek-chat
 
 # 指定配置文件
 auc chat "你好" -c ~/.Au/AuC/config.yaml

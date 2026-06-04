@@ -12,11 +12,9 @@ if TYPE_CHECKING:
 def create_model_client(cfg: ModelConfig) -> ModelClient:
     """Build ModelClient from merged ModelConfig."""
     if not cfg.api_key:
-        env_hint = (
-            "ANTHROPIC_API_KEY"
-            if cfg.provider == "anthropic"
-            else "OPENAI_API_KEY"
-        )
+        from auc.config import _default_api_key_env
+
+        env_hint = _default_api_key_env(cfg.provider)
         raise ValueError(
             f"api_key not set for provider={cfg.provider}; "
             f"set AUC_API_KEY or {env_hint} or config file api_key"
@@ -33,12 +31,13 @@ def create_model_client(cfg: ModelConfig) -> ModelClient:
             timeout=cfg.timeout,
         )
 
+    from auc.config import _default_base_url
     from auc.model.openai import OpenAICompatibleClient
 
     return OpenAICompatibleClient(
         model=cfg.model,
         api_key=cfg.api_key,
-        base_url=cfg.base_url or "https://api.openai.com/v1",
+        base_url=cfg.base_url or _default_base_url(cfg.provider),
         timeout=cfg.timeout,
     )
 

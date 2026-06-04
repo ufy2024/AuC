@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 import yaml
 
-Provider = Literal["openai", "anthropic"]
+Provider = Literal["openai", "anthropic", "deepseek"]
 
 _ENV_REF = re.compile(r"^\$\{([^}]+)\}$")
 
@@ -46,19 +46,36 @@ def _resolve_value(val: Any) -> Any:
     return val
 
 
+def normalize_provider(raw: str) -> Provider:
+    p = str(raw).lower().strip()
+    if p == "anthropic":
+        return "anthropic"
+    if p == "deepseek":
+        return "deepseek"
+    return "openai"
+
+
 def _default_base_url(provider: Provider) -> str:
     if provider == "anthropic":
         return "https://api.anthropic.com"
+    if provider == "deepseek":
+        return "https://api.deepseek.com"
     return "https://api.openai.com/v1"
 
 
 def _default_api_key_env(provider: Provider) -> str:
-    return "ANTHROPIC_API_KEY" if provider == "anthropic" else "OPENAI_API_KEY"
+    if provider == "anthropic":
+        return "ANTHROPIC_API_KEY"
+    if provider == "deepseek":
+        return "DEEPSEEK_API_KEY"
+    return "OPENAI_API_KEY"
 
 
 def _default_model(provider: Provider) -> str:
     if provider == "anthropic":
         return "claude-sonnet-4-20250514"
+    if provider == "deepseek":
+        return "deepseek-chat"
     return "gpt-4o-mini"
 
 
@@ -122,20 +139,35 @@ def load_model_config(
     path = discover_config_path(config_path)
     file_data: dict[str, Any] = load_config_file(path) if path else {}
 
-    prov_raw = (
-        provider
-        or os.environ.get("AUC_PROVIDER")
-        or file_data.get("provider")
-        or "openai"
+    prov = normalize_provider(
+        str(
+            provider
+            or os.environ.get("AUC_PROVIDER")
+            or file_data.get("provider")
+            or "openai"
+        )
     )
-    prov: Provider = "anthropic" if str(prov_raw).lower() == "anthropic" else "openai"
+    file_prov = (
+        normalize_provider(str(file_data["provider"]))
+        if file_data.get("provider")
+        else None
+    )
+    provider_switched = bool(
+        (provider is not None or os.environ.get("AUC_PROVIDER"))
+        and file_prov is not None
+        and file_prov != prov
+    )
+    use_file_llm = bool(file_data) and not provider_switched
+
+    def _from_file(key: str) -> Any:
+        return file_data.get(key) if use_file_llm else None
 
     cfg = ModelConfig(
         provider=prov,
         model=str(
             model
             or os.environ.get("AUC_MODEL")
-            or file_data.get("model")
+            or _from_file("model")
             or _default_model(prov)
         ),
         api_key=None,
@@ -143,13 +175,13 @@ def load_model_config(
         timeout=float(
             timeout
             or os.environ.get("AUC_TIMEOUT")
-            or file_data.get("timeout")
+            or _from_file("timeout")
             or 120.0
         ),
         max_tokens=int(
             max_tokens
             or os.environ.get("AUC_MAX_TOKENS")
-            or file_data.get("max_tokens")
+            or _from_file("max_tokens")
             or 4096
         ),
         config_path=str(path) if path else None,
@@ -158,7 +190,7 @@ def load_model_config(
     cfg.api_key = (
         api_key
         or os.environ.get("AUC_API_KEY")
-        or file_data.get("api_key")
+        or _from_file("api_key")
         or os.environ.get(_default_api_key_env(prov))
     )
     if cfg.api_key == "":
@@ -167,7 +199,7 @@ def load_model_config(
     cfg.base_url = (
         base_url
         or os.environ.get("AUC_BASE_URL")
-        or file_data.get("base_url")
+        or _from_file("base_url")
         or _default_base_url(prov)
     )
 
@@ -199,12 +231,18 @@ DEFAULT_CONFIG_TEMPLATE = """# AuC model configuration
 # Default path: ~/.Au/AuC/config.yaml
 # Search order: --config / AUC_CONFIG > ~/.Au/AuC/config.yaml > ./.auc.yaml
 
-provider: openai   # openai | anthropic
+provider: openai   # openai | anthropic | deepseek
 model: gpt-4o-mini
 api_key: ${OPENAI_API_KEY}
 base_url: https://api.openai.com/v1
 timeout: 120
 max_tokens: 4096
+
+# --- DeepSeek example ---
+# provider: deepseek
+# model: deepseek-chat
+# api_key: ${DEEPSEEK_API_KEY}
+# base_url: https://api.deepseek.com
 
 # --- Anthropic example ---
 # provider: anthropic
@@ -212,3 +250,28 @@ max_tokens: 4096
 # api_key: ${ANTHROPIC_API_KEY}
 # base_url: https://api.anthropic.com
 """
+
+DEEPSEEK_CONFIG_TEMPLATE = """# AuC — DeepSeek (OpenAI-compatible API)
+# Path: ~/.Au/AuC/config.yaml
+
+provider: deepseek
+model: deepseek-chat
+api_key: ${DEEPSEEK_API_KEY}
+base_url: https://api.deepseek.com
+timeout: 120
+max_tokens: 4096
+"""
+
+
+def config_template_for_provider(provider: str) -> str:
+    p = normalize_provider(provider)
+    if p == "deepseek":
+        return DEEPSEEK_CONFIG_TEMPLATE
+    if p == "anthropic":
+        return (
+            DEFAULT_CONFIG_TEMPLATE.replace("provider: openai", "provider: anthropic")
+            .replace("gpt-4o-mini", "claude-sonnet-4-20250514")
+            .replace("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+            .replace("https://api.openai.com/v1", "https://api.anthropic.com")
+        )
+    return DEFAULT_CONFIG_TEMPLATE

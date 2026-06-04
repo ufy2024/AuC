@@ -81,3 +81,29 @@ def test_create_anthropic_client(monkeypatch) -> None:
     cfg = load_model_config(provider="anthropic", api_key="test")
     client = create_model_client(cfg)
     assert isinstance(client, AnthropicClient)
+
+
+def test_deepseek_defaults(monkeypatch) -> None:
+    from auc.config import normalize_provider, _default_base_url, _default_model
+
+    assert normalize_provider("deepseek") == "deepseek"
+    assert _default_base_url("deepseek") == "https://api.deepseek.com"
+    assert _default_model("deepseek") == "deepseek-chat"
+
+
+def test_create_deepseek_client(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test")
+    cfg = load_model_config(provider="deepseek", api_key="test")
+    client = create_model_client(cfg)
+    assert isinstance(client, OpenAICompatibleClient)
+    assert client.base_url == "https://api.deepseek.com"
+    assert cfg.model == "deepseek-chat"
+
+
+def test_config_init_deepseek_template() -> None:
+    from auc.config import config_template_for_provider
+
+    text = config_template_for_provider("deepseek")
+    assert "provider: deepseek" in text
+    assert "DEEPSEEK_API_KEY" in text
+    assert "api.deepseek.com" in text

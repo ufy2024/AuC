@@ -9,8 +9,8 @@ from pathlib import Path
 
 from auc import AgentConfig, DefaultAgent, DefaultToolRegistry, InMemoryModelClient
 from auc.config import (
-    DEFAULT_CONFIG_TEMPLATE,
     ModelConfig,
+    config_template_for_provider,
     default_config_path,
     discover_config_path,
     load_model_config,
@@ -35,7 +35,7 @@ def _add_model_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--provider",
         "-p",
-        choices=("openai", "anthropic"),
+        choices=("openai", "anthropic", "deepseek"),
         help="LLM provider (overrides file/env)",
     )
     parser.add_argument("--model", "-m", help="Model id")
@@ -197,19 +197,7 @@ def _cmd_config_init(args: argparse.Namespace) -> int:
     if args.force and path.exists():
         path.unlink()
     path.parent.mkdir(parents=True, exist_ok=True)
-    if args.provider == "anthropic":
-        path.write_text(
-            DEFAULT_CONFIG_TEMPLATE.replace(
-                "provider: openai",
-                "provider: anthropic",
-            )
-            .replace("gpt-4o-mini", "claude-sonnet-4-20250514")
-            .replace("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
-            .replace("https://api.openai.com/v1", "https://api.anthropic.com"),
-            encoding="utf-8",
-        )
-    else:
-        path.write_text(DEFAULT_CONFIG_TEMPLATE, encoding="utf-8")
+    path.write_text(config_template_for_provider(args.provider), encoding="utf-8")
     print(f"written: {path}")
     return 0
 
@@ -258,12 +246,12 @@ def _cmd_config_set(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="auc",
-        description="AuC agent CLI — configure OpenAI or Anthropic via file/env/flags",
+        description="AuC agent CLI — OpenAI / Anthropic / DeepSeek via ~/.Au/AuC/config.yaml",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     # chat — primary LLM entry
-    p_chat = sub.add_parser("chat", help="Run agent with configured LLM (openai/anthropic)")
+    p_chat = sub.add_parser("chat", help="Run agent with configured LLM")
     p_chat.add_argument("message", help="User message")
     p_chat.add_argument("--repo", default="", help="Repo root for .aurules")
     p_chat.add_argument("--system", default=None)
@@ -285,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_init.add_argument(
         "--provider",
-        choices=("openai", "anthropic"),
+        choices=("openai", "anthropic", "deepseek"),
         default="openai",
     )
     p_init.add_argument("--force", action="store_true")
@@ -299,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Config path (default: ~/.Au/AuC/config.yaml)",
     )
-    p_set.add_argument("--provider", choices=("openai", "anthropic"))
+    p_set.add_argument("--provider", choices=("openai", "anthropic", "deepseek"))
     p_set.add_argument("--model")
     p_set.add_argument("--api-key")
     p_set.add_argument("--base-url")

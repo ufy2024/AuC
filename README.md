@@ -4,7 +4,7 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
-**v0.2.0** — 支持 **OpenAI 兼容** 与 **Anthropic** 大模型，可通过 [配置文件](docs/model-config.md)、环境变量或 CLI 参数切换。
+**v0.2.2** — 支持 **OpenAI**、**Anthropic**、**DeepSeek**，配置目录 `~/.Au/AuC/`（见 [docs/model-config.md](docs/model-config.md)）。
 
 ## 快速开始
 
@@ -13,7 +13,8 @@ cd AuC
 pip install -e ".[dev]"   # 需 httpx: pip install 'auc[openai]'
 
 auc config init              # 生成 ~/.Au/AuC/config.yaml
-export OPENAI_API_KEY=sk-... # 或 ANTHROPIC_API_KEY
+auc config init --provider deepseek   # DeepSeek 模板
+export DEEPSEEK_API_KEY=sk-...        # 或 OPENAI_API_KEY / ANTHROPIC_API_KEY
 auc config show
 auc chat "你好"              # 读取 ~/.Au/AuC 配置
 auc chat "hi" -p anthropic -m claude-sonnet-4-20250514
