@@ -54,6 +54,25 @@ class NuggetsStore:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [n for _, n in scored[:limit]]
 
+    def save_yaml(self, path: str | Path) -> None:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "nuggets": [
+                {
+                    "id": n.id,
+                    "tags": n.tags,
+                    "content": n.content,
+                    "metadata": n.metadata,
+                }
+                for n in self.nuggets
+            ]
+        }
+        path.write_text(
+            yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+
 
 class NuggetsMemoryPort:
     """MemoryPort that injects Au-Nuggets on recall (AuM evolution layer)."""

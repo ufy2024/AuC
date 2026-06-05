@@ -35,6 +35,10 @@ class ChatStreamPrinter:
             sys.stdout.flush()
         elif ev.type == "run_end":
             self.finish_line()
+            err = ev.payload.get("error")
+            if err and ev.payload.get("status") == "error":
+                sys.stdout.write(f"\n[错误] {err}\n")
+                sys.stdout.flush()
 
     def finish_line(self) -> None:
         if self._in_reply:

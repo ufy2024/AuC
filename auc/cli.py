@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from auc import AgentConfig, DefaultAgent, DefaultToolRegistry, InMemoryModelClient
+from auc.tools import make_echo_tool
 from auc.config import (
     ModelConfig,
     config_template_for_provider,
@@ -28,8 +29,64 @@ from auc.model import AssistantMessage
 from auc.model.factory import aclose_model_client, create_model_client
 from auc.policy import ToolPrivilegeGate
 from auc.ports import FileRulesPort, SlicerPolicy
+from auc.integration.evolution import EvolutionMemoryPort, evolution_paths, make_evolution_tools
 from auc.stream_display import ChatStreamPrinter
-from auc.tools import make_echo_tool
+from auc.tools.files import make_file_tools
+
+_DEFAULT_CHAT_SYSTEM = """\
+你是编程助手。工作区根目录（沙盒）为：{sandbox}
+在沙盒内你拥有完整文件系统权限（不可访问沙盒外路径）。
+
+可用工具：
+- read_file(path): 读取 UTF-8 文本
+- write_file(path, content): 写入或创建文件
+- list_dir(path): 列出目录（path 默认 .）
+- delete_path(path): 删除文件或整个目录
+- save_lesson(tags, lesson): 固化可复用经验到进化库（跨会话）
+- promote_nugget(nugget_id, tags, content): 将成功经验提升为金块技能
+
+进化能力（默认开启）：
+- 每轮成功对话会自动写入 .auc/evolution.yaml
+- 启动时会召回 .auc/au-nuggets.yaml 与历史经验
+- 完成复杂任务后，用 save_lesson 或 promote_nugget 沉淀套路
+
+用户要求删除目录/文件时，必须使用 delete_path。
+当用户需要代码或文件时，必须用 write_file 写入工作区。
+write_file 参数必须是合法 JSON，且同时包含 path 与 content；大文件可拆成多个较小文件分次写入。
+路径使用相对于沙盒的相对路径。
+"""
+
+
+def _chat_sandbox_root(args: argparse.Namespace) -> str:
+    if getattr(args, "sandbox", None):
+        return str(Path(args.sandbox).expanduser().resolve())
+    if getattr(args, "repo", None):
+        return str(Path(args.repo).expanduser().resolve())
+    return str(Path.cwd().resolve())
+
+
+def _chat_memory(sandbox_root: str, evolve: bool) -> EvolutionMemoryPort | None:
+    if not evolve:
+        return None
+    return EvolutionMemoryPort(sandbox_root=sandbox_root)
+
+
+def _register_chat_tools(
+    registry: DefaultToolRegistry,
+    sandbox_root: str,
+    memory: EvolutionMemoryPort | None = None,
+) -> None:
+    for tool, pol in make_file_tools(sandbox_root):
+        registry.register(tool, pol)
+    if memory is not None:
+        for tool, pol in make_evolution_tools(memory):
+            registry.register(tool, pol)
+
+
+def _chat_system_prompt(args: argparse.Namespace, sandbox: str) -> str:
+    if args.system:
+        return args.system
+    return _DEFAULT_CHAT_SYSTEM.format(sandbox=sandbox)
 
 
 def _add_model_args(parser: argparse.ArgumentParser) -> None:
@@ -65,9 +122,17 @@ def _resolve_cfg(args: argparse.Namespace) -> ModelConfig:
     )
 
 
-def _chat_banner(cfg: ModelConfig) -> str:
+def _chat_banner(cfg: ModelConfig, sandbox: str, *, evolve: bool) -> None:
     label = cfg.config_name or cfg.config_id or cfg.model
-    return f"AuC · {label} ({cfg.provider}/{cfg.model})"
+    print(f"AuC · {label} ({cfg.provider}/{cfg.model})")
+    print(f"工作区: {sandbox}")
+    tools = "read_file, write_file, list_dir, delete_path"
+    if evolve:
+        tools += ", save_lesson, promote_nugget"
+        nug, evo = evolution_paths(sandbox)
+        print(f"进化: {evo}")
+        print(f"金块: {nug}")
+    print(f"工具: {tools}")
 
 
 async def _print_chat_result(
@@ -96,6 +161,15 @@ async def _print_chat_result(
     return 0 if result.status == "completed" else 1
 
 
+def _print_run_failure(result: RunResult | None) -> None:
+    if result is None:
+        print("\n[失败] 未收到运行结果", file=sys.stderr)
+        return
+    print(f"\n[失败] status={result.status}", file=sys.stderr)
+    if result.error:
+        print(f"原因: {result.error}", file=sys.stderr)
+
+
 async def _consume_chat_stream(
     agent: DefaultAgent,
     req: RunRequest,
@@ -120,6 +194,8 @@ async def _consume_chat_stream(
     if result is None:
         return 1, None
     code = 0 if result.status == "completed" else 1
+    if code != 0:
+        _print_run_failure(result)
     return code, result
 
 
@@ -142,6 +218,10 @@ async def _run_chat_turn(
     code, result = await _consume_chat_stream(agent, req, args)
     if result is None:
         return code, history
+    if code == 0 and result.status == "completed":
+        mem = getattr(agent, "_config", None) and agent._config.memory
+        if mem is not None:
+            await mem.remember(result.messages, run_id=result.run_id)
     if args.json and result:
         print(
             json.dumps(
@@ -165,7 +245,7 @@ async def _run_chat_interactive(
     cfg: ModelConfig,
     args: argparse.Namespace,
 ) -> int:
-    print(_chat_banner(cfg))
+    _chat_banner(cfg, _chat_sandbox_root(args), evolve=not args.no_evolve)
     print("交互模式：输入消息后回车；exit / quit 或 Ctrl+D 退出")
     history: list[ChatMessage] = []
     while True:
@@ -179,32 +259,45 @@ async def _run_chat_interactive(
             continue
         if text.lower() in ("exit", "quit", "/exit", "/quit", "q"):
             break
-        code, history = await _run_chat_turn(agent, cfg, args, text, history)
+        try:
+            code, history = await _run_chat_turn(agent, cfg, args, text, history)
+        except Exception as exc:  # noqa: BLE001
+            print(f"\n[异常] {exc}", file=sys.stderr)
+            continue
         if code != 0:
-            return code
+            continue
     return 0
 
 
 async def _run_chat(args: argparse.Namespace) -> int:
     cfg = _resolve_cfg(args)
+    sandbox = _chat_sandbox_root(args)
+    evolve = not getattr(args, "no_evolve", False)
+    memory = _chat_memory(sandbox, evolve) if not args.no_tools else None
     registry = DefaultToolRegistry()
     if not args.no_tools:
-        tool, pol = make_echo_tool()
-        registry.register(tool, pol)
+        _register_chat_tools(registry, sandbox, memory)
 
     model = create_model_client(cfg)
     approval = ConsoleApprovalPort() if args.approval == "console" else None
     try:
+        from auc.loop.base import LoopConfig
+        from auc.ports.memory import DefaultComposer
+
         agent = DefaultAgent(
             AgentConfig(
                 agent_id="cli-chat",
                 model=model,
                 tools=registry,
+                memory=memory,
+                composer=DefaultComposer(),
                 rules=FileRulesPort() if args.repo else None,
                 approval=approval,
                 privilege_gate=ToolPrivilegeGate(approval=approval) if approval else None,
                 slicer_policy=SlicerPolicy(require_package=False),
-                system_prompt=args.system,
+                system_prompt=_chat_system_prompt(args, sandbox),
+                sandbox_root=sandbox,
+                loop_config=LoopConfig(max_steps=40),
             )
         )
         message = args.message
@@ -383,7 +476,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="用户消息；省略则进入交互模式（或从管道读取 stdin）",
     )
-    p_chat.add_argument("--repo", default="", help="Repo root for .aurules")
+    p_chat.add_argument("--repo", default="", help="Repo root for .aurules（并作为工作区）")
+    p_chat.add_argument(
+        "--sandbox",
+        default="",
+        help="文件工具沙盒根目录（默认：当前工作目录或 --repo）",
+    )
     p_chat.add_argument("--system", default=None)
     p_chat.add_argument(
         "--no-stream",
@@ -397,6 +495,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_chat.add_argument("--json", action="store_true", help="结束时打印 JSON 结果")
     p_chat.add_argument("--no-tools", action="store_true")
+    p_chat.add_argument(
+        "--no-evolve",
+        action="store_true",
+        help="关闭进化能力（不召回/写入 .auc/evolution.yaml）",
+    )
     p_chat.add_argument("--approval", choices=("console",), default=None)
     _add_model_args(p_chat)
 

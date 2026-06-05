@@ -4,6 +4,7 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from auc.context.window import ListContextWindow
@@ -35,6 +36,7 @@ class AgentConfig:
     slicer_policy: SlicerPolicy | None = None
     loop_config: LoopConfig = field(default_factory=LoopConfig)
     system_prompt: str | None = None
+    sandbox_root: str | None = None
 
 
 class DefaultAgent:
@@ -83,7 +85,16 @@ class DefaultAgent:
                     break
         finally:
             bus.close_stream_queue(queue)
-            self._last_run_result = await task
+            try:
+                self._last_run_result = await task
+            except Exception as exc:  # noqa: BLE001
+                self._last_run_result = RunResult(
+                    output="",
+                    messages=ctx.window.view(),
+                    status="error",
+                    run_id=ctx.run_id,
+                    error=str(exc),
+                )
             self._active_events.pop(ctx.run_id, None)
             self._cancelled_runs.discard(ctx.run_id)
 
@@ -121,6 +132,15 @@ class DefaultAgent:
         if self._config.rules and repo_root:
             project_rules = await self._config.rules.load_rules(str(repo_root))
             self._config.tools.merge_tool_policy(project_rules.tool_policy)
+
+        sandbox = self._config.sandbox_root or (
+            str(Path(repo_root).resolve()) if repo_root else None
+        )
+        if sandbox:
+            if project_rules is None:
+                project_rules = ProjectRules(sandbox_root=sandbox)
+            elif not project_rules.sandbox_root:
+                project_rules.sandbox_root = sandbox
 
         package: ContextPackage | None = request.context_package
         if package is None and request.metadata.get("context_package"):

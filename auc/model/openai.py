@@ -7,6 +7,7 @@ from typing import Any, AsyncIterator
 
 from auc.messages import ChatMessage, ToolCall
 from auc.model.client import AssistantMessage, ModelClient, StreamChunk
+from auc.model.json_util import safe_parse_tool_input
 from auc.tools.base import ToolSchema
 
 try:
@@ -195,7 +196,7 @@ class OpenAICompatibleClient:
             for idx in sorted(tool_acc.keys()):
                 entry = tool_acc[idx]
                 raw = entry.get("arguments") or "{}"
-                args = json.loads(raw) if raw else {}
+                args = safe_parse_tool_input(raw, tool_name=entry.get("name") or "")
                 calls.append(
                     ToolCall(
                         id=entry.get("id") or f"call_{idx}",

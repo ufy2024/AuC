@@ -12,11 +12,13 @@ class AssistantMessage:
     content: str | None
     tool_calls: list[ToolCall] | None
     raw: dict[str, Any] | None = None
+    thinking: str | None = None
 
 
 @dataclass
 class StreamChunk:
     delta_content: str | None = None
+    delta_thinking: str | None = None
     delta_tool_calls: list[ToolCall] | None = None
     finish_reason: str | None = None
 

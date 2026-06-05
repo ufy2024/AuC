@@ -21,9 +21,12 @@ async def stream_to_assistant(
 ) -> AssistantMessage:
     """Consume complete_stream; optionally invoke on_delta per text chunk."""
     content_parts: list[str] = []
+    thinking_parts: list[str] = []
     tool_acc: dict[int, dict[str, Any]] = {}
 
     async for chunk in model.complete_stream(messages, tools=tools):
+        if chunk.delta_thinking:
+            thinking_parts.append(chunk.delta_thinking)
         if chunk.delta_content:
             content_parts.append(chunk.delta_content)
             if on_delta is not None:
@@ -36,7 +39,14 @@ async def stream_to_assistant(
 
     content = "".join(content_parts) or None
     tool_calls = _tool_acc_to_list(tool_acc) if tool_acc else None
-    return AssistantMessage(content=content, tool_calls=tool_calls)
+    thinking = "".join(thinking_parts) if thinking_parts else None
+    if tool_calls and thinking is None:
+        thinking = ""
+    return AssistantMessage(
+        content=content,
+        tool_calls=tool_calls,
+        thinking=thinking,
+    )
 
 
 def _merge_tool_call_delta(acc: dict[int, dict[str, Any]], tc: ToolCall) -> None:

@@ -93,6 +93,8 @@ asyncio.run(main())
 ### 阶段 4 — 进化与多端
 
 - [x] `NuggetsStore` / YAML `au-nuggets.yaml`
+- [x] `EvolutionMemoryPort`：`auc chat` 自动召回/写入 `.auc/evolution.yaml`
+- [x] 工具 `save_lesson` / `promote_nugget`（金块固化）
 - [x] `MetaDispatcher` + `SpecialistRegistry`（IM 遥控基础）
 - [ ] 独立 AuM 仓库生产化（持久化、向量索引、Webhook 而非轮询）
 

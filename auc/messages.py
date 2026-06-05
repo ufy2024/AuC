@@ -20,6 +20,7 @@ class ChatMessage:
     tool_call_id: str | None = None
     name: str | None = None
     tool_calls: list[ToolCall] | None = None
+    thinking: str | None = None
 
 
 @dataclass

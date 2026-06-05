@@ -1,5 +1,6 @@
 from auc.tools.base import FunctionTool, Tool, ToolPolicy, ToolSchema, tool_from_function
 from auc.tools.builtin import echo, make_echo_tool
+from auc.tools.files import make_file_tools
 from auc.tools.decorator import register_function_tools, tool
 from auc.tools.registry import DefaultToolRegistry
 
@@ -11,6 +12,7 @@ __all__ = [
     "ToolSchema",
     "echo",
     "make_echo_tool",
+    "make_file_tools",
     "register_function_tools",
     "tool",
     "tool_from_function",

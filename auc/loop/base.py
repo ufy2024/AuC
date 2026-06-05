@@ -72,6 +72,7 @@ def _assistant_chat_message(assistant: AssistantMessage) -> ChatMessage:
         role="assistant",
         content=assistant.content or "",
         tool_calls=assistant.tool_calls,
+        thinking=assistant.thinking,
     )
 
 
@@ -172,7 +173,10 @@ class AgentLoopRunner:
             except Exception as exc:  # noqa: BLE001
                 ctx.error = str(exc)
                 ctx.events.emit_typed(
-                    "run_end", ctx.run_id, ctx.agent_id, {"status": "error"}
+                    "run_end",
+                    ctx.run_id,
+                    ctx.agent_id,
+                    {"status": "error", "error": ctx.error},
                 )
                 return build_run_result(ctx, "error", last)
 
@@ -188,5 +192,10 @@ class AgentLoopRunner:
                 break
 
         status = resolve_status(ctx, last)
-        ctx.events.emit_typed("run_end", ctx.run_id, ctx.agent_id, {"status": status})
+        ctx.events.emit_typed(
+            "run_end",
+            ctx.run_id,
+            ctx.agent_id,
+            {"status": status, "error": ctx.error},
+        )
         return build_run_result(ctx, status, last)

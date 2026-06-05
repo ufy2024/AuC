@@ -80,3 +80,25 @@ def test_l2_tool_blocked_outside_sandbox(tmp_path) -> None:
 
     content = asyncio.run(_run())
     assert "escapes sandbox" in content
+
+
+def test_delete_path_in_sandbox(tmp_path) -> None:
+    sandbox = tmp_path / "workspace"
+    sandbox.mkdir()
+    target = sandbox / "snake-game"
+    target.mkdir()
+    (target / "a.txt").write_text("x", encoding="utf-8")
+
+    reg = DefaultToolRegistry()
+    for t, p in make_file_tools(str(sandbox)):
+        reg.register(t, p)
+    delete_tool = reg.get("delete_path")
+    assert delete_tool is not None
+
+    async def _run() -> str:
+        tr = await delete_tool.invoke({"path": "snake-game"})
+        return tr.content
+
+    msg = asyncio.run(_run())
+    assert "deleted directory" in msg
+    assert not target.exists()
