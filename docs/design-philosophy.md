@@ -59,7 +59,7 @@ flowchart LR
 
 | 层次 | 借鉴来源 | ufy 能力 |
 |------|----------|----------|
-| 多端常驻与遥控 | OpenClaw 类经验 | AuM：Telegram / IM 网关、Specialist 动态注册 |
+| 多端常驻与遥控 | OpenClaw 类经验 | AuM：Telegram / QQ / IM 网关、Specialist 动态注册 |
 | 沙盒与技能固化 | Hermes 类经验 | AuC：容器内 L2 执行；AuM：`Au-Nuggets` YAML 金块 |
 | 克制与严谨 | **Claude Code** | Slicer + Rules + L3-2FA |
 

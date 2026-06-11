@@ -82,6 +82,82 @@ def test_l2_tool_blocked_outside_sandbox(tmp_path) -> None:
     assert "escapes sandbox" in content
 
 
+def test_write_file_append_mode(tmp_path) -> None:
+    """大文件分段写入：第一段覆盖写，后续 append=true 续写同一文件。"""
+    sandbox = tmp_path / "workspace"
+    sandbox.mkdir()
+    reg = DefaultToolRegistry()
+    for t, p in make_file_tools(str(sandbox)):
+        reg.register(t, p)
+    write = reg.get("write_file")
+    assert write is not None
+    schema = next(s for s in reg.list_schemas() if s.name == "write_file")
+    assert schema.parameters["properties"]["append"]["type"] == "boolean"
+
+    async def _run() -> str:
+        await write.invoke({"path": "big.html", "content": "<html>\n"})
+        await write.invoke({"path": "big.html", "content": "<body>snake</body>\n", "append": True})
+        # 字符串形式的布尔值也应识别
+        tr = await write.invoke({"path": "big.html", "content": "</html>\n", "append": "true"})
+        return tr.content
+
+    msg = asyncio.run(_run())
+    assert "appended" in msg
+    text = (sandbox / "big.html").read_text(encoding="utf-8")
+    assert text == "<html>\n<body>snake</body>\n</html>\n"
+
+
+def test_parse_error_marker_becomes_tool_error(tmp_path) -> None:
+    """流式参数 JSON 截断：转为工具错误反馈模型，run 不中断且不写文件。"""
+    from auc.model.json_util import PARSE_ERROR_KEY
+
+    sandbox = tmp_path / "workspace"
+    sandbox.mkdir()
+    reg = DefaultToolRegistry()
+    for t, p in make_file_tools(str(sandbox)):
+        reg.register(t, p)
+
+    model = InMemoryModelClient(
+        responses=[
+            AssistantMessage(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="1",
+                        name="write_file",
+                        arguments={PARSE_ERROR_KEY: "write_file 参数 JSON 不完整，请用 append 分段写入"},
+                    ),
+                ],
+            ),
+            AssistantMessage(content="收到，改用分段写入", tool_calls=None),
+        ],
+    )
+
+    async def _run() -> tuple[str, str]:
+        window = ListContextWindow()
+        window.append(ChatMessage(role="user", content="写贪吃蛇"))
+        ctx = LoopContext(
+            agent_id="t",
+            run_id="r1",
+            window=window,
+            tools=reg,
+            model=model,
+            events=EventBus(),
+            config=LoopConfig(max_steps=3),
+            project_rules=ProjectRules(sandbox_root=str(sandbox)),
+            privilege_gate=ToolPrivilegeGate(),
+        )
+        await AgentLoopRunner().run_until_done(ReActLoop(), ctx)
+        tool_msg = next(m.content for m in ctx.window.view() if m.role == "tool")
+        final = ctx.window.view()[-1].content
+        return tool_msg, final
+
+    tool_msg, final = asyncio.run(_run())
+    assert "append" in tool_msg
+    assert final == "收到，改用分段写入"
+    assert list(sandbox.iterdir()) == []
+
+
 def test_delete_path_in_sandbox(tmp_path) -> None:
     sandbox = tmp_path / "workspace"
     sandbox.mkdir()

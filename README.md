@@ -4,26 +4,96 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
-**v0.2.3** — 支持 **OpenAI**、**Anthropic**、**DeepSeek**；配置为 JSON（`settings.json`，见 [docs/model-config.md](docs/model-config.md)）。
+**v0.2.4** — 支持 **OpenAI**、**Anthropic**、**DeepSeek**；终端 + Web 双端；267 项测试、覆盖率 ≥80%。
+
+[![CI](https://github.com/ufy2024/AuC/actions/workflows/ci.yml/badge.svg)](https://github.com/ufy2024/AuC/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/auc)](https://pypi.org/project/auc/)
+[![Python](https://img.shields.io/pypi/pyversions/auc)](https://pypi.org/project/auc/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## 特性概览
+
+| 能力 | 说明 |
+|------|------|
+| **ReAct 循环** | 流式推理、并行工具调用、上下文压缩、检查点回滚 |
+| **多模型** | OpenAI Chat Completions、Anthropic Messages、DeepSeek 兼容网关 |
+| **工具分级** | L1 只读 / L2 沙盒写 / L3 二次授权；危险命令自动升级 |
+| **终端 UI** | prompt-toolkit 多行输入、斜杠命令、Plan / 自治模式 |
+| **Web UI** | Code + Chat 双模式、工作区、项目预览/代理运行、SSE 流式对话 |
+| **IM 授权** | Telegram、QQ（OneBot 11）L3 审批卡片 |
+| **进化记忆** | `.auc/evolution.yaml` 经验召回与金块固化 |
+| **沙盒** | 文件读写、Shell、grep/glob、URL 抓取（SSRF 防护） |
+
+## 安装
+
+### 从 PyPI（推荐）
+
+```bash
+pip install auc              # 仅核心（无 HTTP / 无 Web）
+pip install "auc[chat]"        # 终端对话（llm + cli，日常推荐）
+pip install "auc[web]"         # 网页 UI
+pip install "auc[all]"         # 全部可选组件
+pip install "auc[dev]"         # 开发/CI（pytest + 全部组件）
+```
+
+> 注：PyPI 包名为 `auc`。若与系统已有同名包冲突，请使用虚拟环境。
+
+### 从源码
+
+```bash
+git clone https://github.com/ufy2024/AuC.git && cd AuC
+pip install -e ".[chat]"       # 或 .[all] / .[dev]
+```
+
+### 可选组件对照
+
+| 模式 | 命令 | 包含 |
+|------|------|------|
+| 核心 | `pip install auc` | 框架 + YAML（无 HTTP / 无 Web） |
+| **llm** | `pip install "auc[llm]"` | httpx，调用 OpenAI / Anthropic / DeepSeek |
+| **cli** | `pip install "auc[cli]"` | prompt-toolkit 终端增强 |
+| **chat** | `pip install "auc[chat]"` | llm + cli（**终端对话推荐**） |
+| **web** | `pip install "auc[web]"` | FastAPI 网页 UI + 工作区 + 项目运行 |
+| **telegram** | `pip install "auc[telegram]"` | Telegram L3 二次授权 |
+| **qq** | `pip install "auc[qq]"` | QQ L3 二次授权（OneBot 11） |
+| **all** | `pip install "auc[all]"` | 上述全部 |
+| **dev** | `pip install "auc[dev]"` | pytest + 全部（CI / 本地开发） |
+
+可组合：`pip install "auc[chat,web]"`。`openai` 为 `llm` 的兼容别名。运行 `auc extras` 查看完整列表。
 
 ## 快速开始
 
+### 1. 配置大模型
+
 ```bash
-cd AuC
-pip install -e ".[dev]"   # 需 httpx: pip install 'auc[openai]'
-
-auc config init              # 生成 ~/.Au/AuC/settings.json（JSON，Claude 风格）
-auc config init --provider deepseek   # DeepSeek 模板
-export DEEPSEEK_API_KEY=sk-...        # 或 OPENAI_API_KEY / ANTHROPIC_API_KEY
+auc config init                              # ~/.Au/AuC/settings.json
+auc config init --provider deepseek          # DeepSeek 模板
+export DEEPSEEK_API_KEY=sk-...               # 或 OPENAI_API_KEY / ANTHROPIC_API_KEY
 auc config show
-auc chat "你好"              # 读取 ~/.Au/AuC 配置
-auc chat "hi" -p anthropic -m claude-sonnet-4-20250514
-
-python examples/minimal_run.py
-PYTHONPATH=. python -m pytest -q
 ```
 
-大模型配置详见 [docs/model-config.md](docs/model-config.md)。
+配置格式为 JSON（Claude Code 风格），详见仓库内 `docs/model-config.md`。
+
+### 2. 终端对话
+
+```bash
+auc chat "你好"
+auc chat "hi" -p anthropic -m claude-sonnet-4-20250514
+auc chat                                    # 进入交互 REPL（/help /plan /autonomy …）
+auc undo --list                             # 检查点回滚
+```
+
+### 3. Web UI
+
+```bash
+auc web --sandbox ./my-project              # http://127.0.0.1:8765
+# 或
+auc-web --sandbox ./my-project
+```
+
+侧栏可浏览工作区、运行沙盒内项目（HTML / Node / Python）、在 Chat 模式与智能体对话（含 L3 授权弹窗、图片上传）。
+
+### 4. 程序化调用
 
 ```python
 import asyncio
@@ -36,7 +106,9 @@ async def main():
     t, p = make_echo_tool()
     reg.register(t, p)
     model = InMemoryModelClient(responses=[
-        AssistantMessage(content=None, tool_calls=[ToolCall(id="1", name="echo", arguments={"x": 1})]),
+        AssistantMessage(content=None, tool_calls=[
+            ToolCall(id="1", name="echo", arguments={"x": 1}),
+        ]),
         AssistantMessage(content="done", tool_calls=None),
     ])
     agent = DefaultAgent(AgentConfig(agent_id="demo", model=model, tools=reg))
@@ -45,62 +117,84 @@ async def main():
 asyncio.run(main())
 ```
 
+更多示例见 `examples/`。
+
+## CLI 命令
+
+| 命令 | 说明 |
+|------|------|
+| `auc chat` | 终端对话（推荐 `[chat]`） |
+| `auc web` | 启动 Web UI（推荐 `[web]`） |
+| `auc config init/show/set/migrate` | 管理 `settings.json` |
+| `auc slice` | 语义切片（Au-Context Slicer） |
+| `auc undo` | 检查点列表与回滚 |
+| `auc run` | 脚本化单次运行（`--reply` 调试） |
+| `auc dispatch` | IM 遥控分发 |
+| `auc extras` | 打印可选安装模式 |
+
 ## 设计亮点（Claude Code 经验）
 
-| 机制 | 文档 | 实现 |
-|------|------|------|
-| **Au-Context Slicer** | [docs/context-slicer.md](docs/context-slicer.md) | `SemanticSlicer` |
-| **Au-Rules Matrix** | [docs/aurules.md](docs/aurules.md) | `FileRulesPort` |
-| **L3 二次授权** | [docs/tool-privilege.md](docs/tool-privilege.md) | `TelegramApprovalPort`, `ConsoleApprovalPort` |
+| 机制 | 实现要点 |
+|------|----------|
+| **Au-Context Slicer** | `SemanticSlicer` → `ContextPackage` |
+| **Au-Rules Matrix** | `FileRulesPort` + `.aurules` |
+| **L3 二次授权** | `TelegramApprovalPort`、`QQApprovalPort`、`WebApprovalPort`、`ConsoleApprovalPort` |
+| **自治与升级** | `AutonomyPolicy`、危险 Shell 自动升 L3 |
+| **检查点** | `write_file` / `delete_path` / `run_command` 快照与 `auc undo` |
+| **进化记忆** | `EvolutionMemoryPort`、`.auc/evolution.yaml` |
 
-总览：[docs/design-philosophy.md](docs/design-philosophy.md) · AuM 联调：[docs/aum-compatibility.md](docs/aum-compatibility.md)
+## 开发与测试
+
+```bash
+pip install -e ".[dev]"
+pytest -q                                    # 267 项用例
+pytest -q --cov=auc --cov-fail-under=75    # CI 同款（当前约 80%）
+ruff check auc tests
+```
+
+CI：GitHub Actions，Python 3.11 / 3.12，覆盖率门槛 ≥75%。
 
 ## 文档
 
+设计文档位于仓库 `docs/` 目录（本地克隆后可见）：
+
 | 文档 | 说明 |
 |------|------|
-| [docs/design-philosophy.md](docs/design-philosophy.md) | 设计哲学与生态蓝图 |
-| [docs/architecture.md](docs/architecture.md) | 总体架构 |
-| [docs/interfaces.md](docs/interfaces.md) | 接口草案 |
-| [docs/model-config.md](docs/model-config.md) | OpenAI / Anthropic 配置 |
-| [docs/aum-compatibility.md](docs/aum-compatibility.md) | AuM 联调与版本 |
-| [docs/loops.md](docs/loops.md) | Loop 与 Gate |
-| [docs/adr/](docs/adr/) | ADR 001–005 |
+| `docs/design-philosophy.md` | 设计哲学与生态蓝图 |
+| `docs/architecture.md` | 总体架构 |
+| `docs/model-config.md` | OpenAI / Anthropic / DeepSeek 配置 |
+| `docs/tool-privilege.md` | L1/L2/L3 工具权限 |
+| `docs/aum-compatibility.md` | AuM 联调与版本 |
+| `docs/test-report.md` | 测试报告与覆盖率 |
 
-## 实现路线图
+## 路线图
 
-### 阶段 1 — 核心骨架
+### 已完成（v0.2.x）
 
-- [x] `auc` 包与 `pyproject.toml`
-- [x] `ContextWindow`、`ToolRegistry`、`ModelClient`、`ToolPrivilegeGate`
-- [x] `ReActLoop` + `AgentLoopRunner` + `DefaultAgent`
-- [x] `OpenAICompatibleClient`（`pip install 'auc[openai]'`）
+- [x] ReAct 循环、`run_stream`、事件总线
+- [x] OpenAI / Anthropic / DeepSeek 流式客户端
+- [x] 沙盒文件、Shell、搜索、URL 抓取工具
+- [x] 检查点回滚、Plan 模式、自治策略、上下文压缩
+- [x] 终端 REPL（斜杠命令、prompt-toolkit）
+- [x] Web UI（工作区、项目运行、SSE Chat、L3 授权队列）
+- [x] Telegram + QQ（OneBot 11）IM 二次授权
+- [x] 进化记忆与金块固化
+- [x] 267 项 pytest、CI 覆盖率门槛
 
-### 阶段 2 — 可观测与军规
+### 进行中 / 计划
 
-- [x] `run_stream` / `EventBus`（含 `approval_*`）
-- [x] `FileRulesPort` + `.aurules` 解析
-- [x] `@tool` 装饰器、`make_file_tools` 沙盒读写
-- [x] `auc` CLI、`pytest`、GitHub Actions CI
+- [ ] `ConversationStore` 上移共享（M2）
+- [ ] Usage 上报与进化层联动
+- [ ] 独立 AuM 仓库生产化（持久化、向量索引、Webhook）
 
-### 阶段 3 — AuM 联调（生产闭环）
+## 仓库与发布
 
-- [x] `SemanticSlicer` → `ContextPackage`
-- [x] `DefaultComposer` + `NuggetsMemoryPort` + `SlicerPolicy`
-- [x] `TelegramApprovalPort` / `ConsoleApprovalPort`
-- [x] [docs/aum-compatibility.md](docs/aum-compatibility.md)
+- **源码**：https://github.com/ufy2024/AuC
+- **PyPI**：https://pypi.org/project/auc/
 
-### 阶段 4 — 进化与多端
-
-- [x] `NuggetsStore` / YAML `au-nuggets.yaml`
-- [x] `EvolutionMemoryPort`：`auc chat` 自动召回/写入 `.auc/evolution.yaml`
-- [x] 工具 `save_lesson` / `promote_nugget`（金块固化）
-- [x] `MetaDispatcher` + `SpecialistRegistry`（IM 遥控基础）
-- [ ] 独立 AuM 仓库生产化（持久化、向量索引、Webhook 而非轮询）
-
-## 仓库
-
-https://github.com/ufy2024/AuC
+```bash
+pip install -U "auc[chat]"
+```
 
 ## 许可
 

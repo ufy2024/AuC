@@ -13,12 +13,20 @@ from auc.loop.base import (
 )
 from auc.messages import ToolResult
 from auc.model.client import AssistantMessage
+from auc.model.json_util import PARSE_ERROR_KEY
 from auc.model.streaming import stream_to_assistant
+from auc.plan import parse_plan_block
 from auc.policy.privilege import PendingApproval, ToolPrivilegeGate
 
 
 class ReActLoop:
     async def step(self, ctx: LoopContext) -> LoopStepResult:
+        if ctx.compactor is not None:
+            try:
+                await ctx.compactor.maybe_compact(ctx.window, ctx)
+            except Exception:  # noqa: BLE001 压缩失败不致命，下步重试
+                pass
+
         recall: list = []
         if ctx.memory is not None:
             query = _last_user_content(ctx.window)
@@ -84,6 +92,15 @@ class ReActLoop:
             )
 
         done = not assistant.tool_calls and bool(assistant.content)
+        if done:
+            plan = parse_plan_block(assistant.content)
+            if plan is not None:
+                ctx.events.emit_typed(
+                    "plan_ready",
+                    ctx.run_id,
+                    ctx.agent_id,
+                    {"plan": plan, "schema_version": 2},
+                )
         return LoopStepResult(
             assistant_message=assistant,
             tool_results=tool_results,
@@ -118,6 +135,21 @@ class ReActLoop:
             ctx.agent_id,
             {"tool": name, "arguments": arguments},
         )
+        if PARSE_ERROR_KEY in arguments:
+            # 流式参数 JSON 截断/损坏：以工具错误反馈模型，run 继续
+            tr = ToolResult(
+                tool_call_id=tool_call_id,
+                name=name,
+                content=str(arguments[PARSE_ERROR_KEY]),
+                is_error=True,
+            )
+            ctx.events.emit_typed(
+                "tool_end",
+                ctx.run_id,
+                ctx.agent_id,
+                {"tool": name, "is_error": True, "summary": tr.content[:120]},
+            )
+            return tr
         tool = ctx.tools.get(name)
         if tool is None:
             tr = ToolResult(
@@ -140,11 +172,18 @@ class ReActLoop:
             tr.tool_call_id = tool_call_id
             tr.name = name
 
+        summary = (tr.content or "").replace("\n", " ").strip()
+        if len(summary) > 120:
+            summary = summary[:117] + "..."
         ctx.events.emit_typed(
             "tool_end",
             ctx.run_id,
             ctx.agent_id,
-            {"tool": name, "is_error": tr.is_error},
+            {
+                "tool": name,
+                "is_error": tr.is_error,
+                "summary": summary,
+            },
         )
         return tr
 

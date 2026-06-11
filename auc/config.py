@@ -31,7 +31,7 @@ class ModelConfig:
     api_key: str | None = None
     base_url: str | None = None
     timeout: float = 120.0
-    max_tokens: int = 4096
+    max_tokens: int = 8192
     config_path: str | None = None
     config_name: str | None = None
     config_id: str | None = None
@@ -495,7 +495,7 @@ def load_model_config(
             max_tokens
             or os.environ.get("AUC_MAX_TOKENS")
             or _from_file("max_tokens")
-            or 4096
+            or 8192
         ),
         config_path=str(path) if path else None,
         config_name=naming.get("config_name"),
@@ -560,7 +560,7 @@ def migrate_yaml_to_json(*, remove_yaml: bool = False) -> Path | None:
         api_key=fields.get("api_key"),
         base_url=fields.get("base_url") or _default_base_url(prov),
         timeout=float(fields.get("timeout") or 120),
-        max_tokens=int(fields.get("max_tokens") or 4096),
+        max_tokens=int(fields.get("max_tokens") or 8192),
         config_name=fields.get("config_name"),
         config_id=fields.get("config_id"),
         description=fields.get("description"),

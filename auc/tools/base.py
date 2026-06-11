@@ -21,6 +21,8 @@ class ToolPolicy:
     name: str
     privilege: ToolPrivilege
     sandbox_only: bool = False
+    mutates_files: bool = False  # R4：写文件类工具，触发检查点快照
+    mutates_state: bool = False  # R6：改系统状态（shell/git 等），受自治级别管控
 
 
 class Tool(Protocol):
@@ -80,7 +82,13 @@ def _json_schema_from_fn(fn: Callable[..., Any]) -> dict[str, Any]:
     for pname, param in sig.parameters.items():
         if pname in ("self", "cls"):
             continue
-        props[pname] = {"type": "string", "description": pname}
+        if isinstance(param.default, bool) or param.annotation in (bool, "bool"):
+            ptype = "boolean"
+        elif isinstance(param.default, int) or param.annotation in (int, "int"):
+            ptype = "integer"
+        else:
+            ptype = "string"
+        props[pname] = {"type": ptype, "description": pname}
         if param.default is inspect.Parameter.empty:
             required.append(pname)
     return {
@@ -96,6 +104,8 @@ def tool_from_function(
     name: str | None = None,
     description: str | None = None,
     privilege: ToolPrivilege = "L2",
+    mutates_files: bool = False,
+    mutates_state: bool = False,
 ) -> tuple[FunctionTool, ToolPolicy]:
     tname = name or fn.__name__
     desc = description or (fn.__doc__ or "").strip() or tname
@@ -105,5 +115,11 @@ def tool_from_function(
         _fn=fn,
         _parameters=_json_schema_from_fn(fn),
     )
-    pol = ToolPolicy(name=tname, privilege=privilege, sandbox_only=privilege == "L2")
+    pol = ToolPolicy(
+        name=tname,
+        privilege=privilege,
+        sandbox_only=privilege == "L2",
+        mutates_files=mutates_files,
+        mutates_state=mutates_state,
+    )
     return ft, pol

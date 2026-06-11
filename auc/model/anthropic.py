@@ -6,13 +6,14 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
 from auc.messages import ChatMessage, ToolCall
+from auc.multimodal import anthropic_user_content
 from auc.model.client import AssistantMessage, StreamChunk
 from auc.model.deepseek_anthropic import (
     deepseek_request_extra,
     inject_assistant_thinking_block,
     is_deepseek_anthropic_base,
 )
-from auc.model.json_util import safe_parse_tool_input
+from auc.model.json_util import PARSE_ERROR_KEY, safe_parse_tool_input
 from auc.tools.base import ToolSchema
 
 try:
@@ -23,7 +24,9 @@ except ImportError:  # pragma: no cover
 
 def _require_httpx() -> Any:
     if httpx is None:
-        raise ImportError("Install httpx: pip install 'auc[openai]'")
+        from auc.extras import hint_for
+
+        raise ImportError(hint_for("llm", "all"))
     return httpx
 
 
@@ -85,7 +88,7 @@ def _to_anthropic_messages(
                     }
                 )
             else:
-                out.append({"role": "user", "content": m.content})
+                out.append({"role": "user", "content": anthropic_user_content(m)})
             i += 1
             continue
         if m.role == "assistant":
@@ -107,7 +110,7 @@ def _to_anthropic_messages(
                 blocks = inject_assistant_thinking_block(
                     blocks, thinking=m.thinking, has_tool_use=has_tools
                 )
-            out.append({"role": "assistant", "content": blocks or ""})
+            out.append({"role": "assistant", "content": blocks or None})
             i += 1
             continue
         if m.role == "tool":
@@ -166,7 +169,7 @@ class AnthropicClient:
     model: str = "claude-sonnet-4-20250514"
     api_key: str | None = None
     base_url: str = "https://api.anthropic.com"
-    max_tokens: int = 4096
+    max_tokens: int = 8192
     timeout: float = 120.0
     api_version: str = "2023-06-01"
     _client: Any = field(default=None, repr=False)
@@ -340,9 +343,13 @@ class AnthropicClient:
                     args = entry["input_dict"]
                 else:
                     raw = entry.get("input_json") or "{}"
-                    args = safe_parse_tool_input(
-                        raw, tool_name=str(entry.get("name") or "")
-                    )
+                    try:
+                        args = safe_parse_tool_input(
+                            raw, tool_name=str(entry.get("name") or "")
+                        )
+                    except ValueError as exc:
+                        # 解析失败转为工具错误反馈给模型自纠，而非终止整个 run
+                        args = {PARSE_ERROR_KEY: str(exc)}
                 calls.append(
                     ToolCall(
                         id=str(entry.get("id") or f"call_{idx}"),

@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
 from auc.messages import ChatMessage, ToolCall
+from auc.multimodal import openai_message_content
 from auc.model.client import AssistantMessage, ModelClient, StreamChunk
-from auc.model.json_util import safe_parse_tool_input
+from auc.model.json_util import PARSE_ERROR_KEY, safe_parse_tool_input
 from auc.tools.base import ToolSchema
 
 try:
@@ -18,14 +19,17 @@ except ImportError:  # pragma: no cover
 
 def _require_httpx() -> Any:
     if httpx is None:
-        raise ImportError("Install httpx: pip install 'auc[openai]'")
+        from auc.extras import hint_for
+
+        raise ImportError(hint_for("llm", "all"))
     return httpx
 
 
 def _messages_to_api(messages: list[ChatMessage]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for m in messages:
-        item: dict[str, Any] = {"role": m.role, "content": m.content}
+        content = openai_message_content(m) if m.role == "user" else m.content
+        item: dict[str, Any] = {"role": m.role, "content": content}
         if m.name:
             item["name"] = m.name
         if m.tool_call_id:
@@ -185,7 +189,7 @@ class OpenAICompatibleClient:
                             entry["id"] = tc["id"]
                         fn = tc.get("function") or {}
                         if fn.get("name"):
-                            entry["name"] += fn["name"]
+                            entry["name"] = fn["name"]
                         if fn.get("arguments"):
                             entry["arguments"] += fn["arguments"]
                     if choice.get("finish_reason"):
@@ -196,7 +200,11 @@ class OpenAICompatibleClient:
             for idx in sorted(tool_acc.keys()):
                 entry = tool_acc[idx]
                 raw = entry.get("arguments") or "{}"
-                args = safe_parse_tool_input(raw, tool_name=entry.get("name") or "")
+                try:
+                    args = safe_parse_tool_input(raw, tool_name=entry.get("name") or "")
+                except ValueError as exc:
+                    # 解析失败转为工具错误反馈给模型自纠，而非终止整个 run
+                    args = {PARSE_ERROR_KEY: str(exc)}
                 calls.append(
                     ToolCall(
                         id=entry.get("id") or f"call_{idx}",

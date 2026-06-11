@@ -1,6 +1,6 @@
-# AuC 接口草案
+# AuC 接口参考
 
-本文档描述 AuC 核心 **Protocol** 与 **数据类** 草案，为 Python 伪代码，**非可运行实现**。实现时应保持签名与语义一致，并补充 `py.typed` 与单元测试。
+本文档描述 AuC 核心 **Protocol** 与 **数据类**：**已实现**部分与 `auc/` 源码对齐；**目标扩展**（R1–R23）标注为「规划中」，详见 [详细设计.md](详细设计.md)。
 
 ## 公共类型
 
@@ -173,6 +173,8 @@ class ToolPolicy:
     name: str
     privilege: ToolPrivilege
     sandbox_only: bool = False
+    mutates_files: bool = False    # 规划中 R4：写类工具，触发检查点
+    mutates_state: bool = False    # 规划中 R6：受自治级别管控（shell/git 等）
 
 class ToolRegistry(Protocol):
     def register(self, tool: Tool, policy: ToolPolicy | None = None) -> None: ...
@@ -225,7 +227,9 @@ class ContextWindow(Protocol):
     def clear(self) -> None: ...
 ```
 
-`truncate` 在 token 超限等场景由 Loop 或 Agent 触发；智能摘要实现可由 AuM 提供并注入自定义 `TruncatePolicy` 处理器（见 [aum-integration.md](aum-integration.md)）。
+**现状**：`ListContextWindow.truncate` 实现 `drop_oldest`、`drop_middle`；`summarize` 枚举已声明但未实现。
+
+**规划（R3）**：`SummarizingCompactor` 在 compose 前对 window 做两级压缩（tool 折叠 → 模型摘要），见 [详细设计.md](详细设计.md) §3。AuM 亦可提供替换实现（见 [aum-integration.md](aum-integration.md)）。
 
 ## MemoryPort 与 ContextComposer（AuM 实现）
 
@@ -326,7 +330,7 @@ class ApprovalRequest:
 @dataclass
 class ApprovalDecision:
     approved: bool
-    decided_by: str | None = None  # user_id / telegram chat id
+    decided_by: str | None = None  # user_id / telegram chat id / qq user id
     reason: str | None = None
 
 class ApprovalPort(Protocol):
@@ -435,12 +439,54 @@ class EventBus(Protocol):
 | `ListContextWindow` | 内存列表实现 `ContextWindow` |
 | `NoOpMemoryPort` | 空 recall / remember |
 
+## 目标扩展（规划中）
+
+以下类型随 [架构设计.md](架构设计.md) M1–M3 落地；完整签名见 [详细设计.md](详细设计.md)。
+
+```python
+AutonomyLevel = Literal["confirm-all", "auto-edit", "full-auto"]  # R6
+
+# RunEventType 增量（R3–R23，只增不改）
+# context_compacted, checkpoint_created, plan_ready, todos_updated,
+# usage_updated, subagent_start, subagent_end, evolution_lesson, skill_promoted
+
+@dataclass
+class Usage:  # R11
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cached_tokens: int = 0
+    estimated: bool = False
+
+@dataclass
+class TodoItem:  # R10
+    id: str
+    content: str
+    status: Literal["pending", "in_progress", "completed", "cancelled"]
+```
+
+`LoopContext` 规划字段：`autonomy`、`todos`、`usage`、`parent_run_id`、`checkpoints`、`compactor`、`hooks`（详见 [详细设计.md](详细设计.md) §2–4）。
+
+工具裁决链顺序见 [adr/006-tool-decision-chain.md](adr/006-tool-decision-chain.md)。
+
+IM 二次授权端口（已实现 / 规划中）：
+
+| 类 | 说明 |
+|----|------|
+| `ConsoleApprovalPort` | 终端 y/n |
+| `TelegramApprovalPort` | 继承 `HttpImApprovalPort` |
+| `QQApprovalPort` | 继承 `HttpImApprovalPort`（R24） |
+| `WebApprovalPort` | Web 弹窗 |
+
+详见 [详细设计.md](详细设计.md) §12。
+
 ## 相关文档
 
 - [design-philosophy.md](design-philosophy.md)
 - [context-slicer.md](context-slicer.md)
 - [aurules.md](aurules.md)
 - [tool-privilege.md](tool-privilege.md)
-- [architecture.md](architecture.md)
+- [architecture.md](architecture.md) — 现状 As-Is
+- [架构设计.md](架构设计.md) — 目标 To-Be
+- [详细设计.md](详细设计.md)
 - [loops.md](loops.md)
 - [aum-integration.md](aum-integration.md)

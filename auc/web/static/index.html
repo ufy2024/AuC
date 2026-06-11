@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AuC</title>
+  <link rel="stylesheet" href="/static/styles.css?v=8" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+</head>
+<body>
+  <div id="app" class="mode-code">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">◆</span>
+        <span class="name">AuC</span>
+        <span class="version" id="version"></span>
+      </div>
+      <div class="mode-switch" role="tablist">
+        <button type="button" class="mode-btn active" data-mode="code" role="tab">Code</button>
+        <button type="button" class="mode-btn" data-mode="chat" role="tab">Chat</button>
+      </div>
+      <div class="topbar-meta">
+        <span class="model-pill" id="model-pill"></span>
+        <span class="ws-pill" id="ws-pill" title="工作区"></span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- 工作区侧栏 -->
+      <aside class="workspace-panel" id="workspace-panel">
+        <div class="panel-head">
+          <span class="panel-title">工作区</span>
+          <button type="button" class="icon-btn" id="ws-refresh" title="刷新">↻</button>
+        </div>
+        <div class="ws-path" id="ws-path">.</div>
+        <nav class="file-tree" id="file-tree" aria-label="文件树"></nav>
+        <div class="projects-block">
+          <div class="panel-head compact">
+            <span class="panel-title">项目</span>
+            <button type="button" class="icon-btn" id="projects-refresh" title="刷新">↻</button>
+          </div>
+          <div class="project-list" id="project-list"></div>
+        </div>
+        <div class="conversations-block">
+          <div class="panel-head compact">
+            <span class="panel-title">对话</span>
+            <button type="button" class="icon-btn" id="conv-new" title="新对话">＋</button>
+          </div>
+          <div class="conversation-list" id="conversation-list"></div>
+        </div>
+      </aside>
+
+      <!-- Code 模式：编辑器 -->
+      <main class="editor-panel" id="editor-panel">
+        <div class="tab-bar" id="tab-bar"></div>
+        <div class="md-toolbar hidden" id="md-toolbar">
+          <button type="button" class="btn ghost sm" data-md-view="edit">编辑</button>
+          <button type="button" class="btn ghost sm" data-md-view="preview">预览</button>
+        </div>
+        <div class="editor-wrap" id="editor-wrap">
+          <div id="monaco" class="monaco-host"></div>
+          <div id="md-preview" class="md-preview hidden"></div>
+          <div id="image-preview" class="image-preview hidden"></div>
+          <div id="app-preview" class="app-preview hidden">
+            <div class="preview-toolbar">
+              <span id="preview-title">预览</span>
+              <button type="button" class="btn ghost sm" id="preview-stop">停止</button>
+              <button type="button" class="btn ghost sm" id="preview-newtab">新标签页</button>
+            </div>
+            <iframe id="preview-frame" title="项目预览" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+          </div>
+          <div class="editor-empty" id="editor-empty">
+            <p>从左侧工作区选择文件开始编辑</p>
+            <p class="hint">JupyterLab 风格 · 右侧与 Agent 对话</p>
+          </div>
+        </div>
+      </main>
+
+      <!-- Chat 模式：顶部智能体信息（独立网格行，固定居中） -->
+      <header class="chat-header" id="chat-header">
+        <div class="chat-header-inner">
+          <div class="agent-profile" id="agent-profile">
+            <div class="agent-avatar" aria-hidden="true">◆</div>
+            <h1 class="agent-title" id="agent-title">Coder 专家</h1>
+            <span class="agent-status" id="agent-status">就绪</span>
+            <p class="agent-desc" id="agent-desc">编程、调试与架构设计助手</p>
+              <div class="agent-meta" id="agent-meta"></div>
+              <div class="agent-tags" id="agent-tags"></div>
+              <div class="work-mode-bar" id="work-mode-bar">
+                <label class="work-mode-label" for="work-mode-select">工作模式</label>
+                <select id="work-mode-select" class="work-mode-select" title="自动识别或手动指定智能体工作模式">
+                  <option value="auto">自动识别</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </header>
+
+      <!-- Chat 模式：对话消息区 -->
+      <main class="chat-main" id="chat-main">
+        <div class="chat-scroll">
+          <div class="chat-center">
+            <div class="chat-messages" id="chat-messages"></div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Agent 侧栏 -->
+      <aside class="agent-panel" id="agent-panel">
+        <div class="panel-head">
+          <span class="panel-title">Agent</span>
+          <button type="button" class="icon-btn" id="chat-clear" title="清空对话">⌫</button>
+        </div>
+        <div class="agent-messages" id="agent-messages"></div>
+        <form class="composer" id="composer">
+          <div class="context-bar" id="context-bar">
+            <label class="work-mode-inline" title="工作模式">
+              <span class="work-mode-label">模式</span>
+              <select id="work-mode-agent" class="work-mode-select sm"></select>
+            </label>
+            <label class="ctx-toggle" title="自动附带当前打开的文件内容">
+              <input type="checkbox" id="ctx-auto" checked />
+              <span id="ctx-label">附带当前文件</span>
+            </label>
+            <button type="button" class="btn ghost sm" id="btn-insert-file" title="插入 @当前文件">@文件</button>
+            <button type="button" class="btn ghost sm" id="btn-insert-sel" title="插入 @选中">@选中</button>
+          </div>
+          <div class="attach-strip" id="attach-strip-agent"></div>
+          <textarea id="prompt" rows="3" placeholder="描述要如何修改当前代码… 例如：给游戏加个暂停按钮"></textarea>
+          <div class="composer-actions">
+            <input type="file" id="file-agent" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden />
+            <button type="button" class="btn ghost" id="btn-attach-agent" title="上传图片">🖼</button>
+            <button type="button" class="btn ghost" id="btn-cancel" disabled>停止</button>
+            <button type="submit" class="btn primary" id="btn-send">发送</button>
+          </div>
+        </form>
+      </aside>
+    </div>
+
+    <!-- Chat 模式底部输入 -->
+    <div class="chat-composer-bar" id="chat-composer-bar">
+      <div class="chat-composer-inner">
+        <div class="attach-col">
+          <div class="attach-strip" id="attach-strip-chat"></div>
+          <textarea id="prompt-chat" rows="2" placeholder="问我任何事… @文件 · 粘贴或上传图片"></textarea>
+        </div>
+        <input type="file" id="file-chat" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden />
+        <button type="button" class="btn ghost" id="btn-attach-chat" title="上传图片">🖼</button>
+        <button type="button" class="btn ghost" id="btn-clear-chat" title="清空">⌫</button>
+        <button type="button" class="btn ghost" id="btn-cancel-chat" disabled>停止</button>
+        <button type="button" class="btn primary" id="btn-send-chat">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="approval-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card">
+      <h3 class="approval-title">访问外部链接需授权</h3>
+      <p class="approval-summary" id="approval-summary"></p>
+      <pre class="approval-url" id="approval-url"></pre>
+      <p class="approval-hint">批准后智能体才会发起网络请求；拒绝将中止本次操作。</p>
+      <div class="approval-actions">
+        <button type="button" class="btn ghost" id="approval-deny">拒绝</button>
+        <button type="button" class="btn primary" id="approval-allow">允许访问</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script src="/static/app.js?v=9" type="module"></script>
+</body>
+</html>

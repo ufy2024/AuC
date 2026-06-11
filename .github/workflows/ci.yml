@@ -19,5 +19,5 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: pip install -e ".[dev]"
-      - name: Test
-        run: pytest -q
+      - name: Test (coverage gate ≥75%)
+        run: pytest -q --cov=auc --cov-report=term --cov-fail-under=75

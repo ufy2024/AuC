@@ -8,3 +8,6 @@ dist/
 .venv/
 venv/
 tmp/
+docs/
+.coverage
+coverage.json

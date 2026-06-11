@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from auc.types import MessageRole, RunId, RunStatus
+
+if TYPE_CHECKING:
+    from auc.ports.package import ContextPackage
 
 
 @dataclass
@@ -14,6 +17,16 @@ class ToolCall:
 
 
 @dataclass
+class ImageAttachment:
+    """多模态图片附件（base64）。"""
+
+    mime_type: str
+    data_base64: str
+    name: str | None = None
+    source_path: str | None = None
+
+
+@dataclass
 class ChatMessage:
     role: MessageRole
     content: str
@@ -21,6 +34,7 @@ class ChatMessage:
     name: str | None = None
     tool_calls: list[ToolCall] | None = None
     thinking: str | None = None
+    images: list[ImageAttachment] | None = None
 
 
 @dataclass
@@ -35,7 +49,7 @@ class ToolResult:
 class RunRequest:
     input: str | list[ChatMessage]
     run_id: RunId | None = None
-    context_package: Any | None = None  # ContextPackage; avoid circular import
+    context_package: ContextPackage | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

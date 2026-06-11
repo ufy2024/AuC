@@ -1,6 +1,6 @@
 # 工具权限分级与 L3 二次授权
 
-借鉴 Claude Code 对 `git push`、高额 API、系统级改动的**终端确认**，AuC 在框架层实现 **Tool Privilege Levels** 与 **挂起—审批—恢复** 状态机；AuM 经 **IM 网关（如 Telegram）** 完成人机二次授权（2FA for AI）。
+借鉴 Claude Code 对 `git push`、高额 API、系统级改动的**终端确认**，AuC 在框架层实现 **Tool Privilege Levels** 与 **挂起—审批—恢复** 状态机；经 **IM 网关（Telegram / QQ）** 完成人机二次授权（2FA for AI）。
 
 ## 权限分级
 
@@ -32,7 +32,7 @@ flowchart TB
   Gate -->|L1 L2| Exec[invoke]
   Gate -->|L3| Suspend[挂起Session]
   Suspend --> AuM[AuM封装Diff与上下文]
-  AuM --> IM[Telegram等IM]
+  AuM --> IM[Telegram / QQ 等 IM]
   IM -->|批准| Resume[恢复Run]
   IM -->|拒绝| Abort[RunStatus cancelled]
   Resume --> Exec
@@ -63,7 +63,7 @@ class ApprovalPort(Protocol):
 AuM 职责：
 
 1. 从挂起的 Run 提取 **代码 Diff**、分支名、工具参数。
-2. 格式化为 IM 卡片（Telegram Inline Keyboard：`允许并继续` / `拒绝并中断`）。
+2. 格式化为 IM 卡片（Telegram Inline Keyboard 或 QQ 消息按钮：`允许并继续` / `拒绝并中断`；共用 `format_approval_card`）。
 3. 将用户点击结果回写 `ApprovalPort`。
 
 ### IM 卡片示意
@@ -104,8 +104,24 @@ L2 工具必须满足：
 
 越界尝试升级为 **L3** 或硬拒绝。
 
+## IM 实现（Telegram / QQ）
+
+| 端口 | 基类 | 回调语义 | 安装 |
+|------|------|----------|------|
+| `TelegramApprovalPort` | `HttpImApprovalPort` | `auc:approve\|deny:<id>`，Bot API 轮询 | `pip install -e '.[telegram]'` |
+| `QQApprovalPort` | `HttpImApprovalPort` | 同上，OneBot Webhook 写入 | `pip install -e '.[qq]'` |
+
+详见 [详细设计.md](详细设计.md) §12、[需求.md](需求.md) R24。
+
+## 会话自治级别（规划中 R6）
+
+在静态 L1/L2/L3 之上，规划三级会话开关：`confirm-all` / `auto-edit`（默认）/ `full-auto`。`full-auto` 仅放宽 L2，**L3 永不自动放行**。`confirm-all` 下写文件挂起并携带 unified diff，与 R9 Diff 审阅共用 `ApprovalPort`。
+
+完整裁决链（Hooks → Escalation → Autonomy → Gate → Checkpoint → invoke）见 [adr/006-tool-decision-chain.md](adr/006-tool-decision-chain.md) 与 [架构设计.md](架构设计.md) §4.4。
+
 ## 相关文档
 
 - [interfaces.md](interfaces.md) — `ApprovalPort`、`ToolPolicy`
 - [aum-integration.md](aum-integration.md) — IM 网关
 - [adr/005-tool-privilege-2fa.md](adr/005-tool-privilege-2fa.md)
+- [adr/006-tool-decision-chain.md](adr/006-tool-decision-chain.md) — 裁决链（R1/R6/R9/R14）

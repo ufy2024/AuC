@@ -1,6 +1,7 @@
 """Agents-ufy-Core (AuC): asyncio single-agent framework."""
 
 from auc.agent import AgentConfig, DefaultAgent
+from auc.checkpoint import CheckpointStore
 from auc.config import (
     ModelConfig,
     default_config_path,
@@ -25,16 +26,19 @@ from auc.ports import (
     SlicerPolicy,
 )
 from auc.policy import ToolPrivilegeGate
+from auc.policy.autonomy import AutonomyPolicy
 from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 from auc.tools import DefaultToolRegistry, make_echo_tool, register_function_tools, tool
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 __all__ = [
     "__version__",
     "AgentConfig",
     "AssistantMessage",
     "AutoApprovePort",
+    "AutonomyPolicy",
+    "CheckpointStore",
     "ChatMessage",
     "CodeSnippet",
     "ContextPackage",

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
-from auc.context.window import ContextWindow
+from auc.context.window import ContextWindow, TruncatePolicy
 from auc.events.bus import EventBus
 from auc.messages import ChatMessage, RunResult, ToolResult
 from auc.model.client import AssistantMessage, ModelClient
+from auc.policy.autonomy import AutonomyPolicy
 from auc.ports.approval import ApprovalPort
 from auc.ports.memory import ContextComposer, MemoryPort
 from auc.ports.package import ContextPackage
@@ -16,6 +17,10 @@ from auc.policy.privilege import ToolPrivilegeGate
 from auc.tools.registry import DefaultToolRegistry
 from auc.types import AgentId, RunId, RunStatus
 
+if TYPE_CHECKING:
+    from auc.checkpoint import CheckpointStore
+    from auc.context.compactor import SummarizingCompactor
+
 
 @dataclass
 class LoopConfig:
@@ -23,6 +28,8 @@ class LoopConfig:
     stop_sequences: list[str] = field(default_factory=list)
     parallel_tool_calls: bool = True
     remember_each_step: bool = False
+    max_window_messages: int = 80
+    context_token_limit: int = 96_000  # R3：0 表示关闭自动压缩
 
 
 @dataclass
@@ -44,6 +51,11 @@ class LoopContext:
     cancelled: bool = False
     step_index: int = 0
     error: str | None = None
+    autonomy_policy: AutonomyPolicy | None = None  # R6 会话级自治
+    checkpoints: CheckpointStore | None = None  # R4 写前快照
+    compactor: SummarizingCompactor | None = None  # R3 自动压缩
+    todos: list[dict[str, Any]] = field(default_factory=list)  # R10
+    parent_run_id: RunId | None = None  # R13 子 Run 关联
 
 
 @dataclass
@@ -155,6 +167,8 @@ class AgentLoopRunner:
         last: LoopStepResult | None = None
 
         while True:
+            if ctx.config.max_window_messages > 0:
+                ctx.window.truncate(TruncatePolicy(max_messages=ctx.config.max_window_messages))
             if ctx.cancelled:
                 status = resolve_status(ctx, last)
                 ctx.events.emit_typed(

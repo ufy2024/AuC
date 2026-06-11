@@ -18,9 +18,17 @@ def make_file_tools(
         resolved = resolve_under_sandbox(sandbox_root, path)
         return resolved.read_text(encoding="utf-8")
 
-    def _write(path: str, content: str) -> str:
+    def _write(path: str, content: str, append: bool = False) -> str:
         resolved = resolve_under_sandbox(sandbox_root, path)
         resolved.parent.mkdir(parents=True, exist_ok=True)
+        # 模型可能以字符串形式传布尔值
+        if isinstance(append, str):
+            append = append.strip().lower() in ("true", "1", "yes")
+        if append:
+            with resolved.open("a", encoding="utf-8") as f:
+                f.write(content)
+            total = resolved.stat().st_size
+            return f"appended {len(content)} chars to {resolved} (file now {total} bytes)"
         resolved.write_text(content, encoding="utf-8")
         return f"wrote {len(content)} bytes to {resolved}"
 
@@ -62,10 +70,12 @@ def make_file_tools(
             _write,
             name="write_file",
             description=(
-                "Write UTF-8 file under sandbox. Args: path, content (JSON). "
-                "Include path before content; split large files across calls."
+                "Write UTF-8 file under sandbox. Args: path, content, append (optional bool). "
+                "Include path before content. For large files (>150 lines) write in chunks: "
+                "first call overwrites, following calls pass append=true to continue the same file."
             ),
             privilege="L2",
+            mutates_files=True,
         ),
         tool_from_function(
             _list_dir,
@@ -81,6 +91,7 @@ def make_file_tools(
                 "Cannot delete sandbox root."
             ),
             privilege="L2",
+            mutates_files=True,
         ),
     ]
     return [(t, _l2_policy(t, p)) for t, p in specs]

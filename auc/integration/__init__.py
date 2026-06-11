@@ -9,6 +9,7 @@ from auc.integration.evolution import (
 )
 from auc.integration.nuggets import AuNugget, NuggetsMemoryPort, NuggetsStore
 from auc.integration.slicer import SemanticSlicer, SlicerConfig
+from auc.integration.qq import QQApprovalPort, register_qq_callback
 from auc.integration.telegram import (
     ConsoleApprovalPort,
     InMemoryCallbackApprovalPort,
@@ -32,5 +33,7 @@ __all__ = [
     "SlicerConfig",
     "SpecialistRegistry",
     "SpecialistSpec",
+    "QQApprovalPort",
     "TelegramApprovalPort",
+    "register_qq_callback",
 ]

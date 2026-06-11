@@ -4,8 +4,11 @@ import argparse
 import asyncio
 import json
 import os
+import signal
 import sys
 from pathlib import Path
+
+from auc.terminal import dim, yellow
 
 from auc import AgentConfig, DefaultAgent, DefaultToolRegistry, InMemoryModelClient
 from auc.tools import make_echo_tool
@@ -23,38 +26,18 @@ from auc.config import (
     save_config_file,
 )
 from auc.integration import AuMStack, ConsoleApprovalPort, SemanticSlicer, SpecialistRegistry, SpecialistSpec
+from auc.integration.qq import QQApprovalPort
 from auc.integration.telegram import TelegramApprovalPort
 from auc.messages import ChatMessage, RunRequest, RunResult
 from auc.model import AssistantMessage
 from auc.model.factory import aclose_model_client, create_model_client
 from auc.policy import ToolPrivilegeGate
 from auc.ports import FileRulesPort, SlicerPolicy
-from auc.integration.evolution import EvolutionMemoryPort, evolution_paths, make_evolution_tools
-from auc.stream_display import ChatStreamPrinter
+from auc.integration.evolution import EvolutionMemoryPort, make_evolution_tools
+from auc.cli_ui import ClaudeCodeStreamPrinter, StreamSpinner, run_interactive_repl
 from auc.tools.files import make_file_tools
 
-_DEFAULT_CHAT_SYSTEM = """\
-你是编程助手。工作区根目录（沙盒）为：{sandbox}
-在沙盒内你拥有完整文件系统权限（不可访问沙盒外路径）。
-
-可用工具：
-- read_file(path): 读取 UTF-8 文本
-- write_file(path, content): 写入或创建文件
-- list_dir(path): 列出目录（path 默认 .）
-- delete_path(path): 删除文件或整个目录
-- save_lesson(tags, lesson): 固化可复用经验到进化库（跨会话）
-- promote_nugget(nugget_id, tags, content): 将成功经验提升为金块技能
-
-进化能力（默认开启）：
-- 每轮成功对话会自动写入 .auc/evolution.yaml
-- 启动时会召回 .auc/au-nuggets.yaml 与历史经验
-- 完成复杂任务后，用 save_lesson 或 promote_nugget 沉淀套路
-
-用户要求删除目录/文件时，必须使用 delete_path。
-当用户需要代码或文件时，必须用 write_file 写入工作区。
-write_file 参数必须是合法 JSON，且同时包含 path 与 content；大文件可拆成多个较小文件分次写入。
-路径使用相对于沙盒的相对路径。
-"""
+from auc.chat_agent import build_chat_system_prompt
 
 
 def _chat_sandbox_root(args: argparse.Namespace) -> str:
@@ -76,7 +59,14 @@ def _register_chat_tools(
     sandbox_root: str,
     memory: EvolutionMemoryPort | None = None,
 ) -> None:
+    from auc.tools.search import make_search_tools
+    from auc.tools.shell import make_shell_tool
+
     for tool, pol in make_file_tools(sandbox_root):
+        registry.register(tool, pol)
+    shell_tool, shell_pol = make_shell_tool(sandbox_root)
+    registry.register(shell_tool, shell_pol)
+    for tool, pol in make_search_tools(sandbox_root):
         registry.register(tool, pol)
     if memory is not None:
         for tool, pol in make_evolution_tools(memory):
@@ -86,7 +76,7 @@ def _register_chat_tools(
 def _chat_system_prompt(args: argparse.Namespace, sandbox: str) -> str:
     if args.system:
         return args.system
-    return _DEFAULT_CHAT_SYSTEM.format(sandbox=sandbox)
+    return build_chat_system_prompt(sandbox)
 
 
 def _add_model_args(parser: argparse.ArgumentParser) -> None:
@@ -120,19 +110,6 @@ def _resolve_cfg(args: argparse.Namespace) -> ModelConfig:
         max_tokens=getattr(args, "max_tokens", None),
         repo_root=repo if repo else None,
     )
-
-
-def _chat_banner(cfg: ModelConfig, sandbox: str, *, evolve: bool) -> None:
-    label = cfg.config_name or cfg.config_id or cfg.model
-    print(f"AuC · {label} ({cfg.provider}/{cfg.model})")
-    print(f"工作区: {sandbox}")
-    tools = "read_file, write_file, list_dir, delete_path"
-    if evolve:
-        tools += ", save_lesson, promote_nugget"
-        nug, evo = evolution_paths(sandbox)
-        print(f"进化: {evo}")
-        print(f"金块: {nug}")
-    print(f"工具: {tools}")
 
 
 async def _print_chat_result(
@@ -174,7 +151,7 @@ async def _consume_chat_stream(
     agent: DefaultAgent,
     req: RunRequest,
     args: argparse.Namespace,
-) -> tuple[int, RunResult | None]:
+) -> tuple[int, RunResult | None, int]:
     if getattr(args, "stream_events", False):
         async for ev in agent.run_stream(req):
             print(
@@ -184,44 +161,96 @@ async def _consume_chat_stream(
                 )
             )
         result = agent.last_run_result
-        return (0 if result and result.status == "completed" else 1), result
+        ok = result and result.status == "completed"
+        return (0 if ok else 1), result, 0
 
-    printer = ChatStreamPrinter(show_tools=not args.no_tools)
-    async for ev in agent.run_stream(req):
-        printer.feed(ev)
-    printer.finish_line()
+    printer = ClaudeCodeStreamPrinter(show_tools=not args.no_tools)
+    spinner = StreamSpinner()
+    run_id: str | None = None
+    interrupt_count = 0
+    loop = asyncio.get_running_loop()
+    use_signals = sys.platform != "win32" and loop.add_signal_handler is not None
+
+    def _on_sigint() -> None:
+        nonlocal interrupt_count, run_id
+        interrupt_count += 1
+        if run_id and interrupt_count == 1:
+            agent.cancel(run_id)
+            sys.stdout.write(yellow("\n  ⊘ 取消中…\n"))
+            sys.stdout.flush()
+        elif interrupt_count >= 2:
+            raise KeyboardInterrupt
+
+    if use_signals:
+        try:
+            loop.add_signal_handler(signal.SIGINT, _on_sigint)
+        except (NotImplementedError, RuntimeError):
+            use_signals = False
+
+    await spinner.start()
+    try:
+        async for ev in agent.run_stream(req):
+            if ev.type == "run_start":
+                run_id = ev.run_id
+            await spinner.stop()
+            printer.feed(ev)
+    finally:
+        await spinner.stop()
+        printer.finish_reply()
+        if use_signals:
+            loop.remove_signal_handler(signal.SIGINT)
+
     result = agent.last_run_result
     if result is None:
-        return 1, None
-    code = 0 if result.status == "completed" else 1
-    if code != 0:
+        return 1, None, printer.tool_count
+    ok = result.status in ("completed", "cancelled")
+    code = 0 if ok else 1
+    if code != 0 and result.status != "cancelled":
         _print_run_failure(result)
-    return code, result
+    return code, result, printer.tool_count
 
 
 async def _run_chat_turn(
     agent: DefaultAgent,
     cfg: ModelConfig,
     args: argparse.Namespace,
-    message: str,
+    message: str | ChatMessage,
     history: list[ChatMessage],
-) -> tuple[int, list[ChatMessage]]:
+) -> tuple[int, list[ChatMessage], int]:
+    from auc.work_mode import enrich_user_turn
+
     meta = {"repo_root": args.repo} if args.repo else {}
-    history = [*history, ChatMessage(role="user", content=message)]
+    if getattr(args, "autonomy", None):
+        meta["autonomy"] = args.autonomy
+    if getattr(args, "_work_mode", None):
+        meta["work_mode"] = args._work_mode
+    if getattr(args, "_approved_plan", None):
+        meta["approved_plan"] = args._approved_plan
+    if isinstance(message, ChatMessage):
+        user_msg = message
+    else:
+        enriched, _, _ = enrich_user_turn(message, selected=getattr(args, "_work_mode", None))
+        user_msg = ChatMessage(role="user", content=enriched)
+    history = [*history, user_msg]
     req = RunRequest(input=history, metadata=meta)
 
     if args.no_stream:
         result = await agent.run(req)
         code = await _print_chat_result(result, cfg, as_json=args.json)
-        return code, list(result.messages)
+        return code, list(result.messages), 0
 
-    code, result = await _consume_chat_stream(agent, req, args)
+    code, result, tool_count = await _consume_chat_stream(agent, req, args)
     if result is None:
-        return code, history
+        return code, history, tool_count
     if code == 0 and result.status == "completed":
         mem = getattr(agent, "_config", None) and agent._config.memory
         if mem is not None:
-            await mem.remember(result.messages, run_id=result.run_id)
+            from auc.multimodal import strip_images_for_memory
+
+            await mem.remember(
+                strip_images_for_memory(result.messages),
+                run_id=result.run_id,
+            )
     if args.json and result:
         print(
             json.dumps(
@@ -237,7 +266,7 @@ async def _run_chat_turn(
                 indent=2,
             )
         )
-    return code, list(result.messages)
+    return code, list(result.messages), tool_count
 
 
 async def _run_chat_interactive(
@@ -245,28 +274,13 @@ async def _run_chat_interactive(
     cfg: ModelConfig,
     args: argparse.Namespace,
 ) -> int:
-    _chat_banner(cfg, _chat_sandbox_root(args), evolve=not args.no_evolve)
-    print("交互模式：输入消息后回车；exit / quit 或 Ctrl+D 退出")
-    history: list[ChatMessage] = []
-    while True:
-        try:
-            line = await asyncio.to_thread(input, "you> ")
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-        text = line.strip()
-        if not text:
-            continue
-        if text.lower() in ("exit", "quit", "/exit", "/quit", "q"):
-            break
-        try:
-            code, history = await _run_chat_turn(agent, cfg, args, text, history)
-        except Exception as exc:  # noqa: BLE001
-            print(f"\n[异常] {exc}", file=sys.stderr)
-            continue
-        if code != 0:
-            continue
-    return 0
+    return await run_interactive_repl(
+        agent=agent,
+        cfg=cfg,
+        args=args,
+        sandbox=_chat_sandbox_root(args),
+        run_turn=_run_chat_turn,
+    )
 
 
 async def _run_chat(args: argparse.Namespace) -> int:
@@ -279,7 +293,13 @@ async def _run_chat(args: argparse.Namespace) -> int:
         _register_chat_tools(registry, sandbox, memory)
 
     model = create_model_client(cfg)
-    approval = ConsoleApprovalPort() if args.approval == "console" else None
+    # 交互式终端默认启用控制台审批（shell/写文件确认与 L3 授权都依赖审批通道）
+    if args.approval == "console" or (
+        args.approval is None and sys.stdin.isatty() and args.message is None
+    ):
+        approval = ConsoleApprovalPort()
+    else:
+        approval = None  # "none" 或非交互管道模式
     try:
         from auc.loop.base import LoopConfig
         from auc.ports.memory import DefaultComposer
@@ -305,7 +325,7 @@ async def _run_chat(args: argparse.Namespace) -> int:
             message = sys.stdin.read().strip()
         if message is None:
             return await _run_chat_interactive(agent, cfg, args)
-        code, _ = await _run_chat_turn(agent, cfg, args, message, [])
+        code, _, _ = await _run_chat_turn(agent, cfg, args, message, [])
         return code
     finally:
         await aclose_model_client(model)
@@ -361,9 +381,15 @@ async def _run_dispatch(args: argparse.Namespace) -> int:
         SpecialistSpec(agent_id="default", tags=["default"], config_builder=_build_config),
         default=True,
     )
-    approval: ConsoleApprovalPort | TelegramApprovalPort
+    approval: ConsoleApprovalPort | TelegramApprovalPort | QQApprovalPort
     if args.approval == "telegram":
         approval = TelegramApprovalPort()
+    elif args.approval == "qq":
+        settings, _ = load_merged_settings(
+            getattr(args, "config", None),
+            Path(args.repo) if getattr(args, "repo", None) else None,
+        )
+        approval = QQApprovalPort.from_settings(settings)
     else:
         approval = ConsoleApprovalPort()
 
@@ -381,6 +407,40 @@ async def _run_dispatch(args: argparse.Namespace) -> int:
     )
     print(json.dumps({"status": result.status, "output": result.output}, ensure_ascii=False, indent=2))
     return 0 if result.status == "completed" else 1
+
+
+def _cmd_undo(args: argparse.Namespace) -> int:
+    from auc.checkpoint import CheckpointStore
+
+    sandbox = str(Path(args.sandbox).expanduser().resolve()) if args.sandbox else str(Path.cwd())
+    store = CheckpointStore(sandbox)
+    runs = store.list_runs()
+    if not runs:
+        print("没有可回滚的检查点（.auc/checkpoints 为空）", file=sys.stderr)
+        return 1
+    run_id = args.run or runs[0]
+    entries = store.list_entries(run_id)
+    if not entries:
+        print(f"run {run_id} 没有检查点条目", file=sys.stderr)
+        return 1
+
+    if args.list:
+        print(f"run: {run_id}")
+        for e in entries:
+            target = e.path or e.command or ""
+            print(f"  step {e.step:>3}  {e.op:<6} {e.tool:<14} {target}")
+        return 0
+
+    report = store.revert_to(run_id, args.step)
+    for p in report.restored:
+        print(f"恢复: {p}")
+    for p in report.deleted:
+        print(f"删除(回滚新建): {p}")
+    for w in report.warnings:
+        print(yellow(f"警告: {w}"))
+    if not (report.restored or report.deleted):
+        print("没有需要回滚的文件改动")
+    return 0
 
 
 def _resolve_config_path_arg(path: str | None) -> Path:
@@ -500,8 +560,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="关闭进化能力（不召回/写入 .auc/evolution.yaml）",
     )
-    p_chat.add_argument("--approval", choices=("console",), default=None)
+    p_chat.add_argument("--approval", choices=("console", "none"), default=None)
+    p_chat.add_argument(
+        "--autonomy",
+        choices=("confirm-all", "auto-edit", "full-auto"),
+        default=None,
+        help="会话自治级别：confirm-all 每次写操作确认 / auto-edit 默认 / full-auto 沙盒内全自动（L3 仍需授权）",
+    )
     _add_model_args(p_chat)
+
+    # undo — 检查点回滚（R4）
+    p_undo = sub.add_parser("undo", help="回滚最近 Run 的文件修改（.auc/checkpoints）")
+    p_undo.add_argument("--sandbox", default="", help="沙盒根目录（默认当前目录）")
+    p_undo.add_argument("--run", default=None, help="run_id（默认最近一次）")
+    p_undo.add_argument("--step", type=int, default=0, help="回滚到该步之前（默认 0 = 全部回滚）")
+    p_undo.add_argument("--list", action="store_true", help="仅列出检查点，不执行回滚")
 
     # config
     p_cfg = sub.add_parser("config", help="Manage model configuration file")
@@ -574,11 +647,32 @@ def main(argv: list[str] | None = None) -> int:
     p_disp.add_argument("--repo", required=True)
     p_disp.add_argument("--specialist", default=None)
     p_disp.add_argument("--nuggets", default=None)
-    p_disp.add_argument("--approval", choices=("console", "telegram"), default="console")
+    p_disp.add_argument("--approval", choices=("console", "telegram", "qq"), default="console")
     p_disp.add_argument("--no-require-package", action="store_true")
     _add_model_args(p_disp)
 
+    p_web = sub.add_parser("web", help="Launch web UI (Code + Chat modes)")
+    p_web.add_argument("--host", default="127.0.0.1")
+    p_web.add_argument("--port", type=int, default=8765)
+    p_web.add_argument("--sandbox", default="", help="Workspace root")
+    p_web.add_argument("--repo", default="", help="Repo root for .aurules")
+    p_web.add_argument("--no-evolve", action="store_true")
+    _add_model_args(p_web)
+
+    sub.add_parser("extras", help="Show optional install modes (pip install -e '.[mode]')")
+
     args = parser.parse_args(argv)
+
+    if args.cmd == "extras":
+        from auc.extras import INSTALL_EXAMPLES, INSTALL_MODES
+
+        print("可选安装模式 [all] = 全部组件\n")
+        for key, desc in INSTALL_MODES.items():
+            print(f"  [{key:<8}] {desc}")
+        print("\n示例:")
+        for line in INSTALL_EXAMPLES:
+            print(f"  {line}")
+        return 0
 
     if args.cmd == "config":
         if args.config_cmd == "init":
@@ -601,8 +695,36 @@ def main(argv: list[str] | None = None) -> int:
             args.model = "gpt-4o-mini"
         return asyncio.run(_run_chat(args))
 
+    if args.cmd == "undo":
+        return _cmd_undo(args)
+
     if args.cmd == "chat":
         return asyncio.run(_run_chat(args))
+    if args.cmd == "web":
+        from auc.web.server import main as web_main
+
+        wargv = []
+        if args.host != "127.0.0.1":
+            wargv += ["--host", args.host]
+        if args.port != 8765:
+            wargv += ["--port", str(args.port)]
+        if args.sandbox:
+            wargv += ["--sandbox", args.sandbox]
+        if args.repo:
+            wargv += ["--repo", args.repo]
+        if args.config:
+            wargv += ["--config", args.config]
+        if args.provider:
+            wargv += ["--provider", args.provider]
+        if args.model:
+            wargv += ["--model", args.model]
+        if args.api_key:
+            wargv += ["--api-key", args.api_key]
+        if args.base_url:
+            wargv += ["--base-url", args.base_url]
+        if args.no_evolve:
+            wargv += ["--no-evolve"]
+        return web_main(wargv or None)
     if args.cmd == "dispatch":
         return asyncio.run(_run_dispatch(args))
     return asyncio.run(_run_scripted(args))

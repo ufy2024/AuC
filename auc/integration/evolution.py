@@ -293,8 +293,5 @@ def make_evolution_tools(
             privilege="L2",
         ),
     ]
-    out = []
-    for t, p in specs:
-        p.sandbox_only = False
-        out.append((t, p))
+    out = [(t, p) for t, p in specs]
     return out
