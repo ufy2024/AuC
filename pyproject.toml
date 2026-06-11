@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "auc"
+name = "ufy-auc"
 version = "0.2.4"
-description = "Agents-ufy-Core: asyncio single-agent framework"
+description = "Agents-ufy-Core (AuC): asyncio single-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
