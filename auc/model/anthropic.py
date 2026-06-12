@@ -30,6 +30,40 @@ def _require_httpx() -> Any:
     return httpx
 
 
+def _sanitize_tool_pairing(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Drop tool_result rows that lack a preceding assistant tool_use in the window.
+
+    Anthropic / DeepSeek reject requests when tool_result blocks reference ids that
+    do not appear in the immediately previous assistant message (common after
+    context compaction or corrupted history).
+    """
+    out: list[ChatMessage] = []
+    pending_ids: set[str] = set()
+
+    for m in messages:
+        if m.role == "assistant":
+            pending_ids = {tc.id for tc in (m.tool_calls or []) if tc.id}
+            out.append(m)
+            continue
+        if m.role == "tool":
+            tid = m.tool_call_id or ""
+            if pending_ids and tid in pending_ids:
+                out.append(m)
+            continue
+        if m.role == "user" and m.tool_call_id:
+            tid = m.tool_call_id or ""
+            if pending_ids and tid in pending_ids:
+                out.append(m)
+            continue
+        pending_ids = set()
+        out.append(m)
+
+    # 去掉窗口开头残留的孤立 tool 消息
+    while out and out[0].role == "tool":
+        out.pop(0)
+    return out
+
+
 def _tools_to_anthropic(tools: list[ToolSchema] | None) -> list[dict[str, Any]] | None:
     if not tools:
         return None
@@ -48,6 +82,7 @@ def _to_anthropic_messages(
     *,
     deepseek: bool = False,
 ) -> tuple[str | None, list[dict[str, Any]]]:
+    messages = _sanitize_tool_pairing(messages)
     system_parts: list[str] = []
     out: list[dict[str, Any]] = []
     i = 0

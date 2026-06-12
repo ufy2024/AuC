@@ -180,6 +180,22 @@ class SummarizingCompactor:
         if end is None or end <= head_idx + 1:
             return None
 
+        # 近期段不得以孤立 tool 开头（assistant+tool_use 已被摘要掉会触发 API 400）
+        while end < len(messages) and messages[end].role == "tool":
+            k = end
+            while k > head_idx + 1 and messages[k - 1].role == "tool":
+                k -= 1
+            if (
+                k > head_idx + 1
+                and messages[k - 1].role == "assistant"
+                and messages[k - 1].tool_calls
+            ):
+                end = k - 1
+                break
+            end += 1
+        if end >= len(messages) or end <= head_idx + 1:
+            return None
+
         to_summarize = messages[head_idx + 1 : end]
         if not to_summarize:
             return None
