@@ -89,7 +89,7 @@ def create_app():  # noqa: ANN201
 
             await aclose_model_client(agent._config.model)  # noqa: SLF001
 
-    app = FastAPI(title="AuC Web", version="0.2.4", lifespan=lifespan)
+    app = FastAPI(title="AuC Web", version="0.2.5", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
     @app.get("/")
@@ -102,7 +102,7 @@ def create_app():  # noqa: ANN201
         cfg = session.cfg
         evolve = _state.get("evolve", True)
         payload: dict[str, Any] = {
-            "version": "0.2.4",
+            "version": "0.2.5",
             "workspace": {
                 "root": session.sandbox,
                 "display": short_display_path(session.sandbox),
