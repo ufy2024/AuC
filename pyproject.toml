@@ -78,9 +78,6 @@ Issues = "https://github.com/ufy2024/AuC/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["auc"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"auc/roles" = "auc/roles"
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
