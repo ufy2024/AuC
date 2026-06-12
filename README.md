@@ -4,7 +4,7 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
-**v0.2.5** — 支持 **OpenAI**、**Anthropic**、**DeepSeek**；终端 + Web 双端；269 项测试、覆盖率 ≥80%。
+**v0.2.6** — 支持 **OpenAI**、**Anthropic**、**DeepSeek**；终端 + Web 双端；**多角色目录**（内置 + 沙盒自定义）；281 项测试、覆盖率 ≥80%。
 
 [![CI](https://github.com/ufy2024/AuC/actions/workflows/ci.yml/badge.svg)](https://github.com/ufy2024/AuC/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/ufy-auc)](https://pypi.org/project/ufy-auc/)

@@ -41,6 +41,7 @@ flowchart TB
     Ctx[ContextWindow]
     Events[EventBus]
     WM[work_mode]
+    Roles[roles]
     Evo[EvolutionMemoryPort]
   end
 
@@ -65,6 +66,7 @@ flowchart TB
   Loop --> Ctx
   Agent --> Events
   WM --> Agent
+  Roles --> Agent
   Gate -->|L3| Approval
   Approval --> TG
   Approval --> QQ
@@ -84,7 +86,8 @@ flowchart TB
 | **ContextWindow** | 当前 Run 的消息工作区（`ListContextWindow`） |
 | **EventBus** | Run 生命周期事件分发 |
 | **work_mode** | 8 种工作模式 + 自动识别 |
-| **EvolutionMemoryPort** | `.auc/evolution.yaml` 跨会话经验召回（可选） |
+| **roles** | 5 种内置角色 persona；`metadata.role_id` 覆盖系统提示；`agent_id=chat:{role}` |
+| **EvolutionMemoryPort** | `.auc/evolution.yaml` 跨会话经验召回；**按 `role:{id}` 标签分片**（遗留无标签条目全局可见） |
 | **ConversationStore** | Web 会话持久化（目标：CLI/Web 共享，见 R7） |
 | **MemoryPort**（端口） | AuM 或 `EvolutionMemoryPort` 实现 |
 | **ContextPackage** | 任务相关代码片段包 |
@@ -102,6 +105,9 @@ auc/
 ├── cli.py / cli_ui.py    # auc chat 与子命令
 ├── config.py             # settings.json 加载
 ├── work_mode.py          # 8 种工作模式
+├── roles/                # 推荐角色目录（每角色子文件夹，R25）
+│   ├── coder/            # role.yaml + prompt.md + evolution.yaml
+│   └── ...
 ├── multimodal.py         # 图片输入
 ├── sandbox.py            # 沙盒路径校验
 ├── messages.py / types.py

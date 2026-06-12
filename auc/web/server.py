@@ -10,6 +10,7 @@ from typing import Any
 from auc.chat_agent import ChatAgentOptions, build_chat_agent, resolve_sandbox_root
 from auc.config import load_model_config
 from auc.integration.evolution import evolution_paths
+from auc.roles import load_role_catalog, role_evolution_paths
 from auc.web.approval import WebApprovalPort
 from auc.web.conversations import ConversationStore, messages_for_ui
 from auc.web.session import WebSession
@@ -37,6 +38,19 @@ except ImportError:  # pragma: no cover - fastapi installs starlette
 _STATIC = Path(__file__).parent / "static"
 
 _state: dict[str, Any] = {}
+
+
+def _roles_payload(sandbox: str) -> list[dict[str, object]]:
+    from auc.config import load_merged_settings
+    from auc.roles import load_role_catalog, roles_payload
+
+    settings: dict = {}
+    try:
+        settings, _ = load_merged_settings(None, None)
+    except Exception:  # noqa: BLE001
+        pass
+    catalog = load_role_catalog(sandbox=sandbox, settings=settings)
+    return roles_payload(catalog=catalog)
 
 
 def _work_modes_payload() -> list[dict[str, str]]:
@@ -89,7 +103,7 @@ def create_app():  # noqa: ANN201
 
             await aclose_model_client(agent._config.model)  # noqa: SLF001
 
-    app = FastAPI(title="AuC Web", version="0.2.5", lifespan=lifespan)
+    app = FastAPI(title="AuC Web", version="0.2.6", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
     @app.get("/")
@@ -101,8 +115,10 @@ def create_app():  # noqa: ANN201
         session = _get_session()
         cfg = session.cfg
         evolve = _state.get("evolve", True)
+        role_catalog = load_role_catalog(sandbox=session.sandbox)
+        active_role = role_catalog.active_role_id or role_catalog.default_role_id
         payload: dict[str, Any] = {
-            "version": "0.2.5",
+            "version": "0.2.6",
             "workspace": {
                 "root": session.sandbox,
                 "display": short_display_path(session.sandbox),
@@ -121,28 +137,21 @@ def create_app():  # noqa: ANN201
             },
             "multimodal": True,
             "agent": {
-                "id": "chat",
-                "name": "Coder 专家",
-                "title": "编程与全栈开发助手",
-                "description": "多工作模式：自动识别或手动选择，锚定需求、对齐实现",
-                "capabilities": [
-                    "自动识别模式",
-                    "实现/解答/图表",
-                    "调试/审查/探索",
-                    "代码编辑",
-                    "Mermaid 图表",
-                    "多模态",
-                    "经验进化",
-                ],
+                "id": session.agent.agent_id,
                 "work_mode_default": "auto",
+                "role_default": role_catalog.default_role_id,
+                "active_role": active_role,
             },
+            "roles": _roles_payload(session.sandbox),
             "work_modes": _work_modes_payload(),
         }
         if evolve:
-            nug, evo = evolution_paths(session.sandbox)
+            nug, evo = role_evolution_paths(session.sandbox, active_role)
             payload["evolution"] = {
                 "evolution": short_display_path(str(evo)),
                 "nuggets": short_display_path(str(nug)),
+                "role_id": active_role,
+                "legacy_global": short_display_path(str(evolution_paths(session.sandbox)[1])),
             }
         return JSONResponse(payload)
 
@@ -681,6 +690,7 @@ def create_app():  # noqa: ANN201
                     return
 
                 work_mode = body.get("work_mode") or "auto"
+                role_id = body.get("role_id") or body.get("role") or "coder"
                 autonomy = body.get("autonomy") or None
                 approved_plan = body.get("approved_plan")
                 if approved_plan is not None and not isinstance(approved_plan, dict):
@@ -712,6 +722,7 @@ def create_app():  # noqa: ANN201
                         work_mode=work_mode,
                         autonomy=autonomy,
                         approved_plan=approved_plan,
+                        role_id=role_id,
                     )
                 except ValueError as exc:
                     yield _sse({"type": "error", "payload": {"message": str(exc)}})

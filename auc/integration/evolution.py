@@ -11,11 +11,18 @@ import yaml
 from auc.integration.nuggets import AuNugget, NuggetsStore
 from auc.messages import ChatMessage
 from auc.ports.memory import MemoryPort
+from auc.roles import (
+    DEFAULT_ROLE_ID,
+    matches_role,
+    parse_role_from_agent_id,
+    role_evolution_paths,
+    role_tag,
+)
 from auc.types import AgentId, RunId
 
 
 def evolution_paths(sandbox_root: str) -> tuple[Path, Path]:
-    """Return (nuggets_yaml, evolution_yaml) under sandbox .auc/."""
+    """Return legacy global (nuggets_yaml, evolution_yaml) under sandbox .auc/."""
     root = Path(sandbox_root).resolve()
     auc_dir = root / ".auc"
     nuggets = auc_dir / "au-nuggets.yaml"
@@ -25,6 +32,19 @@ def evolution_paths(sandbox_root: str) -> tuple[Path, Path]:
             nuggets = alt
     evolution = auc_dir / "evolution.yaml"
     return nuggets, evolution
+
+
+def resolve_evolution_storage(
+    sandbox_root: str, role_id: str
+) -> tuple[Path, Path, bool]:
+    """(nuggets_path, evolution_path, legacy_global_with_tag_filter)."""
+    role_n, role_e = role_evolution_paths(sandbox_root, role_id)
+    global_n, global_e = evolution_paths(sandbox_root)
+    if role_e.is_file() or role_n.is_file():
+        return role_n, role_e, False
+    if global_e.is_file() or global_n.is_file():
+        return global_n, global_e, True
+    return role_n, role_e, False
 
 
 @dataclass
@@ -132,17 +152,19 @@ class EvolutionStore:
         nugget_id: str,
         tags: list[str],
         content: str,
+        metadata: dict[str, Any] | None = None,
     ) -> AuNugget:
         store = (
             NuggetsStore.from_yaml(nuggets_path)
             if nuggets_path.is_file()
             else NuggetsStore()
         )
+        meta = {"promoted_at": datetime.now(timezone.utc).isoformat(), **(metadata or {})}
         nugget = AuNugget(
             id=nugget_id,
             tags=tags,
             content=content,
-            metadata={"promoted_at": datetime.now(timezone.utc).isoformat()},
+            metadata=meta,
         )
         store.nuggets = [n for n in store.nuggets if n.id != nugget_id]
         store.nuggets.append(nugget)
@@ -176,8 +198,17 @@ def _distill_lesson(messages: list[ChatMessage]) -> tuple[list[str], str] | None
     return tags, lesson
 
 
+@dataclass
+class _RoleStorage:
+    evolution: EvolutionStore
+    nuggets: NuggetsStore
+    nuggets_path: Path
+    legacy: bool
+    role_id: str
+
+
 class EvolutionMemoryPort:
-    """Recall nuggets + episodic lessons; remember successful runs into evolution.yaml."""
+    """Recall nuggets + episodic lessons; per-role dirs under .auc/roles/<id>/."""
 
     def __init__(
         self,
@@ -185,24 +216,42 @@ class EvolutionMemoryPort:
         sandbox_root: str,
         nuggets_path: Path | None = None,
         evolution_path: Path | None = None,
+        default_role_id: str = DEFAULT_ROLE_ID,
     ) -> None:
         self._sandbox = sandbox_root
-        n_path, e_path = evolution_paths(sandbox_root)
-        self._nuggets_path = nuggets_path or n_path
-        self._evolution = EvolutionStore.load(evolution_path or e_path)
-        self._nuggets = (
-            NuggetsStore.from_yaml(self._nuggets_path)
-            if self._nuggets_path.is_file()
-            else NuggetsStore()
+        self._default_role_id = default_role_id
+        self._fixed_nuggets = nuggets_path
+        self._fixed_evolution = evolution_path
+
+    def _active_role_id(self, agent_id: AgentId | None) -> str:
+        return parse_role_from_agent_id(agent_id) or self._default_role_id
+
+    def _storage(self, agent_id: AgentId | None) -> _RoleStorage:
+        role_id = self._active_role_id(agent_id)
+        if self._fixed_evolution is not None and self._fixed_nuggets is not None:
+            n_path, e_path = self._fixed_nuggets, self._fixed_evolution
+            legacy = True
+        else:
+            n_path, e_path, legacy = resolve_evolution_storage(self._sandbox, role_id)
+        evolution = EvolutionStore.load(e_path)
+        nuggets = (
+            NuggetsStore.from_yaml(n_path) if n_path.is_file() else NuggetsStore()
+        )
+        return _RoleStorage(
+            evolution=evolution,
+            nuggets=nuggets,
+            nuggets_path=n_path,
+            legacy=legacy,
+            role_id=role_id,
         )
 
     @property
     def evolution_store(self) -> EvolutionStore:
-        return self._evolution
+        return self._storage(f"chat:{self._default_role_id}").evolution
 
     @property
     def nuggets_store(self) -> NuggetsStore:
-        return self._nuggets
+        return self._storage(f"chat:{self._default_role_id}").nuggets
 
     async def recall(
         self,
@@ -212,16 +261,28 @@ class EvolutionMemoryPort:
         run_id: RunId | None = None,
         agent_id: AgentId | None = None,
     ) -> list[ChatMessage]:
-        del run_id, agent_id
+        del run_id
+        store = self._storage(agent_id)
+        role_id = store.role_id
         msgs: list[ChatMessage] = []
-        for n in self._nuggets.recall_by_query(query, limit=3):
+        for n in store.nuggets.recall_by_query(query, limit=12):
+            if store.legacy and not matches_role(
+                role_id=role_id, tags=n.tags, metadata=n.metadata
+            ):
+                continue
             msgs.append(
                 ChatMessage(
                     role="system",
                     content=f"[进化·金块 {n.id}] {n.content}",
                 )
             )
-        for ep in self._evolution.recall_episodes(query, limit=3):
+            if len(msgs) >= 3:
+                break
+        for ep in store.evolution.recall_episodes(query, limit=12):
+            if store.legacy and not matches_role(
+                role_id=role_id, tags=ep.tags, metadata=ep.metadata
+            ):
+                continue
             tag_s = ", ".join(ep.tags) if ep.tags else "general"
             msgs.append(
                 ChatMessage(
@@ -229,6 +290,8 @@ class EvolutionMemoryPort:
                     content=f"[进化·经验 {ep.id} · {tag_s}] {ep.lesson}",
                 )
             )
+            if len(msgs) >= limit:
+                break
         return msgs[:limit]
 
     async def remember(
@@ -238,28 +301,50 @@ class EvolutionMemoryPort:
         run_id: RunId | None = None,
         agent_id: AgentId | None = None,
     ) -> None:
-        del run_id, agent_id
+        del run_id
+        store = self._storage(agent_id)
+        role_id = store.role_id
         distilled = _distill_lesson(items)
         if not distilled:
             return
         tags, lesson = distilled
-        self._evolution.add_episode(tags=tags, lesson=lesson, metadata={"sandbox": self._sandbox})
+        if store.legacy:
+            tags = [*tags, role_tag(role_id)]
+        store.evolution.add_episode(
+            tags=tags,
+            lesson=lesson,
+            metadata={"sandbox": self._sandbox, "role_id": role_id},
+        )
 
     def save_lesson(self, tags: str, lesson: str) -> str:
+        store = self._storage(f"chat:{self._default_role_id}")
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-        ep = self._evolution.add_episode(tags=tag_list, lesson=lesson)
+        if store.legacy:
+            tag_list.append(role_tag(store.role_id))
+        ep = store.evolution.add_episode(
+            tags=tag_list,
+            lesson=lesson,
+            metadata={"role_id": store.role_id, "sandbox": self._sandbox},
+        )
         return f"saved episode {ep.id}"
 
     def promote_nugget(self, nugget_id: str, tags: str, content: str) -> str:
+        store = self._storage(f"chat:{self._default_role_id}")
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-        n = self._evolution.promote_nugget(
-            self._nuggets_path,
+        if store.legacy:
+            tag_list.append(role_tag(store.role_id))
+        n = store.evolution.promote_nugget(
+            store.nuggets_path,
             nugget_id=nugget_id,
             tags=tag_list,
             content=content,
+            metadata={"role_id": store.role_id},
         )
-        self._nuggets = NuggetsStore.from_yaml(self._nuggets_path)
-        return f"promoted nugget {n.id} -> {self._nuggets_path}"
+        store.nuggets.nuggets = [
+            x for x in store.nuggets.nuggets if x.id != nugget_id
+        ]
+        store.nuggets.nuggets.append(n)
+        return f"promoted nugget {n.id} -> {store.nuggets_path}"
 
 
 def make_evolution_tools(
@@ -278,7 +363,7 @@ def make_evolution_tools(
             _save_lesson,
             name="save_lesson",
             description=(
-                "固化一条可复用的经验教训到沙盒进化库（跨会话召回）。"
+                "固化一条可复用的经验教训到当前角色目录 .auc/roles/<角色>/evolution.yaml。"
                 "tags 为逗号分隔关键词，lesson 为简短可执行说明。"
             ),
             privilege="L2",
@@ -287,7 +372,7 @@ def make_evolution_tools(
             _promote_nugget,
             name="promote_nugget",
             description=(
-                "将验证成功的经验提升为 Au-Nugget 金块技能（写入 .auc/au-nuggets.yaml）。"
+                "将验证成功的经验提升为 Au-Nugget 金块（写入当前角色目录 nuggets.yaml）。"
                 "参数: nugget_id, tags, content"
             ),
             privilege="L2",

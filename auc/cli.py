@@ -38,6 +38,7 @@ from auc.cli_ui import ClaudeCodeStreamPrinter, StreamSpinner, run_interactive_r
 from auc.tools.files import make_file_tools
 
 from auc.chat_agent import build_chat_system_prompt
+from auc.roles import DEFAULT_ROLE_ID, load_role_catalog
 
 
 def _chat_sandbox_root(args: argparse.Namespace) -> str:
@@ -48,10 +49,29 @@ def _chat_sandbox_root(args: argparse.Namespace) -> str:
     return str(Path.cwd().resolve())
 
 
-def _chat_memory(sandbox_root: str, evolve: bool) -> EvolutionMemoryPort | None:
+def _chat_settings(args: argparse.Namespace) -> dict:
+    try:
+        from auc.config import load_merged_settings
+
+        settings, _ = load_merged_settings(
+            getattr(args, "config", None),
+            Path(args.repo) if getattr(args, "repo", None) else None,
+        )
+        return settings
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _chat_catalog(args: argparse.Namespace, sandbox: str):
+    return load_role_catalog(sandbox=sandbox, settings=_chat_settings(args))
+
+
+def _chat_memory(
+    sandbox_root: str, evolve: bool, *, role_id: str = DEFAULT_ROLE_ID
+) -> EvolutionMemoryPort | None:
     if not evolve:
         return None
-    return EvolutionMemoryPort(sandbox_root=sandbox_root)
+    return EvolutionMemoryPort(sandbox_root=sandbox_root, default_role_id=role_id)
 
 
 def _register_chat_tools(
@@ -73,10 +93,23 @@ def _register_chat_tools(
             registry.register(tool, pol)
 
 
-def _chat_system_prompt(args: argparse.Namespace, sandbox: str) -> str:
+def _chat_role_id(args: argparse.Namespace, catalog=None) -> str:
+    cat = catalog or getattr(args, "_role_catalog", None)
+    if cat is None:
+        cat = _chat_catalog(args, _chat_sandbox_root(args))
+    raw = getattr(args, "role", None) or cat.default_role_id
+    return cat.resolve(raw)
+
+
+def _chat_system_prompt(
+    args: argparse.Namespace, sandbox: str, catalog=None
+) -> str:
     if args.system:
         return args.system
-    return build_chat_system_prompt(sandbox)
+    cat = catalog or getattr(args, "_role_catalog", None) or _chat_catalog(args, sandbox)
+    return build_chat_system_prompt(
+        sandbox, role_id=_chat_role_id(args, cat), catalog=cat
+    )
 
 
 def _add_model_args(parser: argparse.ArgumentParser) -> None:
@@ -226,6 +259,13 @@ async def _run_chat_turn(
         meta["work_mode"] = args._work_mode
     if getattr(args, "_approved_plan", None):
         meta["approved_plan"] = args._approved_plan
+    catalog = getattr(args, "_role_catalog", None) or _chat_catalog(
+        args, _chat_sandbox_root(args)
+    )
+    role_id = _chat_role_id(args, catalog)
+    meta["role_id"] = role_id
+    if args.system:
+        meta["apply_role_prompt"] = False
     if isinstance(message, ChatMessage):
         user_msg = message
     else:
@@ -250,6 +290,7 @@ async def _run_chat_turn(
             await mem.remember(
                 strip_images_for_memory(result.messages),
                 run_id=result.run_id,
+                agent_id=agent.agent_id,
             )
     if args.json and result:
         print(
@@ -287,7 +328,15 @@ async def _run_chat(args: argparse.Namespace) -> int:
     cfg = _resolve_cfg(args)
     sandbox = _chat_sandbox_root(args)
     evolve = not getattr(args, "no_evolve", False)
-    memory = _chat_memory(sandbox, evolve) if not args.no_tools else None
+    catalog = _chat_catalog(args, sandbox)
+    args._role_catalog = catalog
+    if not getattr(args, "role", None):
+        args.role = catalog.default_role_id
+    memory = (
+        _chat_memory(sandbox, evolve, role_id=_chat_role_id(args, catalog))
+        if not args.no_tools
+        else None
+    )
     registry = DefaultToolRegistry()
     if not args.no_tools:
         _register_chat_tools(registry, sandbox, memory)
@@ -306,7 +355,7 @@ async def _run_chat(args: argparse.Namespace) -> int:
 
         agent = DefaultAgent(
             AgentConfig(
-                agent_id="cli-chat",
+                agent_id=f"chat:{_chat_role_id(args, catalog)}",
                 model=model,
                 tools=registry,
                 memory=memory,
@@ -315,7 +364,7 @@ async def _run_chat(args: argparse.Namespace) -> int:
                 approval=approval,
                 privilege_gate=ToolPrivilegeGate(approval=approval) if approval else None,
                 slicer_policy=SlicerPolicy(require_package=False),
-                system_prompt=_chat_system_prompt(args, sandbox),
+                system_prompt=_chat_system_prompt(args, sandbox, catalog),
                 sandbox_root=sandbox,
                 loop_config=LoopConfig(max_steps=40),
             )
@@ -566,6 +615,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=("confirm-all", "auto-edit", "full-auto"),
         default=None,
         help="会话自治级别：confirm-all 每次写操作确认 / auto-edit 默认 / full-auto 沙盒内全自动（L3 仍需授权）",
+    )
+    p_chat.add_argument(
+        "--role",
+        default=None,
+        metavar="ID",
+        help="角色 id（内置或自定义，见 settings.json / .auc/roles.yaml）",
     )
     _add_model_args(p_chat)
 

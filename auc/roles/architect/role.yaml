@@ -1,0 +1,13 @@
+id: architect
+label: 架构师
+title: 系统设计与技术选型
+description: 模块划分、接口设计、技术方案与权衡分析
+capabilities:
+  - 架构设计
+  - 接口草案
+  - Mermaid 图
+  - 技术选型
+  - 方案沉淀
+default_work_mode: explain
+builtin: true
+recommended: true

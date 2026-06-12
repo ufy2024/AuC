@@ -25,6 +25,8 @@ const state = {
   autoAttach: localStorage.getItem("auc-auto-attach") !== "0",
   workMode: localStorage.getItem("auc-work-mode") || "auto",
   workModes: [],
+  roleId: localStorage.getItem("auc-role") || "coder",
+  roles: [],
   activeConversationId: null,
   conversations: [],
   fileCache: {},
@@ -55,9 +57,19 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+function currentRoleSpec() {
+  return state.roles.find((r) => r.id === state.roleId) || state.roles[0] || null;
+}
+
+function roleLabel(id) {
+  const r = state.roles.find((x) => x.id === id);
+  return r ? r.label : id;
+}
+
 function renderAgentProfile(info = state.info) {
   if (!info) return;
   const agent = info.agent || {};
+  const role = currentRoleSpec();
   const title = $("#agent-title");
   const desc = $("#agent-desc");
   const status = $("#agent-status");
@@ -65,9 +77,10 @@ function renderAgentProfile(info = state.info) {
   const tags = $("#agent-tags");
   if (!title) return;
 
-  title.textContent = agent.name || "Coder 专家";
+  title.textContent = role?.label || agent.name || "Coder 专家";
   if (desc) {
-    desc.textContent = agent.description || agent.title || "编程、调试与架构设计助手";
+    desc.textContent =
+      role?.description || agent.description || agent.title || "编程、调试与架构设计助手";
   }
   if (status) {
     if (state.streaming) {
@@ -81,6 +94,7 @@ function renderAgentProfile(info = state.info) {
   if (meta) {
     const items = [
       { k: "模型", v: `${info.model?.provider || "?"} / ${info.model?.model || "?"}` },
+      { k: "角色", v: roleLabel(state.roleId) },
       { k: "模式", v: workModeLabel(state.workMode) },
       { k: "工作区", v: info.workspace?.display || "." },
       { k: "对话", v: `${info.turns || 0} 轮` },
@@ -91,7 +105,7 @@ function renderAgentProfile(info = state.info) {
       .join("");
   }
   if (tags) {
-    const caps = agent.capabilities || ["代码编辑", "文件读写", "Mermaid 图表"];
+    const caps = role?.capabilities || agent.capabilities || ["代码编辑", "文件读写", "Mermaid 图表"];
     tags.innerHTML = caps.map((c) => `<span class="agent-tag">${escapeHtml(c)}</span>`).join("");
   }
 }
@@ -147,15 +161,65 @@ function bindWorkModeSelects() {
   }
 }
 
+function populateRoleSelects() {
+  const roles = state.roles.length
+    ? state.roles
+    : [{ id: "coder", label: "编程专家", description: "" }];
+  for (const sel of ["#role-select", "#role-agent"]) {
+    const el = $(sel);
+    if (!el) continue;
+    const prev = el.value || state.roleId;
+    el.innerHTML = roles
+      .map(
+        (r) =>
+          `<option value="${escapeHtml(r.id)}" title="${escapeHtml(r.description || r.title || "")}">${escapeHtml(r.label)}</option>`
+      )
+      .join("");
+    el.value = roles.some((r) => r.id === prev) ? prev : "coder";
+  }
+  setRole($("#role-select")?.value || state.roleId, { persist: false });
+}
+
+function setRole(role, { persist = true } = {}) {
+  state.roleId = role || "coder";
+  if (persist) localStorage.setItem("auc-role", state.roleId);
+  for (const sel of ["#role-select", "#role-agent"]) {
+    const el = $(sel);
+    if (el && el.value !== state.roleId) el.value = state.roleId;
+  }
+  renderAgentProfile(state.info);
+}
+
+function bindRoleSelects() {
+  for (const sel of ["#role-select", "#role-agent"]) {
+    const el = $(sel);
+    if (!el || el.dataset.bound) continue;
+    el.dataset.bound = "1";
+    el.addEventListener("change", () => setRole(el.value));
+  }
+}
+
 async function loadInfo() {
   state.info = await api("/api/info");
   state.workModes = state.info.work_modes || [];
+  state.roles = state.info.roles || [];
+  const activeFromApi = state.info.roles?.find((r) => r.active);
+  if (activeFromApi) {
+    state.roleId = activeFromApi.id;
+    localStorage.setItem("auc-role", state.roleId);
+  } else if (state.info.agent?.active_role) {
+    state.roleId = state.info.agent.active_role;
+  } else if (state.info.agent?.role_default && !localStorage.getItem("auc-role")) {
+    state.roleId = state.info.agent.role_default;
+  }
   state.activeConversationId = state.info.conversation?.active_id || null;
   $("#version").textContent = state.info.version;
   $("#model-pill").textContent = `${state.info.model.provider} / ${state.info.model.model}`;
   $("#ws-pill").textContent = state.info.workspace.display;
   populateWorkModeSelects();
   bindWorkModeSelects();
+  populateRoleSelects();
+  bindRoleSelects();
   renderAgentProfile(state.info);
   if (state.info.conversation?.messages) {
     await renderChatHistory(state.info.conversation.messages);
@@ -1054,6 +1118,7 @@ async function sendMessage(text, channel = "agent") {
         images: payloadImages,
         context,
         work_mode: state.workMode,
+        role_id: state.roleId,
         conversation_id: streamConversationId,
       }),
       signal: controller.signal,

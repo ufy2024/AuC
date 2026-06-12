@@ -10,6 +10,7 @@ from auc.messages import ChatMessage, RunRequest
 from auc.multimodal import build_user_message, image_from_payload, prepare_user_input
 from auc.web.conversations import ConversationStore, messages_for_ui
 from auc.web.editor_context import merge_message_with_context
+from auc.roles import format_role_note, load_role_catalog, set_active_role
 from auc.work_mode import AUTO_MODE, enrich_user_turn, format_mode_note
 
 
@@ -61,6 +62,7 @@ class WebSession:
         work_mode: str | None = AUTO_MODE,
         autonomy: str | None = None,
         approved_plan: dict[str, Any] | None = None,
+        role_id: str | None = None,
     ) -> tuple[RunRequest, list[str]]:
         if not self.active_conversation_id:
             self.active_conversation_id = self.store.create()
@@ -70,7 +72,17 @@ class WebSession:
         for item in images_payload or []:
             extra.append(image_from_payload(item))
         prepared = prepare_user_input(merged, self.sandbox, extra_images=extra)
-        notes = [*ctx_notes, format_mode_note(mode_id, mode_src), *prepared.notes]
+        catalog = load_role_catalog(sandbox=self.sandbox)
+        rid = catalog.resolve(role_id)
+        if role_id and catalog.try_resolve(role_id):
+            set_active_role(self.sandbox, rid)
+            catalog.active_role_id = rid
+        notes = [
+            *ctx_notes,
+            format_mode_note(mode_id, mode_src),
+            format_role_note(rid, catalog=catalog),
+            *prepared.notes,
+        ]
         user_msg = build_user_message(prepared)
         self.history = [*self.history, user_msg]
         self.pending_run_conversation_id = self.active_conversation_id
@@ -79,6 +91,7 @@ class WebSession:
             "editor_context": editor_context or {},
             "work_mode": mode_id,
             "work_mode_source": mode_src,
+            "role_id": rid,
             "conversation_id": self.active_conversation_id,
         }
         if autonomy:

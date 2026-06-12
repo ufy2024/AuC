@@ -3,6 +3,7 @@ from pathlib import Path
 
 from auc.integration.evolution import EvolutionMemoryPort, NuggetsStore
 from auc.messages import ChatMessage
+from auc.roles import sandbox_role_dir
 
 
 def test_evolution_recall_and_remember(tmp_path) -> None:
@@ -26,7 +27,7 @@ def test_evolution_recall_and_remember(tmp_path) -> None:
 def test_promote_nugget(tmp_path) -> None:
     sb = tmp_path / "ws"
     sb.mkdir()
-    nug_path = sb / ".auc" / "au-nuggets.yaml"
+    nug_path = sandbox_role_dir(sb, "coder") / "nuggets.yaml"
     mem = EvolutionMemoryPort(sandbox_root=str(sb))
     msg = mem.promote_nugget(
         "del-dir",

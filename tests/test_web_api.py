@@ -25,8 +25,11 @@ def test_info_and_tree(client: TestClient) -> None:
     data = info.json()
     assert "workspace" in data
     assert data["model"]["model"] == "test"
-    assert data["agent"]["name"] == "Coder 专家"
-    assert "capabilities" in data["agent"]
+    assert data["agent"]["id"].startswith("chat:")
+    assert "roles" in data
+    role_ids = {r["id"] for r in data["roles"]}
+    assert "coder" in role_ids
+    assert "reviewer" in role_ids
     assert "work_modes" in data
     mode_ids = {m["id"] for m in data["work_modes"]}
     assert "auto" in mode_ids

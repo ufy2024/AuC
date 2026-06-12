@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ufy-auc"
-version = "0.2.5"
+version = "0.2.6"
 description = "Agents-ufy-Core (AuC): asyncio single-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -77,6 +77,9 @@ Issues = "https://github.com/ufy2024/AuC/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["auc"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"auc/roles" = "auc/roles"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

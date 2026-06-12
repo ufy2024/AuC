@@ -23,6 +23,8 @@ from auc.ports.package import ContextPackage, SlicerPolicy
 from auc.ports.rules import ProjectRules, ProjectRulesPort
 from auc.policy.privilege import ToolPrivilegeGate
 from auc.tools.registry import DefaultToolRegistry
+from auc.config import load_merged_settings
+from auc.roles import build_role_system_prompt, load_role_catalog
 from auc.types import AgentId, AutonomyLevel, RunId
 
 
@@ -213,8 +215,29 @@ class DefaultAgent:
                 self._config.model, CompactionConfig(token_limit=token_limit)
             )
 
+        agent_id: AgentId = self._config.agent_id
+        system_prompt = self._config.system_prompt
+        role_id = request.metadata.get("role_id")
+        if role_id:
+            settings: dict = {}
+            if sandbox:
+                try:
+                    settings, _ = load_merged_settings(
+                        None,
+                        Path(str(repo_root)) if repo_root else Path(sandbox),
+                    )
+                except Exception:  # noqa: BLE001
+                    settings = {}
+            catalog = load_role_catalog(sandbox=sandbox, settings=settings)
+            rid = catalog.resolve(str(role_id))
+            agent_id = f"chat:{rid}"
+            if sandbox and request.metadata.get("apply_role_prompt", True):
+                system_prompt = build_role_system_prompt(
+                    sandbox, rid, catalog=catalog
+                )
+
         ctx = LoopContext(
-            agent_id=self._config.agent_id,
+            agent_id=agent_id,
             run_id=run_id,
             window=window,
             tools=tools,
@@ -227,7 +250,7 @@ class DefaultAgent:
             project_rules=project_rules,
             privilege_gate=gate,
             approval=self._config.approval,
-            system_prompt=self._config.system_prompt,
+            system_prompt=system_prompt,
             cancelled=run_id in self._cancelled_runs,
             autonomy_policy=autonomy,
             checkpoints=checkpoints,

@@ -87,6 +87,10 @@
               <div class="agent-meta" id="agent-meta"></div>
               <div class="agent-tags" id="agent-tags"></div>
               <div class="work-mode-bar" id="work-mode-bar">
+                <label class="work-mode-label" for="role-select">角色</label>
+                <select id="role-select" class="work-mode-select" title="选择智能体角色（persona 与进化记忆按角色隔离）">
+                  <option value="coder">编程专家</option>
+                </select>
                 <label class="work-mode-label" for="work-mode-select">工作模式</label>
                 <select id="work-mode-select" class="work-mode-select" title="自动识别或手动指定智能体工作模式">
                   <option value="auto">自动识别</option>
@@ -114,6 +118,10 @@
         <div class="agent-messages" id="agent-messages"></div>
         <form class="composer" id="composer">
           <div class="context-bar" id="context-bar">
+            <label class="work-mode-inline" title="智能体角色">
+              <span class="work-mode-label">角色</span>
+              <select id="role-agent" class="work-mode-select sm"></select>
+            </label>
             <label class="work-mode-inline" title="工作模式">
               <span class="work-mode-label">模式</span>
               <select id="work-mode-agent" class="work-mode-select sm"></select>

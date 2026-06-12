@@ -1,0 +1,13 @@
+id: ops
+label: 运维助手
+title: 构建、部署与排障
+description: Shell 命令、日志分析、环境与服务健康检查
+capabilities:
+  - Shell 运维
+  - 日志分析
+  - 服务探活
+  - 构建部署
+  - 排障经验
+default_work_mode: debug
+builtin: true
+recommended: true

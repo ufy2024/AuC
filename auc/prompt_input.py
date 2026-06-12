@@ -21,6 +21,7 @@ SLASH_COMMANDS = (
     "/edit",
     "/plan",
     "/autonomy",
+    "/role",
 )
 
 def _prompt_hint() -> str:

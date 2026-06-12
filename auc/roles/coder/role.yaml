@@ -1,0 +1,13 @@
+id: coder
+label: 编程专家
+title: 全栈开发与实现
+description: 改代码、写功能、跑测试；理解需求后最小改动落盘
+capabilities:
+  - 实现/重构
+  - 沙盒读写
+  - Shell 测试
+  - 搜索定位
+  - 经验进化
+default_work_mode: implement
+builtin: true
+recommended: true

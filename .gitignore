@@ -11,3 +11,4 @@ tmp/
 docs/
 .coverage
 coverage.json
+./*.txt

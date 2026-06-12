@@ -261,7 +261,7 @@ def print_welcome(
     sandbox: str,
     *,
     evolve: bool,
-    version: str = "0.2.5",
+    version: str = "0.2.6",
 ) -> None:
     model = cfg.model
     ws = _short_path(sandbox)
@@ -303,6 +303,7 @@ def print_help() -> None:
         _kv("/clear", "清空上下文"),
         _kv("/plan <任务>", "计划模式：只读探索出计划，批准后执行"),
         _kv("/autonomy <级别>", "自治级别 confirm-all/auto-edit/full-auto"),
+        _kv("/role <id>", "切换角色（内置或 .auc/roles.yaml 自定义）"),
         _kv("@path", "附加文本或图片"),
         _kv("图片", "png/jpg/gif/webp"),
     ]
@@ -310,9 +311,21 @@ def print_help() -> None:
     print()
 
 
-def print_status(cfg: ModelConfig, sandbox: str, *, evolve: bool, session: ReplSession) -> None:
+def print_status(
+    cfg: ModelConfig,
+    sandbox: str,
+    *,
+    evolve: bool,
+    session: ReplSession,
+    role_id: str = "coder",
+) -> None:
+    from auc.roles import get_role, load_role_catalog
+
+    catalog = load_role_catalog(sandbox=sandbox)
+    spec = get_role(role_id, catalog=catalog)
     rows = [
         _kv("model", f"{cfg.provider} / {bold(cyan(cfg.model))}"),
+        _kv("role", bold(cyan(f"{spec.label} ({spec.id})"))),
         _kv("config", dim(f"{cfg.config_name or '-'} · {cfg.config_id or '-'}")),
         _kv("workspace", cyan(_short_path(sandbox))),
         _kv("evolve", green("on") if evolve else dim("off")),
@@ -381,6 +394,8 @@ def parse_slash_command(text: str) -> tuple[str | None, str]:
         return "plan", t[5:].strip()
     if low.startswith("/autonomy"):
         return "autonomy", t[9:].strip()
+    if low.startswith("/role"):
+        return "role", t[5:].strip()
     return None, ""
 
 
@@ -424,7 +439,36 @@ async def run_interactive_repl(
             print_note(dim("对话上下文已清空"))
             continue
         if cmd == "status":
-            print_status(cfg, sandbox, evolve=evolve, session=session)
+            print_status(
+                cfg,
+                sandbox,
+                evolve=evolve,
+                session=session,
+                role_id=getattr(args, "role", None) or "coder",
+            )
+            continue
+        if cmd == "role":
+            from auc.roles import get_role, load_role_catalog
+
+            catalog = getattr(args, "_role_catalog", None) or load_role_catalog(
+                sandbox=sandbox
+            )
+            if not arg:
+                cur = catalog.resolve(getattr(args, "role", None))
+                spec = get_role(cur, catalog=catalog)
+                opts = ", ".join(catalog.role_ids())
+                print_note(dim(f"当前角色: {spec.label} ({cur})；可选: {opts}"))
+                continue
+            rid = catalog.try_resolve(arg)
+            if not rid:
+                print_note(red(f"未知角色: {arg}"))
+                continue
+            args.role = rid
+            from auc.roles import set_active_role
+
+            set_active_role(sandbox, rid)
+            spec = get_role(rid, catalog=catalog)
+            print_note(green(f"已切换角色: {spec.label} ({rid})"))
             continue
         if cmd == "files":
             list_workspace_files(sandbox, arg)

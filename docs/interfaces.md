@@ -439,6 +439,55 @@ class EventBus(Protocol):
 | `ListContextWindow` | 内存列表实现 `ContextWindow` |
 | `NoOpMemoryPort` | 空 recall / remember |
 
+## 角色（R25，已实现）
+
+```python
+@dataclass(frozen=True)
+class RoleSpec:
+    id: RoleId          # coder | reviewer | architect | tutor | ops
+    label: str
+    title: str
+    description: str
+    capabilities: tuple[str, ...]
+    persona: str        # 含 {sandbox} 占位符
+    default_work_mode: str
+
+def build_role_system_prompt(
+    sandbox: str,
+    role_id: str | None = None,
+    *,
+    include_work_mode: bool = True,
+    extra: str | None = None,
+) -> str: ...
+
+def roles_payload() -> list[dict[str, object]]: ...  # Web /api/info
+```
+
+- **Run 元数据**：`metadata.role_id` 选择角色；`apply_role_prompt=False` 时仅影响进化分片、不覆盖自定义 `system_prompt`。
+- **agent_id**：对话场景为 `chat:{role_id}`，供 `MemoryPort.recall/remember` 过滤。
+- **进化标签**：episode/nugget 自动附加 `role:{id}`；`metadata.role_id` 冗余存储；无 `role:` 前缀的遗留条目对所有角色召回。
+
+**目录布局**（每角色一个子文件夹）：
+
+```
+auc/roles/coder/              # 系统推荐（随包发布）
+  role.yaml                   # 元数据
+  prompt.md                   # 提示词（{sandbox}）
+  evolution.yaml / nuggets.yaml
+
+{sandbox}/.auc/roles/
+  active                      # 当前角色 id（单行）
+  stock-analyst/              # 沙盒自定义角色（结构同上）
+    role.yaml
+    prompt.md
+    evolution.yaml
+    nuggets.yaml
+```
+
+`role id` = 文件夹名（小写字母开头，`a-z0-9_-`）。遗留 `.auc/roles.yaml` 与 `settings.json` 的 `"roles"` 对象仍可读。
+
+CLI：`auc chat --role stock-analyst`；REPL `/role translator`。Web：请求体 `role_id`，`/api/info.roles`。
+
 ## 目标扩展（规划中）
 
 以下类型随 [架构设计.md](架构设计.md) M1–M3 落地；完整签名见 [详细设计.md](详细设计.md)。
