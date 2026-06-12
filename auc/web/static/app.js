@@ -5,6 +5,23 @@ import {
   renderMermaidIn,
   replaceMermaidInText,
 } from "./message_render.js";
+import {
+  COLOR_THEMES,
+  ICON_THEMES,
+  loadStoredColorTheme,
+  loadStoredIconTheme,
+  applyColorTheme,
+  applyIconTheme,
+  isColorThemeDark,
+  monacoThemeFor,
+} from "./themes.js";
+import { materialIconImg } from "./material_file_icons.js";
+import {
+  icon,
+  setButtonIcon,
+  setActiveIconTheme,
+  treeEntryIconParts,
+} from "./icons.js";
 
 const $ = (sel) => document.querySelector(sel);
 const state = {
@@ -31,13 +48,249 @@ const state = {
   conversations: [],
   fileCache: {},
   mdViewMode: localStorage.getItem("auc-md-view") || "preview",
+  sidebarHidden: localStorage.getItem("auc-sidebar-hidden") === "1",
+  sidebarSections: {
+    workspace: localStorage.getItem("auc-sec-workspace") !== "0",
+    projects: localStorage.getItem("auc-sec-projects") !== "0",
+    conversations: localStorage.getItem("auc-sec-conversations") !== "0",
+  },
+  colorTheme: loadStoredColorTheme(),
+  iconTheme: loadStoredIconTheme(),
 };
 
-// ── 模式 ──
+// ── 侧栏折叠 / 隐藏 ──
+function applySidebarState() {
+  const app = $("#app");
+  if (!app) return;
+  app.classList.toggle("sidebar-hidden", state.sidebarHidden);
+  for (const [name, open] of Object.entries(state.sidebarSections)) {
+    const sec = document.querySelector(`.sidebar-section[data-section="${name}"]`);
+    const toggle = document.querySelector(`.section-toggle[data-section="${name}"]`);
+    if (sec) sec.classList.toggle("is-collapsed", !open);
+    if (toggle) {
+      toggle.classList.toggle("is-collapsed", !open);
+      setButtonIcon(toggle, open ? "chevronUp" : "chevronDown", { size: 14 });
+      toggle.title = open ? "折叠" : "展开";
+    }
+  }
+}
+
+function toggleSidebarSection(name) {
+  if (!Object.hasOwn(state.sidebarSections, name)) return;
+  state.sidebarSections[name] = !state.sidebarSections[name];
+  localStorage.setItem(`auc-sec-${name}`, state.sidebarSections[name] ? "1" : "0");
+  applySidebarState();
+}
+
+function setSidebarHidden(hidden) {
+  state.sidebarHidden = hidden;
+  localStorage.setItem("auc-sidebar-hidden", hidden ? "1" : "0");
+  applySidebarState();
+}
+
+function showSidebarWithSection(name) {
+  setSidebarHidden(false);
+  if (name && Object.hasOwn(state.sidebarSections, name)) {
+    state.sidebarSections[name] = true;
+    localStorage.setItem(`auc-sec-${name}`, "1");
+  }
+  applySidebarState();
+}
+
+function initSidebarChrome() {
+  const secIcons = {
+    workspace: "folder",
+    projects: "rocket",
+    conversations: "message",
+  };
+  for (const [id, ic] of Object.entries(secIcons)) {
+    const el = $(`#icon-sec-${id}`);
+    if (el) el.innerHTML = icon(ic, { size: 14 });
+  }
+  setButtonIcon($("#sidebar-hide"), "panelLeftClose", { size: 18 });
+  setButtonIcon($("#sidebar-show"), "chevronRight", { size: 18 });
+  setButtonIcon($("#ws-new-file"), "filePlus", { size: 15 });
+  setButtonIcon($("#ws-new-folder"), "folderPlus", { size: 15 });
+  setButtonIcon($("#ws-refresh"), "refresh", { size: 15 });
+  setButtonIcon($("#projects-refresh"), "refresh", { size: 15 });
+  setButtonIcon($("#conv-new"), "plus", { size: 15 });
+  setButtonIcon($("#chat-clear"), "trash", { size: 15 });
+  setButtonIcon($("#btn-clear-chat"), "trash", { size: 16 });
+  setButtonIcon($("#btn-attach-agent"), "image", { size: 18 });
+  setButtonIcon($("#btn-attach-chat"), "image", { size: 18 });
+
+  document.querySelectorAll("[data-rail-section]").forEach((btn) => {
+    const map = { workspace: "folder", projects: "rocket", conversations: "message" };
+    setButtonIcon(btn, map[btn.dataset.railSection], { size: 18 });
+  });
+
+  $("#sidebar-hide")?.addEventListener("click", () => setSidebarHidden(true));
+  $("#sidebar-show")?.addEventListener("click", () => setSidebarHidden(false));
+  document.querySelectorAll("[data-rail-section]").forEach((btn) => {
+    btn.addEventListener("click", () => showSidebarWithSection(btn.dataset.railSection));
+  });
+
+  document.querySelectorAll(".section-toggle").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      toggleSidebarSection(btn.dataset.section);
+    });
+  });
+  document.querySelectorAll(".section-head").forEach((head) => {
+    head.addEventListener("click", (ev) => {
+      if (ev.target.closest(".section-actions")) return;
+      const sec = head.closest(".sidebar-section")?.dataset.section;
+      if (sec) toggleSidebarSection(sec);
+    });
+  });
+
+  document.querySelectorAll(".section-actions .icon-btn").forEach((btn) => {
+    if (btn.classList.contains("section-toggle")) return;
+    btn.addEventListener("click", (ev) => ev.stopPropagation());
+  });
+
+  applySidebarState();
+}
+
+// ── 主题（颜色 / 图标，类似 VS Code） ──
+function applyMonacoTheme() {
+  if (state.monacoReady && typeof monaco !== "undefined") {
+    monaco.editor.setTheme(monacoThemeFor(state.colorTheme));
+  }
+}
+
+function refreshThemePickerUI() {
+  document.querySelectorAll("[data-color-theme-id]").forEach((el) => {
+    const active = el.dataset.colorThemeId === state.colorTheme;
+    el.classList.toggle("is-active", active);
+    const check = el.querySelector(".theme-check");
+    if (check) check.innerHTML = active ? icon("check", { size: 14 }) : "";
+  });
+  document.querySelectorAll("[data-icon-theme-id]").forEach((el) => {
+    const active = el.dataset.iconThemeId === state.iconTheme;
+    el.classList.toggle("is-active", active);
+    const check = el.querySelector(".theme-check");
+    if (check) check.innerHTML = active ? icon("check", { size: 14 }) : "";
+  });
+}
+
+function closeThemeMenu() {
+  $("#theme-picker-menu")?.classList.add("hidden");
+  $("#theme-picker-btn")?.setAttribute("aria-expanded", "false");
+}
+
+function toggleThemeMenu() {
+  const menu = $("#theme-picker-menu");
+  if (!menu) return;
+  const willOpen = menu.classList.contains("hidden");
+  if (willOpen) {
+    menu.classList.remove("hidden");
+    $("#theme-picker-btn")?.setAttribute("aria-expanded", "true");
+    refreshThemePickerUI();
+  } else {
+    closeThemeMenu();
+  }
+}
+
+async function selectColorTheme(id) {
+  if (id === state.colorTheme) return;
+  state.colorTheme = applyColorTheme(id);
+  applyMonacoTheme();
+  refreshThemePickerUI();
+  if (state.info?.conversation?.messages) {
+    await renderChatHistory(state.info.conversation.messages);
+  }
+}
+
+function selectIconTheme(id) {
+  if (id === state.iconTheme) return;
+  state.iconTheme = applyIconTheme(id);
+  setActiveIconTheme(id);
+  refreshThemePickerUI();
+  initSidebarChrome();
+  loadTree(state.treePath).catch(() => {});
+}
+
+function buildThemePicker() {
+  const colorList = $("#color-theme-list");
+  const iconList = $("#icon-theme-list");
+  if (!colorList || !iconList) return;
+
+  colorList.replaceChildren();
+  for (const t of COLOR_THEMES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "theme-item";
+    btn.dataset.colorThemeId = t.id;
+    btn.setAttribute("role", "menuitemradio");
+    const swatches = t.preview
+      .map((c) => `<span style="background:${c}"></span>`)
+      .join("");
+    btn.innerHTML = `
+      <span class="theme-preview">${swatches}</span>
+      <span class="theme-item-text">
+        <span class="theme-item-label">${t.label}</span>
+        <span class="theme-item-desc">${t.description}</span>
+      </span>
+      <span class="theme-check"></span>`;
+    btn.addEventListener("click", () => selectColorTheme(t.id));
+    colorList.appendChild(btn);
+  }
+
+  iconList.replaceChildren();
+  for (const t of ICON_THEMES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "theme-item";
+    btn.dataset.iconThemeId = t.id;
+    btn.setAttribute("role", "menuitemradio");
+    const previews = t.preview
+      .map((n) => {
+        if (n.startsWith("material:")) {
+          return materialIconImg(n.slice(9), { size: 14 });
+        }
+        return icon(n, { size: 14, theme: t.id });
+      })
+      .join("");
+    btn.innerHTML = `
+      <span class="theme-preview-icons">${previews}</span>
+      <span class="theme-item-text">
+        <span class="theme-item-label">${t.label}</span>
+        <span class="theme-item-desc">${t.description}</span>
+      </span>
+      <span class="theme-check"></span>`;
+    btn.addEventListener("click", () => selectIconTheme(t.id));
+    iconList.appendChild(btn);
+  }
+
+  setButtonIcon($("#theme-picker-btn"), "palette", { size: 18 });
+  $("#theme-picker-btn")?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    toggleThemeMenu();
+  });
+  document.addEventListener("click", (ev) => {
+    if (!ev.target.closest("#theme-picker-wrap")) closeThemeMenu();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") closeThemeMenu();
+  });
+  refreshThemePickerUI();
+}
+
+function initThemes() {
+  state.colorTheme = applyColorTheme(loadStoredColorTheme());
+  state.iconTheme = applyIconTheme(loadStoredIconTheme());
+  setActiveIconTheme(state.iconTheme);
+  buildThemePicker();
+}
+
+// ── 模式（仅布局，颜色由 color theme 决定） ──
 function setMode(mode) {
   state.mode = mode;
   localStorage.setItem("auc-mode", mode);
-  $("#app").className = `mode-${mode}`;
+  const app = $("#app");
+  app.classList.remove("mode-code", "mode-chat");
+  app.classList.add(`mode-${mode}`);
   document.querySelectorAll(".mode-btn").forEach((b) => {
     b.classList.toggle("active", b.dataset.mode === mode);
   });
@@ -245,7 +498,7 @@ async function loadTree(path = ".") {
   if (path !== ".") {
     const up = document.createElement("div");
     up.className = "tree-item";
-    up.innerHTML = '<span class="tree-icon">↑</span><span>..</span>';
+    up.innerHTML = `<span class="tree-icon">${icon("arrowUp", { size: 14 })}</span><span>..</span>`;
     up.addEventListener("click", () => {
       const parts = path.split("/").filter(Boolean);
       parts.pop();
@@ -257,10 +510,9 @@ async function loadTree(path = ".") {
     const row = document.createElement("div");
     row.className = "tree-item";
     if (state.activeTab === e.path) row.classList.add("active");
-    let icon = e.type === "dir" ? "▸" : "·";
-    if (e.is_image) icon = "🖼";
-    else if (e.is_html) icon = "🌐";
-    row.innerHTML = `<span class="tree-icon${e.is_image ? " img" : e.is_html ? " html" : ""}">${icon}</span><span>${e.name}</span>`;
+    const { html: icHtml, treeClass } = treeEntryIconParts(e, { size: 14 });
+    const treeCls = treeClass ? ` ${treeClass}` : "";
+    row.innerHTML = `<span class="tree-icon${treeCls}">${icHtml}</span><span>${e.name}</span>`;
     row.addEventListener("click", (ev) => {
       if (e.type === "dir") loadTree(e.path);
       else if (e.is_html && ev.altKey) openHtmlPreview(e.path, e.name);
@@ -273,6 +525,119 @@ async function loadTree(path = ".") {
 
 $("#ws-refresh").addEventListener("click", () => loadTree(state.treePath));
 
+// ── 工作区：新建文件 / 文件夹 ──
+let wsCreateMode = null;
+let wsCreateResolve = null;
+
+function joinWorkspacePath(parent, name) {
+  const n = name.trim();
+  if (!n || n === "." || n === ".." || /[\\/]/.test(n)) {
+    throw new Error("名称不能包含 / 或 \\，且不能为 . 或 ..");
+  }
+  if (parent === "." || !parent) return n;
+  return `${parent}/${n}`;
+}
+
+function showWsCreateDialog(mode) {
+  const overlay = $("#ws-create-overlay");
+  const title = $("#ws-create-title");
+  const hint = $("#ws-create-hint");
+  const input = $("#ws-create-input");
+  const err = $("#ws-create-error");
+  if (!overlay || !input) return Promise.resolve(null);
+  wsCreateMode = mode;
+  if (title) title.textContent = mode === "folder" ? "新建文件夹" : "新建文件";
+  if (hint) {
+    const loc = state.treePath === "." ? "工作区根目录" : state.treePath;
+    hint.textContent = `将在 ${loc} 下创建`;
+  }
+  if (err) {
+    err.textContent = "";
+    err.classList.add("hidden");
+  }
+  input.value = mode === "folder" ? "newfolder" : "untitled.txt";
+  overlay.classList.remove("hidden");
+  input.focus();
+  input.select();
+  return new Promise((resolve) => {
+    wsCreateResolve = resolve;
+  });
+}
+
+function closeWsCreateDialog(result = null) {
+  $("#ws-create-overlay")?.classList.add("hidden");
+  wsCreateMode = null;
+  if (wsCreateResolve) {
+    wsCreateResolve(result);
+    wsCreateResolve = null;
+  }
+}
+
+async function confirmWsCreate() {
+  const input = $("#ws-create-input");
+  const err = $("#ws-create-error");
+  if (!input || !wsCreateMode) return;
+  let rel;
+  try {
+    rel = joinWorkspacePath(state.treePath, input.value);
+  } catch (e) {
+    if (err) {
+      err.textContent = e.message;
+      err.classList.remove("hidden");
+    }
+    return;
+  }
+  try {
+    if (wsCreateMode === "folder") {
+      await api("/api/workspace/mkdir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: rel }),
+      });
+      closeWsCreateDialog(rel);
+      await loadTree(state.treePath);
+    } else {
+      const exists = await fetch(
+        `/api/workspace/file?path=${encodeURIComponent(rel)}`,
+      );
+      if (exists.ok) {
+        if (err) {
+          err.textContent = "文件已存在";
+          err.classList.remove("hidden");
+        }
+        return;
+      }
+      await api("/api/workspace/file", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: rel, content: "" }),
+      });
+      closeWsCreateDialog(rel);
+      await loadTree(state.treePath);
+      await openFile(rel);
+    }
+  } catch (e) {
+    if (err) {
+      err.textContent = e.message || "创建失败";
+      err.classList.remove("hidden");
+    }
+  }
+}
+
+$("#ws-new-file")?.addEventListener("click", () => showWsCreateDialog("file"));
+$("#ws-new-folder")?.addEventListener("click", () => showWsCreateDialog("folder"));
+$("#ws-create-cancel")?.addEventListener("click", () => closeWsCreateDialog(null));
+$("#ws-create-confirm")?.addEventListener("click", () => confirmWsCreate());
+$("#ws-create-input")?.addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+    confirmWsCreate();
+  } else if (ev.key === "Escape") {
+    ev.preventDefault();
+    closeWsCreateDialog(null);
+  }
+});
+
 // ── Monaco 编辑器 ──
 function initMonaco() {
   return new Promise((resolve) => {
@@ -281,6 +646,7 @@ function initMonaco() {
     });
     require(["vs/editor/editor.main"], () => {
       state.monacoReady = true;
+      applyMonacoTheme();
       resolve();
     });
   });
@@ -553,7 +919,7 @@ async function openFile(path) {
     state.editor = monaco.editor.create($("#monaco"), {
       value: data.content,
       language: monacoLang(path),
-      theme: state.mode === "code" ? "vs-dark" : "vs",
+      theme: monacoThemeFor(state.colorTheme),
       fontSize: 13,
       minimap: { enabled: false },
       automaticLayout: true,
@@ -818,7 +1184,7 @@ function renderConversationList() {
         <div class="conv-title">${escapeHtml(c.title || "新对话")}</div>
         <div class="conv-meta">${escapeHtml(meta)}</div>
       </div>
-      <button type="button" class="conv-del" title="删除">×</button>`;
+      <button type="button" class="conv-del" title="删除">${icon("trash", { size: 14 })}</button>`;
     row.addEventListener("click", () => switchConversation(c.id));
     row.querySelector(".conv-del").addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -871,7 +1237,7 @@ let renderTimer = null;
 const diagramRepairMeta = new WeakMap();
 
 function messageTheme() {
-  return state.mode === "chat" ? "light" : "dark";
+  return isColorThemeDark(state.colorTheme) ? "dark" : "light";
 }
 
 function beginAssistant() {
@@ -1398,6 +1764,8 @@ $("#approval-deny")?.addEventListener("click", () => submitApproval(false));
 
 // ── 启动 ──
 async function boot() {
+  initThemes();
+  initSidebarChrome();
   setMode(state.mode);
   bindMdToolbar();
   await loadInfo();

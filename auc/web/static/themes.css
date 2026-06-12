@@ -1,0 +1,294 @@
+/* 颜色主题（data-color-theme，类似 VS Code Color Theme） */
+
+#app[data-color-theme="monokai"] {
+  --topbar-bg: #1e1f1c;
+  --border: #3e3d32;
+  --text: #f8f8f2;
+  --muted: #75715e;
+  --sidebar-bg: #2d2e27;
+  --editor-bg: #272822;
+  --tab-bar-bg: #2d2e27;
+  --agent-bg: #2d2e27;
+  --chat-bg: #272822;
+  --panel-head: #a59f85;
+  --hover: rgba(248,248,242,.07);
+  --active: rgba(166,226,46,.14);
+  --accent: #a6e22e;
+  --accent-soft: rgba(166,226,46,.22);
+  --logo-color: #f92672;
+  --pill-bg: #3e3d32;
+  --pill-text: #f8f8f2;
+  --switch-bg: #3e3d32;
+  --switch-active: #272822;
+  --switch-active-text: #a6e22e;
+  --user-bubble: #3e3d32;
+  --user-text: #f8f8f2;
+  --tool-bg: #2d2e27;
+  --input-bg: #272822;
+  --jupyter-orange: #fd971f;
+  --app-bg: #272822;
+  --section-icon-bg: rgba(166,226,46,.14);
+}
+
+#app[data-color-theme="dark-plus"] {
+  --topbar-bg: #1a1d21;
+  --border: #2d333b;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --sidebar-bg: #21252b;
+  --editor-bg: #1e1e1e;
+  --tab-bar-bg: #252526;
+  --agent-bg: #252526;
+  --chat-bg: #1a1d21;
+  --panel-head: #8b949e;
+  --hover: rgba(255,255,255,.06);
+  --active: rgba(55,147,239,.12);
+  --accent: #3793ef;
+  --accent-soft: rgba(55,147,239,.25);
+  --logo-color: #c678dd;
+  --pill-bg: #30363d;
+  --pill-text: #c9d1d9;
+  --switch-bg: #30363d;
+  --switch-active: #1e1e1e;
+  --switch-active-text: #f37726;
+  --user-bubble: #2d333b;
+  --user-text: #e6edf3;
+  --tool-bg: #1e1e1e;
+  --input-bg: #1e1e1e;
+  --jupyter-orange: #f37726;
+  --app-bg: #1a1d21;
+  --section-icon-bg: rgba(55,147,239,.14);
+}
+
+#app[data-color-theme="one-dark"] {
+  --topbar-bg: #21252b;
+  --border: #181a1f;
+  --text: #abb2bf;
+  --muted: #5c6370;
+  --sidebar-bg: #282c34;
+  --editor-bg: #282c34;
+  --tab-bar-bg: #21252b;
+  --agent-bg: #21252b;
+  --chat-bg: #282c34;
+  --panel-head: #7f848e;
+  --hover: rgba(171,178,191,.08);
+  --active: rgba(97,175,239,.15);
+  --accent: #61afef;
+  --accent-soft: rgba(97,175,239,.22);
+  --logo-color: #c678dd;
+  --pill-bg: #2c313a;
+  --pill-text: #abb2bf;
+  --switch-bg: #2c313a;
+  --switch-active: #282c34;
+  --switch-active-text: #61afef;
+  --user-bubble: #2c313a;
+  --user-text: #abb2bf;
+  --tool-bg: #21252b;
+  --input-bg: #282c34;
+  --jupyter-orange: #d19a66;
+  --app-bg: #282c34;
+  --section-icon-bg: rgba(97,175,239,.14);
+}
+
+#app[data-color-theme="github-dark"] {
+  --topbar-bg: #010409;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --sidebar-bg: #0d1117;
+  --editor-bg: #0d1117;
+  --tab-bar-bg: #161b22;
+  --agent-bg: #161b22;
+  --chat-bg: #0d1117;
+  --panel-head: #8b949e;
+  --hover: rgba(177,186,196,.08);
+  --active: rgba(88,166,255,.14);
+  --accent: #58a6ff;
+  --accent-soft: rgba(88,166,255,.22);
+  --logo-color: #d2a8ff;
+  --pill-bg: #21262d;
+  --pill-text: #c9d1d9;
+  --switch-bg: #21262d;
+  --switch-active: #0d1117;
+  --switch-active-text: #58a6ff;
+  --user-bubble: #21262d;
+  --user-text: #e6edf3;
+  --tool-bg: #161b22;
+  --input-bg: #0d1117;
+  --jupyter-orange: #f0883e;
+  --app-bg: #010409;
+  --section-icon-bg: rgba(88,166,255,.14);
+}
+
+#app[data-color-theme="solarized-dark"] {
+  --topbar-bg: #002b36;
+  --border: #073642;
+  --text: #93a1a1;
+  --muted: #657b83;
+  --sidebar-bg: #00212b;
+  --editor-bg: #002b36;
+  --tab-bar-bg: #073642;
+  --agent-bg: #073642;
+  --chat-bg: #002b36;
+  --panel-head: #839496;
+  --hover: rgba(147,161,161,.08);
+  --active: rgba(38,139,210,.18);
+  --accent: #268bd2;
+  --accent-soft: rgba(38,139,210,.22);
+  --logo-color: #2aa198;
+  --pill-bg: #073642;
+  --pill-text: #93a1a1;
+  --switch-bg: #073642;
+  --switch-active: #002b36;
+  --switch-active-text: #268bd2;
+  --user-bubble: #073642;
+  --user-text: #eee8d5;
+  --tool-bg: #073642;
+  --input-bg: #002b36;
+  --jupyter-orange: #cb4b16;
+  --app-bg: #002b36;
+  --section-icon-bg: rgba(38,139,210,.16);
+}
+
+#app[data-color-theme="light-plus"] {
+  --topbar-bg: #ffffff;
+  --border: #e8ecf0;
+  --text: #1a2332;
+  --muted: #64748b;
+  --sidebar-bg: #f8fafc;
+  --editor-bg: #ffffff;
+  --tab-bar-bg: #f1f5f9;
+  --agent-bg: #fafbfc;
+  --chat-bg: #ffffff;
+  --panel-head: #94a3b8;
+  --hover: rgba(55,147,239,.06);
+  --active: rgba(55,147,239,.1);
+  --accent: #3b82f6;
+  --accent-soft: #dbeafe;
+  --logo-color: #6366f1;
+  --pill-bg: #f1f5f9;
+  --pill-text: #475569;
+  --switch-bg: #f1f5f9;
+  --switch-active: #ffffff;
+  --switch-active-text: #3b82f6;
+  --user-bubble: #eff6ff;
+  --user-text: #1e40af;
+  --tool-bg: #f8fafc;
+  --input-bg: #ffffff;
+  --jupyter-orange: #f37726;
+  --app-bg: #ffffff;
+  --section-icon-bg: rgba(59,130,246,.12);
+}
+
+#app[data-color-theme="github-light"] {
+  --topbar-bg: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --sidebar-bg: #ffffff;
+  --editor-bg: #ffffff;
+  --tab-bar-bg: #f6f8fa;
+  --agent-bg: #f6f8fa;
+  --chat-bg: #ffffff;
+  --panel-head: #656d76;
+  --hover: rgba(9,105,218,.06);
+  --active: rgba(9,105,218,.1);
+  --accent: #0969da;
+  --accent-soft: #ddf4ff;
+  --logo-color: #8250df;
+  --pill-bg: #f6f8fa;
+  --pill-text: #1f2328;
+  --switch-bg: #eaeef2;
+  --switch-active: #ffffff;
+  --switch-active-text: #0969da;
+  --user-bubble: #ddf4ff;
+  --user-text: #0550ae;
+  --tool-bg: #f6f8fa;
+  --input-bg: #ffffff;
+  --jupyter-orange: #bc4c00;
+  --app-bg: #ffffff;
+  --section-icon-bg: rgba(9,105,218,.1);
+}
+
+#app[data-color-theme="high-contrast"] {
+  --topbar-bg: #000000;
+  --border: #6fc3df;
+  --text: #ffffff;
+  --muted: #cccccc;
+  --sidebar-bg: #000000;
+  --editor-bg: #000000;
+  --tab-bar-bg: #000000;
+  --agent-bg: #000000;
+  --chat-bg: #000000;
+  --panel-head: #ffffff;
+  --hover: rgba(255,255,255,.12);
+  --active: rgba(30,235,255,.2);
+  --accent: #1aebff;
+  --accent-soft: rgba(30,235,255,.25);
+  --logo-color: #ffff00;
+  --pill-bg: #1a1a1a;
+  --pill-text: #ffffff;
+  --switch-bg: #1a1a1a;
+  --switch-active: #000000;
+  --switch-active-text: #ffff00;
+  --user-bubble: #1a1a1a;
+  --user-text: #ffffff;
+  --tool-bg: #000000;
+  --input-bg: #000000;
+  --jupyter-orange: #ffff00;
+  --app-bg: #000000;
+  --section-icon-bg: rgba(30,235,255,.2);
+}
+
+#app {
+  color: var(--text);
+  background: var(--app-bg);
+}
+
+#app[data-color-theme="light-plus"] .topbar,
+#app[data-color-theme="github-light"] .topbar {
+  box-shadow: 0 1px 0 rgba(0,0,0,.04);
+}
+
+#app[data-color-theme="light-plus"] .workspace-panel,
+#app[data-color-theme="github-light"] .workspace-panel {
+  box-shadow: inset -1px 0 0 var(--border);
+}
+
+#app[data-color-theme="light-plus"] .chat-composer-inner,
+#app[data-color-theme="github-light"] .chat-composer-inner {
+  box-shadow: 0 4px 24px rgba(15,23,42,.08);
+}
+
+#app[data-color-theme="high-contrast"] .icon-btn,
+#app[data-color-theme="high-contrast"] .section-head {
+  outline-offset: -1px;
+}
+
+.section-leading {
+  background: var(--section-icon-bg, color-mix(in srgb, var(--accent) 14%, transparent));
+}
+
+/* Seti 图标主题 · 文件树着色 */
+#app[data-icon-theme="seti"] .tree-icon.ext-js,
+#app[data-icon-theme="seti"] .tree-icon.ext-ts,
+#app[data-icon-theme="seti"] .tree-icon.ext-tsx { color: #f7df1e; }
+#app[data-icon-theme="seti"] .tree-icon.ext-py { color: #3776ab; }
+#app[data-icon-theme="seti"] .tree-icon.ext-html,
+#app[data-icon-theme="seti"] .tree-icon.ext-htm { color: #e34c26; }
+#app[data-icon-theme="seti"] .tree-icon.ext-css,
+#app[data-icon-theme="seti"] .tree-icon.ext-scss { color: #563d7c; }
+#app[data-icon-theme="seti"] .tree-icon.ext-json { color: #cbcb41; }
+#app[data-icon-theme="seti"] .tree-icon.ext-md { color: #519aba; }
+#app[data-icon-theme="seti"] .tree-icon.ext-rs { color: #dea584; }
+#app[data-icon-theme="seti"] .tree-icon.ext-go { color: #00add8; }
+#app[data-icon-theme="seti"] .tree-icon.ext-java { color: #cc3e44; }
+#app[data-icon-theme="seti"] .tree-icon.ext-sh { color: #89e051; }
+#app[data-icon-theme="seti"] .tree-icon.ext-yml,
+#app[data-icon-theme="seti"] .tree-icon.ext-yaml { color: #a074c4; }
+#app[data-icon-theme="seti"] .tree-icon.ext-img,
+#app[data-icon-theme="seti"] .tree-icon.img { color: #a074c4; }
+#app[data-icon-theme="seti"] .tree-icon.dir { color: #c09553; }
+#app[data-icon-theme="seti"] .tree-icon.file { color: #8b949e; }
+
+#app[data-icon-theme="minimal"] .ui-icon { stroke-width: 1.35; opacity: .88; }

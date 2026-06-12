@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/styles.css?v=8" />
+  <link rel="stylesheet" href="/static/themes.css?v=16" />
+  <link rel="stylesheet" href="/static/styles.css?v=16" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
 </head>
 <body>
-  <div id="app" class="mode-code">
+  <div id="app" class="mode-code" data-color-theme="monokai" data-icon-theme="office-material">
     <header class="topbar">
       <div class="brand">
         <span class="logo">◆</span>
@@ -20,34 +21,83 @@
         <button type="button" class="mode-btn" data-mode="chat" role="tab">Chat</button>
       </div>
       <div class="topbar-meta">
+        <div class="theme-picker-wrap" id="theme-picker-wrap">
+          <button type="button" class="icon-btn" id="theme-picker-btn" title="颜色主题与图标主题" aria-haspopup="true" aria-expanded="false"></button>
+          <div class="theme-picker-menu hidden" id="theme-picker-menu" role="menu" aria-label="主题">
+            <div class="theme-picker-section">
+              <div class="theme-picker-label">颜色主题</div>
+              <div class="theme-picker-list" id="color-theme-list"></div>
+            </div>
+            <div class="theme-picker-section">
+              <div class="theme-picker-label">图标主题</div>
+              <div class="theme-picker-list" id="icon-theme-list"></div>
+            </div>
+          </div>
+        </div>
         <span class="model-pill" id="model-pill"></span>
         <span class="ws-pill" id="ws-pill" title="工作区"></span>
       </div>
     </header>
 
+    <nav class="sidebar-rail" id="sidebar-rail" aria-label="侧栏快捷栏">
+      <button type="button" class="rail-btn" id="sidebar-show" title="展开侧栏"></button>
+      <span class="rail-divider"></span>
+      <button type="button" class="rail-btn" data-rail-section="workspace" title="工作区"></button>
+      <button type="button" class="rail-btn" data-rail-section="projects" title="项目"></button>
+      <button type="button" class="rail-btn" data-rail-section="conversations" title="对话"></button>
+    </nav>
+
     <div class="layout">
       <!-- 工作区侧栏 -->
       <aside class="workspace-panel" id="workspace-panel">
-        <div class="panel-head">
-          <span class="panel-title">工作区</span>
-          <button type="button" class="icon-btn" id="ws-refresh" title="刷新">↻</button>
+        <div class="sidebar-top">
+          <button type="button" class="icon-btn" id="sidebar-hide" title="收起侧栏"></button>
         </div>
-        <div class="ws-path" id="ws-path">.</div>
-        <nav class="file-tree" id="file-tree" aria-label="文件树"></nav>
-        <div class="projects-block">
-          <div class="panel-head compact">
-            <span class="panel-title">项目</span>
-            <button type="button" class="icon-btn" id="projects-refresh" title="刷新">↻</button>
+
+        <section class="sidebar-section" data-section="workspace" id="section-workspace">
+          <header class="section-head">
+            <span class="section-leading" id="icon-sec-workspace"></span>
+            <span class="section-title">工作区</span>
+            <div class="section-actions">
+              <button type="button" class="icon-btn" id="ws-new-file" title="新建文件"></button>
+              <button type="button" class="icon-btn" id="ws-new-folder" title="新建文件夹"></button>
+              <button type="button" class="icon-btn" id="ws-refresh" title="刷新"></button>
+              <button type="button" class="icon-btn section-toggle" data-section="workspace" title="折叠"></button>
+            </div>
+          </header>
+          <div class="section-body">
+            <div class="ws-path" id="ws-path">.</div>
+            <nav class="file-tree" id="file-tree" aria-label="文件树"></nav>
           </div>
-          <div class="project-list" id="project-list"></div>
-        </div>
-        <div class="conversations-block">
-          <div class="panel-head compact">
-            <span class="panel-title">对话</span>
-            <button type="button" class="icon-btn" id="conv-new" title="新对话">＋</button>
+        </section>
+
+        <section class="sidebar-section" data-section="projects" id="section-projects">
+          <header class="section-head">
+            <span class="section-leading" id="icon-sec-projects"></span>
+            <span class="section-title">项目</span>
+            <div class="section-actions">
+              <button type="button" class="icon-btn" id="projects-refresh" title="刷新"></button>
+              <button type="button" class="icon-btn section-toggle" data-section="projects" title="折叠"></button>
+            </div>
+          </header>
+          <div class="section-body">
+            <div class="project-list" id="project-list"></div>
           </div>
-          <div class="conversation-list" id="conversation-list"></div>
-        </div>
+        </section>
+
+        <section class="sidebar-section" data-section="conversations" id="section-conversations">
+          <header class="section-head">
+            <span class="section-leading" id="icon-sec-conversations"></span>
+            <span class="section-title">对话</span>
+            <div class="section-actions">
+              <button type="button" class="icon-btn" id="conv-new" title="新对话"></button>
+              <button type="button" class="icon-btn section-toggle" data-section="conversations" title="折叠"></button>
+            </div>
+          </header>
+          <div class="section-body">
+            <div class="conversation-list" id="conversation-list"></div>
+          </div>
+        </section>
       </aside>
 
       <!-- Code 模式：编辑器 -->
@@ -76,7 +126,7 @@
         </div>
       </main>
 
-      <!-- Chat 模式：顶部智能体信息（独立网格行，固定居中） -->
+      <!-- Chat 模式：顶部智能体信息 -->
       <header class="chat-header" id="chat-header">
         <div class="chat-header-inner">
           <div class="agent-profile" id="agent-profile">
@@ -113,7 +163,7 @@
       <aside class="agent-panel" id="agent-panel">
         <div class="panel-head">
           <span class="panel-title">Agent</span>
-          <button type="button" class="icon-btn" id="chat-clear" title="清空对话">⌫</button>
+          <button type="button" class="icon-btn" id="chat-clear" title="清空对话"></button>
         </div>
         <div class="agent-messages" id="agent-messages"></div>
         <form class="composer" id="composer">
@@ -137,8 +187,8 @@
           <textarea id="prompt" rows="3" placeholder="描述要如何修改当前代码… 例如：给游戏加个暂停按钮"></textarea>
           <div class="composer-actions">
             <input type="file" id="file-agent" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden />
-            <button type="button" class="btn ghost" id="btn-attach-agent" title="上传图片">🖼</button>
-            <button type="button" class="btn ghost" id="btn-cancel" disabled>停止</button>
+            <button type="button" class="btn ghost icon-only" id="btn-attach-agent" title="上传图片"></button>
+            <button type="button" class="btn ghost" id="btn-cancel">停止</button>
             <button type="submit" class="btn primary" id="btn-send">发送</button>
           </div>
         </form>
@@ -153,10 +203,23 @@
           <textarea id="prompt-chat" rows="2" placeholder="问我任何事… @文件 · 粘贴或上传图片"></textarea>
         </div>
         <input type="file" id="file-chat" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden />
-        <button type="button" class="btn ghost" id="btn-attach-chat" title="上传图片">🖼</button>
-        <button type="button" class="btn ghost" id="btn-clear-chat" title="清空">⌫</button>
+        <button type="button" class="btn ghost icon-only" id="btn-attach-chat" title="上传图片"></button>
+        <button type="button" class="btn ghost icon-only" id="btn-clear-chat" title="清空"></button>
         <button type="button" class="btn ghost" id="btn-cancel-chat" disabled>停止</button>
         <button type="button" class="btn primary" id="btn-send-chat">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ws-create-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card ws-create-card">
+      <h3 class="approval-title" id="ws-create-title">新建</h3>
+      <p class="approval-summary" id="ws-create-hint"></p>
+      <input type="text" class="ws-create-input" id="ws-create-input" autocomplete="off" spellcheck="false" />
+      <p class="ws-create-error hidden" id="ws-create-error"></p>
+      <div class="approval-actions">
+        <button type="button" class="btn ghost" id="ws-create-cancel">取消</button>
+        <button type="button" class="btn primary" id="ws-create-confirm">创建</button>
       </div>
     </div>
   </div>
@@ -175,6 +238,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=9" type="module"></script>
+  <script src="/static/app.js?v=16" type="module"></script>
 </body>
 </html>

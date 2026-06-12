@@ -21,6 +21,8 @@ button { cursor: pointer; border: none; background: none; }
   --jupyter-orange: #f37726;
   --radius: 8px;
   --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --sidebar-width: 248px;
+  --rail-width: 44px;
 }
 
 /* ── 顶栏 ── */
@@ -78,8 +80,9 @@ button { cursor: pointer; border: none; background: none; }
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  grid-template-columns: 240px 1fr 340px;
+  grid-template-columns: var(--sidebar-width) 1fr 340px;
   grid-template-areas: "workspace editor agent";
+  transition: grid-template-columns .22s ease;
 }
 .workspace-panel { grid-area: workspace; min-height: 0; overflow: hidden; }
 .editor-panel { grid-area: editor; min-height: 0; overflow: hidden; }
@@ -101,19 +104,153 @@ button { cursor: pointer; border: none; background: none; }
   flex-shrink: 0;
 }
 .icon-btn {
-  opacity: .65;
-  font-size: .95rem;
-  padding: .15rem .35rem;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .72;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  transition: color .15s, background .15s, opacity .15s;
 }
-.icon-btn:hover { opacity: 1; background: var(--hover); }
+.icon-btn:hover {
+  opacity: 1;
+  color: var(--text);
+  background: var(--hover);
+}
+.icon-btn .ui-icon { display: block; flex-shrink: 0; }
+.btn.icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
 
-/* ── 工作区 ── */
+/* ── 侧栏轨道（向左隐藏后） ── */
+.sidebar-rail {
+  display: none;
+  position: fixed;
+  left: 0;
+  top: 44px;
+  bottom: 0;
+  width: var(--rail-width);
+  z-index: 20;
+  flex-direction: column;
+  align-items: center;
+  gap: .35rem;
+  padding: .5rem .25rem;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar-bg);
+}
+#app.sidebar-hidden .sidebar-rail { display: flex; }
+.rail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: var(--muted);
+  transition: .15s;
+}
+.rail-btn:hover {
+  color: var(--accent);
+  background: var(--hover);
+}
+.rail-divider {
+  width: 22px;
+  height: 1px;
+  background: var(--border);
+  margin: .15rem 0;
+}
+
+#app.sidebar-hidden .layout {
+  grid-template-columns: 0 1fr 340px;
+}
+#app.sidebar-hidden.mode-chat .layout {
+  grid-template-columns: 0 1fr;
+}
+#app.sidebar-hidden .workspace-panel {
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── 工作区侧栏 ── */
 .workspace-panel {
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--sidebar-bg);
+  overflow: hidden;
+  min-width: 0;
+  transition: opacity .22s ease;
+}
+.sidebar-top {
+  display: flex;
+  justify-content: flex-end;
+  padding: .35rem .45rem 0;
+  flex-shrink: 0;
+}
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+.sidebar-section:first-of-type { border-top: none; }
+#section-workspace { flex: 1 1 40%; }
+#section-projects { flex: 0 1 30%; min-height: 2.5rem; }
+#section-conversations { flex: 0 1 30%; min-height: 2.5rem; }
+.sidebar-section.is-collapsed { flex: 0 0 auto !important; }
+.sidebar-section.is-collapsed .section-body { display: none; }
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .55rem;
+  flex-shrink: 0;
+  user-select: none;
+  cursor: pointer;
+}
+.section-head:hover { background: var(--hover); }
+.section-leading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.section-leading .ui-icon { display: block; }
+.section-title {
+  flex: 1;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--panel-head);
+}
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: .1rem;
+}
+.section-actions .icon-btn { width: 26px; height: 26px; }
+.section-toggle.is-collapsed { color: var(--accent); }
+.section-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 .ws-path {
@@ -144,7 +281,24 @@ button { cursor: pointer; border: none; background: none; }
 }
 .tree-item:hover { background: var(--hover); }
 .tree-item.active { background: var(--active); border-left-color: var(--accent); }
-.tree-icon { opacity: .7; font-size: .75rem; width: 1rem; text-align: center; }
+.tree-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.tree-icon .ui-icon { display: block; }
+.tree-icon .mat-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.tree-item:hover .tree-icon:not(:has(.mat-icon)) { color: var(--text); }
 .tree-children { padding-left: .65rem; }
 
 /* ── Code 编辑器 ── */
@@ -502,14 +656,6 @@ button { cursor: pointer; border: none; background: none; }
 .tree-item .tree-icon.img { color: var(--accent); }
 .tree-item .tree-icon.html { color: var(--jupyter-orange, #f37726); }
 
-.conversations-block {
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1 1 140px;
-  overflow: hidden;
-}
 .conversation-list {
   flex: 1;
   min-height: 0;
@@ -548,13 +694,17 @@ button { cursor: pointer; border: none; background: none; }
   margin-top: .12rem;
 }
 .conv-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
-  font-size: .85rem;
   color: var(--muted);
-  padding: .1rem .25rem;
-  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   flex-shrink: 0;
 }
+.conv-del .ui-icon { display: block; }
 .conv-item:hover .conv-del { opacity: .7; }
 .conv-del:hover { opacity: 1; color: #dc3545; background: var(--hover); }
 .conv-empty {
@@ -606,6 +756,29 @@ button { cursor: pointer; border: none; background: none; }
   max-height: 120px;
   overflow: auto;
 }
+.ws-create-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 .5rem;
+  padding: .55rem .65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: .84rem;
+}
+.ws-create-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ws-create-error {
+  margin: 0 0 .5rem;
+  font-size: .78rem;
+  color: #f92672;
+}
+.ws-create-error.hidden { display: none; }
+
 .approval-hint {
   margin: 0 0 .75rem;
   font-size: .72rem;
@@ -617,16 +790,6 @@ button { cursor: pointer; border: none; background: none; }
   gap: .5rem;
 }
 
-.projects-block {
-  border-top: 1px solid var(--border);
-  flex: 0 1 38%;
-  min-height: 100px;
-  max-height: 38%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.panel-head.compact { padding: .4rem .65rem; font-size: .68rem; }
 .project-list {
   flex: 1;
   min-height: 0;
@@ -872,7 +1035,7 @@ button { cursor: pointer; border: none; background: none; }
   flex-direction: column;
 }
 #app.mode-chat .layout {
-  grid-template-columns: 220px 1fr 0;
+  grid-template-columns: var(--sidebar-width) 1fr 0;
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "workspace chat-head agent"
@@ -896,76 +1059,14 @@ button { cursor: pointer; border: none; background: none; }
 }
 #app.mode-chat .composer-bottom { display: block; }
 
-/* ══════════════════════════════════════
-   Code 模式 · JupyterLab 风格（深色）
-   ══════════════════════════════════════ */
-#app.mode-code {
-  --topbar-bg: #1a1d21;
-  --border: #2d333b;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --sidebar-bg: #21252b;
-  --editor-bg: #1e1e1e;
-  --tab-bar-bg: #252526;
-  --agent-bg: #252526;
-  --panel-head: #8b949e;
-  --hover: rgba(255,255,255,.06);
-  --active: rgba(55,147,239,.12);
-  --accent: #3793ef;
-  --accent-soft: rgba(55,147,239,.25);
-  --logo-color: #c678dd;
-  --pill-bg: #30363d;
-  --pill-text: #c9d1d9;
-  --switch-bg: #30363d;
-  --switch-active: #1e1e1e;
-  --switch-active-text: #f37726;
-  --user-bubble: #2d333b;
-  --user-text: #e6edf3;
-  --tool-bg: #1e1e1e;
-  --input-bg: #1e1e1e;
-  --jupyter-orange: #f37726;
-  color: var(--text);
-  background: #1a1d21;
-}
-
-/* ══════════════════════════════════════
-   Chat 模式 · 清新简约（浅色）
-   ══════════════════════════════════════ */
-#app.mode-chat {
-  --topbar-bg: #ffffff;
-  --border: #e8ecf0;
-  --text: #1a2332;
-  --muted: #64748b;
-  --sidebar-bg: #f8fafc;
-  --chat-bg: #ffffff;
-  --agent-bg: #fafbfc;
-  --panel-head: #94a3b8;
-  --hover: rgba(55,147,239,.06);
-  --active: rgba(55,147,239,.1);
-  --accent: #3b82f6;
-  --accent-soft: #dbeafe;
-  --logo-color: #6366f1;
-  --pill-bg: #f1f5f9;
-  --pill-text: #475569;
-  --switch-bg: #f1f5f9;
-  --switch-active: #ffffff;
-  --switch-active-text: #3b82f6;
-  --user-bubble: #eff6ff;
-  --user-text: #1e40af;
-  --tool-bg: #f8fafc;
-  --input-bg: #ffffff;
-  color: var(--text);
-  background: #ffffff;
-}
-
-#app.mode-chat .topbar { box-shadow: 0 1px 0 rgba(0,0,0,.04); }
-#app.mode-chat .workspace-panel { box-shadow: inset -1px 0 0 var(--border); }
-
 /* Chat 模式底部输入 */
 .chat-composer-bar {
   display: none;
   position: fixed;
-  left: 220px; right: 0; bottom: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  bottom: 0;
+  transition: left .22s ease;
   padding: 1rem 2rem 1.5rem;
   background: linear-gradient(transparent, var(--chat-bg) 20%);
   z-index: 10;
@@ -994,14 +1095,110 @@ button { cursor: pointer; border: none; background: none; }
 }
 .chat-composer-inner textarea:focus { outline: none; }
 
+#app.sidebar-hidden .chat-composer-bar {
+  left: var(--rail-width);
+}
+#app.sidebar-hidden.mode-code .chat-composer-bar {
+  left: var(--rail-width);
+}
+
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 180px 1fr 280px; }
+  :root { --sidebar-width: 200px; }
+  .layout { grid-template-columns: var(--sidebar-width) 1fr 280px; }
   #app.mode-chat .layout {
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: var(--sidebar-width) 1fr;
     grid-template-rows: auto 1fr;
     grid-template-areas:
       "workspace chat-head"
       "workspace chat-body";
   }
-  #app.mode-chat .chat-composer-bar { left: 180px; }
+}
+
+/* ── 主题选择器（类似 VS Code Preferences: Color Theme / File Icon Theme） ── */
+.theme-picker-wrap { position: relative; }
+.theme-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(320px, calc(100vw - 1.5rem));
+  max-height: min(70vh, 480px);
+  overflow: auto;
+  padding: .5rem 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--sidebar-bg);
+  box-shadow: 0 8px 32px rgba(0,0,0,.28);
+  z-index: 200;
+}
+.theme-picker-menu.hidden { display: none; }
+.theme-picker-section + .theme-picker-section {
+  margin-top: .35rem;
+  padding-top: .35rem;
+  border-top: 1px solid var(--border);
+}
+.theme-picker-label {
+  padding: .35rem .85rem .25rem;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.theme-picker-list { display: flex; flex-direction: column; }
+.theme-item {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  width: 100%;
+  padding: .45rem .75rem;
+  text-align: left;
+  color: var(--text);
+  transition: background .12s;
+}
+.theme-item:hover { background: var(--hover); }
+.theme-item.is-active { background: var(--active); }
+.theme-preview {
+  display: grid;
+  grid-template-columns: repeat(7, 10px);
+  gap: 2px;
+  flex-shrink: 0;
+}
+.theme-preview span {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(128,128,128,.22);
+}
+.theme-preview-icons {
+  display: grid;
+  grid-template-columns: repeat(7, 14px);
+  gap: 2px;
+  align-items: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.theme-preview-icons .ui-icon,
+.theme-preview-icons .mat-icon { display: block; }
+.theme-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+}
+.theme-item-label { font-size: .82rem; font-weight: 600; }
+.theme-item-desc {
+  font-size: .7rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.theme-check {
+  width: 18px;
+  flex-shrink: 0;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

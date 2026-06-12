@@ -20,6 +20,7 @@ from auc.web.projects import discover_projects, project_to_dict
 from auc.web.runner import ProjectRunner
 from auc.web.workspace import (
     SandboxViolationError,
+    create_directory,
     list_tree,
     read_image_file,
     read_text_file,
@@ -103,7 +104,7 @@ def create_app():  # noqa: ANN201
 
             await aclose_model_client(agent._config.model)  # noqa: SLF001
 
-    app = FastAPI(title="AuC Web", version="0.2.6", lifespan=lifespan)
+    app = FastAPI(title="AuC Web", version="0.2.7", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
     @app.get("/")
@@ -118,7 +119,7 @@ def create_app():  # noqa: ANN201
         role_catalog = load_role_catalog(sandbox=session.sandbox)
         active_role = role_catalog.active_role_id or role_catalog.default_role_id
         payload: dict[str, Any] = {
-            "version": "0.2.6",
+            "version": "0.2.7",
             "workspace": {
                 "root": session.sandbox,
                 "display": short_display_path(session.sandbox),
@@ -396,6 +397,21 @@ def create_app():  # noqa: ANN201
             data = write_text_file(session.sandbox, rel, content)
         except SandboxViolationError as exc:
             raise HTTPException(403, str(exc)) from exc
+        return JSONResponse(data)
+
+    @app.post("/api/workspace/mkdir")
+    async def api_mkdir(request: Request) -> JSONResponse:
+        session = _get_session()
+        body = await request.json()
+        rel = body.get("path")
+        if not isinstance(rel, str) or not rel.strip():
+            raise HTTPException(400, "path required")
+        try:
+            data = create_directory(session.sandbox, rel.strip())
+        except SandboxViolationError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except FileExistsError as exc:
+            raise HTTPException(409, f"already exists: {exc}") from exc
         return JSONResponse(data)
 
     @app.get("/api/chat/conversations")

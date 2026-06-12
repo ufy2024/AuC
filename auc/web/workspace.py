@@ -83,6 +83,15 @@ def write_text_file(sandbox_root: str, rel_path: str, content: str) -> dict[str,
     return {"path": rel_path, "size": len(content.encode("utf-8"))}
 
 
+def create_directory(sandbox_root: str, rel_path: str) -> dict[str, object]:
+    resolved = resolve_under_sandbox(sandbox_root, rel_path)
+    if resolved.exists():
+        raise FileExistsError(rel_path)
+    resolved.mkdir(parents=True, exist_ok=False)
+    rel = str(resolved.relative_to(Path(sandbox_root).resolve()))
+    return {"path": rel, "type": "dir"}
+
+
 def short_display_path(path: str) -> str:
     home = str(Path.home())
     if path.startswith(home):
@@ -113,6 +122,7 @@ __all__ = [
     "read_image_file",
     "read_text_file",
     "write_text_file",
+    "create_directory",
     "short_display_path",
     "tree_to_dict",
 ]

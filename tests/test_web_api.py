@@ -82,6 +82,20 @@ def test_workspace_file_routes(client: TestClient) -> None:
     assert client.get("/api/workspace/file", params={"path": "nope.txt"}).status_code == 404
 
 
+def test_workspace_mkdir(client: TestClient) -> None:
+    r = client.post("/api/workspace/mkdir", json={"path": "manual-dir"})
+    assert r.status_code == 200
+    assert r.json()["type"] == "dir"
+    tree = client.get("/api/workspace/tree")
+    names = [e["name"] for e in tree.json()["entries"]]
+    assert "manual-dir" in names
+    assert client.post("/api/workspace/mkdir", json={"path": "manual-dir"}).status_code == 409
+    assert client.post("/api/workspace/mkdir", json={}).status_code == 400
+    assert (
+        client.post("/api/workspace/mkdir", json={"path": "../escape"}).status_code == 403
+    )
+
+
 def test_workspace_tree_errors(client: TestClient) -> None:
     assert client.get("/api/workspace/tree", params={"path": "../up"}).status_code == 403
     assert client.get("/api/workspace/tree", params={"path": "missing-dir"}).status_code == 404
