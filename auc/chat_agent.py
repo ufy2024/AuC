@@ -25,6 +25,7 @@ from auc.roles import (
 from auc.tools.fetch import make_fetch_tool
 from auc.tools.files import make_file_tools
 from auc.tools.search import make_search_tools
+from auc.tools.roles import make_role_tools
 from auc.tools.shell import make_shell_tool
 
 if TYPE_CHECKING:
@@ -111,6 +112,8 @@ def build_chat_agent(
         if memory is not None:
             for tool, pol in make_evolution_tools(memory):
                 registry.register(tool, pol)
+        for tool, pol in make_role_tools(sandbox):
+            registry.register(tool, pol)
         for tool, pol in make_fetch_tool(sandbox):
             registry.register(tool, pol)
 

@@ -4,9 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/themes.css?v=16" />
-  <link rel="stylesheet" href="/static/styles.css?v=16" />
+  <link rel="stylesheet" href="/static/themes.css?v=22" />
+  <link rel="stylesheet" href="/static/styles.css?v=22" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="stylesheet" href="/static/vendor/xterm.css?v=22" />
 </head>
 <body>
   <div id="app" class="mode-code" data-color-theme="monokai" data-icon-theme="office-material">
@@ -68,6 +69,7 @@
           <div class="section-body">
             <div class="ws-path" id="ws-path">.</div>
             <nav class="file-tree" id="file-tree" aria-label="文件树"></nav>
+            <div id="tree-context-menu" class="tree-context-menu hidden" role="menu"></div>
           </div>
         </section>
 
@@ -102,26 +104,45 @@
 
       <!-- Code 模式：编辑器 -->
       <main class="editor-panel" id="editor-panel">
-        <div class="tab-bar" id="tab-bar"></div>
+        <div class="tab-bar" id="tab-bar">
+          <div class="tab-bar-tabs" id="tab-bar-tabs"></div>
+          <div class="tab-bar-actions">
+            <button type="button" class="icon-btn" id="btn-terminal" title="终端"></button>
+          </div>
+        </div>
         <div class="md-toolbar hidden" id="md-toolbar">
           <button type="button" class="btn ghost sm" data-md-view="edit">编辑</button>
           <button type="button" class="btn ghost sm" data-md-view="preview">预览</button>
         </div>
-        <div class="editor-wrap" id="editor-wrap">
-          <div id="monaco" class="monaco-host"></div>
-          <div id="md-preview" class="md-preview hidden"></div>
-          <div id="image-preview" class="image-preview hidden"></div>
-          <div id="app-preview" class="app-preview hidden">
-            <div class="preview-toolbar">
-              <span id="preview-title">预览</span>
-              <button type="button" class="btn ghost sm" id="preview-stop">停止</button>
-              <button type="button" class="btn ghost sm" id="preview-newtab">新标签页</button>
+        <div class="editor-split" id="editor-split">
+          <div class="editor-wrap" id="editor-wrap">
+            <div id="monaco" class="monaco-host"></div>
+            <div id="md-preview" class="md-preview hidden"></div>
+            <div id="image-preview" class="image-preview hidden"></div>
+            <div id="app-preview" class="app-preview hidden">
+              <div class="preview-toolbar">
+                <span id="preview-title">预览</span>
+                <button type="button" class="btn ghost sm" id="preview-stop">停止</button>
+                <button type="button" class="btn ghost sm" id="preview-newtab">新标签页</button>
+              </div>
+              <iframe id="preview-frame" title="项目预览" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
             </div>
-            <iframe id="preview-frame" title="项目预览" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+            <div class="editor-empty" id="editor-empty">
+              <p>从左侧工作区选择文件开始编辑</p>
+              <p class="hint">JupyterLab 风格 · 下方终端 · 右侧 Agent</p>
+            </div>
           </div>
-          <div class="editor-empty" id="editor-empty">
-            <p>从左侧工作区选择文件开始编辑</p>
-            <p class="hint">JupyterLab 风格 · 右侧与 Agent 对话</p>
+          <div class="terminal-panel is-collapsed" id="terminal-panel">
+            <div class="terminal-resize-handle" id="terminal-resize-handle" title="拖动调整高度"></div>
+            <header class="terminal-toolbar">
+              <span class="terminal-title">终端</span>
+              <span class="terminal-cwd" id="terminal-cwd"></span>
+              <div class="terminal-actions">
+                <button type="button" class="btn ghost sm" id="terminal-new" title="新建会话">+</button>
+                <button type="button" class="icon-btn" id="terminal-close" title="关闭终端"></button>
+              </div>
+            </header>
+            <div class="terminal-host" id="terminal-host"></div>
           </div>
         </div>
       </main>
@@ -238,6 +259,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=16" type="module"></script>
+  <script src="/static/app.js?v=22" type="module"></script>
 </body>
 </html>

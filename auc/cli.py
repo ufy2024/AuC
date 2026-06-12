@@ -79,6 +79,7 @@ def _register_chat_tools(
     sandbox_root: str,
     memory: EvolutionMemoryPort | None = None,
 ) -> None:
+    from auc.tools.roles import make_role_tools
     from auc.tools.search import make_search_tools
     from auc.tools.shell import make_shell_tool
 
@@ -91,6 +92,8 @@ def _register_chat_tools(
     if memory is not None:
         for tool, pol in make_evolution_tools(memory):
             registry.register(tool, pol)
+    for tool, pol in make_role_tools(sandbox_root):
+        registry.register(tool, pol)
 
 
 def _chat_role_id(args: argparse.Namespace, catalog=None) -> str:

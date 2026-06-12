@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -83,6 +84,39 @@ def write_text_file(sandbox_root: str, rel_path: str, content: str) -> dict[str,
     return {"path": rel_path, "size": len(content.encode("utf-8"))}
 
 
+def delete_path(sandbox_root: str, rel_path: str) -> dict[str, object]:
+    root = Path(sandbox_root).resolve()
+    resolved = resolve_under_sandbox(sandbox_root, rel_path)
+    if resolved == root:
+        raise ValueError("cannot delete sandbox root")
+    if not resolved.exists():
+        raise FileNotFoundError(rel_path)
+    kind = "dir" if resolved.is_dir() else "file"
+    rel = str(resolved.relative_to(root))
+    if resolved.is_dir():
+        shutil.rmtree(resolved)
+    else:
+        resolved.unlink()
+    return {"path": rel, "type": kind, "deleted": True}
+
+
+def rename_path(sandbox_root: str, rel_path: str, new_path: str) -> dict[str, object]:
+    root = Path(sandbox_root).resolve()
+    src = resolve_under_sandbox(sandbox_root, rel_path)
+    dst = resolve_under_sandbox(sandbox_root, new_path)
+    if src == root:
+        raise ValueError("cannot rename sandbox root")
+    if not src.exists():
+        raise FileNotFoundError(rel_path)
+    if dst.exists():
+        raise FileExistsError(new_path)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(dst)
+    rel = str(dst.relative_to(root))
+    entry_type: EntryType = "dir" if dst.is_dir() else "file"
+    return {"path": rel, "type": entry_type, "from": rel_path}
+
+
 def create_directory(sandbox_root: str, rel_path: str) -> dict[str, object]:
     resolved = resolve_under_sandbox(sandbox_root, rel_path)
     if resolved.exists():
@@ -122,6 +156,8 @@ __all__ = [
     "read_image_file",
     "read_text_file",
     "write_text_file",
+    "delete_path",
+    "rename_path",
     "create_directory",
     "short_display_path",
     "tree_to_dict",

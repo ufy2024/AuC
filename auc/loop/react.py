@@ -17,6 +17,7 @@ from auc.model.json_util import PARSE_ERROR_KEY
 from auc.model.streaming import stream_to_assistant
 from auc.plan import parse_plan_block
 from auc.policy.privilege import PendingApproval, ToolPrivilegeGate
+from auc.run_context import current_agent_id
 
 
 class ReActLoop:
@@ -162,13 +163,17 @@ class ReActLoop:
             policy = ctx.tools.get_policy(name)
             if ctx.project_rules and name in ctx.project_rules.tool_policy:
                 policy.privilege = ctx.project_rules.tool_policy[name]
-            outcome = await gate.check_and_invoke(
-                tool, policy, arguments, ctx=ctx
-            )
-            if isinstance(outcome, PendingApproval):
-                tr = await gate.resolve_pending(outcome, ctx=ctx, tool=tool)
-            else:
-                tr = outcome
+            token = current_agent_id.set(ctx.agent_id)
+            try:
+                outcome = await gate.check_and_invoke(
+                    tool, policy, arguments, ctx=ctx
+                )
+                if isinstance(outcome, PendingApproval):
+                    tr = await gate.resolve_pending(outcome, ctx=ctx, tool=tool)
+                else:
+                    tr = outcome
+            finally:
+                current_agent_id.reset(token)
             tr.tool_call_id = tool_call_id
             tr.name = name
 

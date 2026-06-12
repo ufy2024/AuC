@@ -18,6 +18,7 @@ from auc.roles import (
     role_evolution_paths,
     role_tag,
 )
+from auc.run_context import current_agent_id
 from auc.types import AgentId, RunId
 
 
@@ -316,8 +317,15 @@ class EvolutionMemoryPort:
             metadata={"sandbox": self._sandbox, "role_id": role_id},
         )
 
-    def save_lesson(self, tags: str, lesson: str) -> str:
-        store = self._storage(f"chat:{self._default_role_id}")
+    def save_lesson(
+        self,
+        tags: str,
+        lesson: str,
+        *,
+        agent_id: AgentId | None = None,
+    ) -> str:
+        aid = agent_id or current_agent_id.get()
+        store = self._storage(aid)
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         if store.legacy:
             tag_list.append(role_tag(store.role_id))
@@ -328,8 +336,16 @@ class EvolutionMemoryPort:
         )
         return f"saved episode {ep.id}"
 
-    def promote_nugget(self, nugget_id: str, tags: str, content: str) -> str:
-        store = self._storage(f"chat:{self._default_role_id}")
+    def promote_nugget(
+        self,
+        nugget_id: str,
+        tags: str,
+        content: str,
+        *,
+        agent_id: AgentId | None = None,
+    ) -> str:
+        aid = agent_id or current_agent_id.get()
+        store = self._storage(aid)
         tag_list = [t.strip() for t in tags.split(",") if t.strip()]
         if store.legacy:
             tag_list.append(role_tag(store.role_id))

@@ -22,6 +22,11 @@ import {
   setActiveIconTheme,
   treeEntryIconParts,
 } from "./icons.js";
+import {
+  initTerminalPanel,
+  refreshTerminalTheme,
+  isTerminalOpen,
+} from "./terminal_panel.js";
 
 const $ = (sel) => document.querySelector(sel);
 const state = {
@@ -109,6 +114,8 @@ function initSidebarChrome() {
   }
   setButtonIcon($("#sidebar-hide"), "panelLeftClose", { size: 18 });
   setButtonIcon($("#sidebar-show"), "chevronRight", { size: 18 });
+  setButtonIcon($("#btn-terminal"), "terminal", { size: 16 });
+  setButtonIcon($("#terminal-close"), "chevronDown", { size: 15 });
   setButtonIcon($("#ws-new-file"), "filePlus", { size: 15 });
   setButtonIcon($("#ws-new-folder"), "folderPlus", { size: 15 });
   setButtonIcon($("#ws-refresh"), "refresh", { size: 15 });
@@ -196,6 +203,7 @@ async function selectColorTheme(id) {
   if (id === state.colorTheme) return;
   state.colorTheme = applyColorTheme(id);
   applyMonacoTheme();
+  refreshTerminalTheme();
   refreshThemePickerUI();
   if (state.info?.conversation?.messages) {
     await renderChatHistory(state.info.conversation.messages);
@@ -469,6 +477,8 @@ async function loadInfo() {
   $("#version").textContent = state.info.version;
   $("#model-pill").textContent = `${state.info.model.provider} / ${state.info.model.model}`;
   $("#ws-pill").textContent = state.info.workspace.display;
+  const tcwd = $("#terminal-cwd");
+  if (tcwd) tcwd.textContent = state.info.workspace?.display || "";
   populateWorkModeSelects();
   bindWorkModeSelects();
   populateRoleSelects();
@@ -489,6 +499,133 @@ async function refreshAgentStats() {
 }
 
 // ── 工作区树 ──
+let wsRenameEntry = null;
+let treeContextEntry = null;
+
+function workspaceParentPath(relPath) {
+  const parts = relPath.split("/").filter(Boolean);
+  parts.pop();
+  return parts.length ? parts.join("/") : ".";
+}
+
+function remapPathsAfterRename(oldPath, newPath) {
+  const mapPath = (p) => {
+    if (p === oldPath) return newPath;
+    if (p.startsWith(`${oldPath}/`)) return newPath + p.slice(oldPath.length);
+    return p;
+  };
+  state.openTabs = [...new Set(state.openTabs.map(mapPath))];
+  if (state.activeTab) state.activeTab = mapPath(state.activeTab);
+  if (state.fileCache) {
+    const next = {};
+    for (const [k, v] of Object.entries(state.fileCache)) {
+      next[mapPath(k)] = v;
+    }
+    state.fileCache = next;
+  }
+  if (state._dirty) {
+    const next = {};
+    for (const [k, v] of Object.entries(state._dirty)) {
+      next[mapPath(k)] = v;
+    }
+    state._dirty = next;
+  }
+  renderTabs();
+}
+
+function removePathsAfterDelete(targetPath, isDir) {
+  const matches = (p) => p === targetPath || (isDir && p.startsWith(`${targetPath}/`));
+  state.openTabs = state.openTabs.filter((p) => !matches(p));
+  if (state.fileCache) {
+    for (const k of Object.keys(state.fileCache)) {
+      if (matches(k)) delete state.fileCache[k];
+    }
+  }
+  if (state._dirty) {
+    for (const k of Object.keys(state._dirty)) {
+      if (matches(k)) delete state._dirty[k];
+    }
+  }
+  if (state.activeTab && matches(state.activeTab)) {
+    state.activeTab = state.openTabs[0] || null;
+    if (!state.activeTab) {
+      $("#app").classList.remove("has-editor");
+      hideImagePreview();
+      hideAppPreview();
+      hideMdPreview();
+      state.editor?.dispose();
+      state.editor = null;
+    } else {
+      openFile(state.activeTab);
+    }
+  }
+  renderTabs();
+}
+
+function hideTreeContextMenu() {
+  $("#tree-context-menu")?.classList.add("hidden");
+  treeContextEntry = null;
+}
+
+function showTreeContextMenu(ev, entry) {
+  const menu = $("#tree-context-menu");
+  if (!menu) return;
+  ev.preventDefault();
+  treeContextEntry = entry;
+  menu.innerHTML = `
+    <button type="button" data-action="rename">重命名</button>
+    <button type="button" data-action="delete" class="danger">删除</button>`;
+  menu.classList.remove("hidden");
+  menu.style.left = `${ev.clientX}px`;
+  menu.style.top = `${ev.clientY}px`;
+  menu.querySelector('[data-action="rename"]')?.addEventListener("click", () => {
+    hideTreeContextMenu();
+    showWsRenameDialog(entry);
+  });
+  menu.querySelector('[data-action="delete"]')?.addEventListener("click", () => {
+    hideTreeContextMenu();
+    deleteWorkspaceEntry(entry);
+  });
+}
+
+async function deleteWorkspaceEntry(entry) {
+  const label = entry.type === "dir" ? "文件夹" : "文件";
+  const ok = window.confirm(`确定删除${label}「${entry.name}」？此操作不可撤销。`);
+  if (!ok) return;
+  try {
+    await api(`/api/workspace/path?path=${encodeURIComponent(entry.path)}`, {
+      method: "DELETE",
+    });
+    removePathsAfterDelete(entry.path, entry.type === "dir");
+    await loadTree(state.treePath);
+  } catch (e) {
+    window.alert(e.message || "删除失败");
+  }
+}
+
+function showWsRenameDialog(entry) {
+  wsRenameEntry = entry;
+  const overlay = $("#ws-create-overlay");
+  const title = $("#ws-create-title");
+  const hint = $("#ws-create-hint");
+  const input = $("#ws-create-input");
+  const err = $("#ws-create-error");
+  const confirmBtn = $("#ws-create-confirm");
+  if (!overlay || !input) return;
+  wsCreateMode = "rename";
+  if (title) title.textContent = "重命名";
+  if (hint) hint.textContent = `原名称：${entry.name}`;
+  if (confirmBtn) confirmBtn.textContent = "确定";
+  if (err) {
+    err.textContent = "";
+    err.classList.add("hidden");
+  }
+  input.value = entry.name;
+  overlay.classList.remove("hidden");
+  input.focus();
+  input.select();
+}
+
 async function loadTree(path = ".") {
   state.treePath = path;
   $("#ws-path").textContent = path;
@@ -512,8 +649,26 @@ async function loadTree(path = ".") {
     if (state.activeTab === e.path) row.classList.add("active");
     const { html: icHtml, treeClass } = treeEntryIconParts(e, { size: 14 });
     const treeCls = treeClass ? ` ${treeClass}` : "";
-    row.innerHTML = `<span class="tree-icon${treeCls}">${icHtml}</span><span>${e.name}</span>`;
+    row.innerHTML = `
+      <span class="tree-icon${treeCls}">${icHtml}</span>
+      <span class="tree-name">${e.name}</span>
+      <span class="tree-actions">
+        <button type="button" class="icon-btn tree-action-rename" title="重命名"></button>
+        <button type="button" class="icon-btn tree-action-delete" title="删除"></button>
+      </span>`;
+    setButtonIcon(row.querySelector(".tree-action-rename"), "pencil", { size: 12 });
+    setButtonIcon(row.querySelector(".tree-action-delete"), "trash", { size: 12 });
+    row.querySelector(".tree-action-rename")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      showWsRenameDialog(e);
+    });
+    row.querySelector(".tree-action-delete")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      deleteWorkspaceEntry(e);
+    });
+    row.addEventListener("contextmenu", (ev) => showTreeContextMenu(ev, e));
     row.addEventListener("click", (ev) => {
+      if (ev.target.closest(".tree-actions")) return;
       if (e.type === "dir") loadTree(e.path);
       else if (e.is_html && ev.altKey) openHtmlPreview(e.path, e.name);
       else if (e.is_html) openHtmlPreview(e.path, e.name);
@@ -522,6 +677,13 @@ async function loadTree(path = ".") {
     root.appendChild(row);
   }
 }
+
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("#tree-context-menu")) hideTreeContextMenu();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") hideTreeContextMenu();
+});
 
 $("#ws-refresh").addEventListener("click", () => loadTree(state.treePath));
 
@@ -544,9 +706,12 @@ function showWsCreateDialog(mode) {
   const hint = $("#ws-create-hint");
   const input = $("#ws-create-input");
   const err = $("#ws-create-error");
+  const confirmBtn = $("#ws-create-confirm");
   if (!overlay || !input) return Promise.resolve(null);
   wsCreateMode = mode;
+  wsRenameEntry = null;
   if (title) title.textContent = mode === "folder" ? "新建文件夹" : "新建文件";
+  if (confirmBtn) confirmBtn.textContent = "创建";
   if (hint) {
     const loc = state.treePath === "." ? "工作区根目录" : state.treePath;
     hint.textContent = `将在 ${loc} 下创建`;
@@ -567,6 +732,7 @@ function showWsCreateDialog(mode) {
 function closeWsCreateDialog(result = null) {
   $("#ws-create-overlay")?.classList.add("hidden");
   wsCreateMode = null;
+  wsRenameEntry = null;
   if (wsCreateResolve) {
     wsCreateResolve(result);
     wsCreateResolve = null;
@@ -577,6 +743,45 @@ async function confirmWsCreate() {
   const input = $("#ws-create-input");
   const err = $("#ws-create-error");
   if (!input || !wsCreateMode) return;
+
+  if (wsCreateMode === "rename") {
+    if (!wsRenameEntry) return;
+    const newName = input.value.trim();
+    if (!newName || newName === wsRenameEntry.name) {
+      closeWsCreateDialog(null);
+      return;
+    }
+    let newPath;
+    try {
+      const parent = workspaceParentPath(wsRenameEntry.path);
+      newPath = joinWorkspacePath(parent === "." ? "." : parent, newName);
+    } catch (e) {
+      if (err) {
+        err.textContent = e.message;
+        err.classList.remove("hidden");
+      }
+      return;
+    }
+    try {
+      await api("/api/workspace/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: wsRenameEntry.path, new_path: newPath }),
+      });
+      const oldPath = wsRenameEntry.path;
+      closeWsCreateDialog(newPath);
+      remapPathsAfterRename(oldPath, newPath);
+      await loadTree(state.treePath);
+      if (state.activeTab === newPath) await openFile(newPath);
+    } catch (e) {
+      if (err) {
+        err.textContent = e.message || "重命名失败";
+        err.classList.remove("hidden");
+      }
+    }
+    return;
+  }
+
   let rel;
   try {
     rel = joinWorkspacePath(state.treePath, input.value);
@@ -1036,8 +1241,13 @@ async function reloadOpenFile(path) {
   }
 }
 
+function layoutEditor() {
+  state.editor?.layout();
+}
+
 function renderTabs() {
-  const bar = $("#tab-bar");
+  const bar = $("#tab-bar-tabs");
+  if (!bar) return;
   bar.innerHTML = "";
   for (const p of state.openTabs) {
     const tab = document.createElement("div");
@@ -1617,13 +1827,26 @@ function handleEvent(ev, streamConversationId = null) {
   }
   if (ev.type === "tool_end") {
     const pending = state._pendingTool || {};
+    const toolName = ev.payload?.tool || pending.name;
     appendTool(
-      ev.payload?.tool || pending.name,
+      toolName,
       pending.args || {},
       ev.payload?.summary,
       ev.payload?.is_error,
     );
     state._pendingTool = null;
+    if (
+      !ev.payload?.is_error
+      && ["define_role", "update_role", "switch_role"].includes(toolName)
+    ) {
+      loadInfo()
+        .then(() => {
+          populateRoleSelects();
+          bindRoleSelects();
+          renderAgentProfile();
+        })
+        .catch(() => {});
+    }
     return;
   }
   if (ev.type === "run_end" && ev.payload?.status === "cancelled") {
@@ -1766,6 +1989,8 @@ $("#approval-deny")?.addEventListener("click", () => submitApproval(false));
 async function boot() {
   initThemes();
   initSidebarChrome();
+  initTerminalPanel();
+  window.addEventListener("auc-terminal-resize", layoutEditor);
   setMode(state.mode);
   bindMdToolbar();
   await loadInfo();

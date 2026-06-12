@@ -18,6 +18,9 @@ CHAT_SHARED_TOOLS = """\
 - glob_files(pattern): 按名称模式找文件
 - save_lesson(tags, lesson): 固化可复用经验到**当前角色**目录下的进化库
 - promote_nugget(nugget_id, tags, content): 将成功经验提升为金块技能
+- define_role(role_id, label, persona, ...): 根据对话在沙盒创建自定义角色并初始化进化目录
+- update_role(role_id?, persona?, ...): 更新沙盒内自定义角色的 prompt 或元数据
+- switch_role(role_id): 切换当前活跃角色
 - fetch_url(url, save_path?): 访问外部链接（L3，需授权）
 
 定位代码请优先 grep_search / glob_files。
@@ -27,6 +30,12 @@ CHAT_SHARED_TOOLS = """\
 - 经验写入 `.auc/roles/<当前角色>/evolution.yaml`
 - 金块写入 `.auc/roles/<当前角色>/nuggets.yaml`
 - 启动时仅召回当前角色目录下的进化数据（旧版全局 `.auc/evolution.yaml` 仍可读）
+
+自定义角色（对话定义）：
+- 与用户澄清角色定位、语气、能力边界后，用 **define_role** 写入 `.auc/roles/<id>/`
+- role_id 使用小写英文 slug（如 `stock-analyst`）；persona 写入 `prompt.md`
+- 创建后可用 **save_lesson** / **promote_nugget** 继续积累该角色的经验
+- 用 **update_role** 迭代 persona；用 **switch_role** 在已有角色间切换
 
 用户要求删除目录/文件时，必须使用 delete_path。
 当用户需要代码或文件时，必须用 write_file 写入工作区。

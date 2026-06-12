@@ -5,8 +5,10 @@ import pytest
 
 from auc.web.workspace import (
     create_directory,
+    delete_path,
     list_tree,
     read_text_file,
+    rename_path,
     short_display_path,
     tree_to_dict,
     write_text_file,
@@ -36,6 +38,18 @@ def test_tree_to_dict() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         d = tree_to_dict(list_tree(tmp))
         assert "entries" in d
+
+
+def test_delete_and_rename() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        write_text_file(tmp, "old.txt", "x")
+        (Path(tmp) / "dir").mkdir()
+        rename_path(tmp, "old.txt", "new.txt")
+        assert (Path(tmp) / "new.txt").is_file()
+        delete_path(tmp, "dir")
+        assert not (Path(tmp) / "dir").exists()
+        delete_path(tmp, "new.txt")
+        assert not (Path(tmp) / "new.txt").exists()
 
 
 def test_create_directory() -> None:

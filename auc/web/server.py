@@ -21,7 +21,9 @@ from auc.web.runner import ProjectRunner
 from auc.web.workspace import (
     SandboxViolationError,
     create_directory,
+    delete_path,
     list_tree,
+    rename_path,
     read_image_file,
     read_text_file,
     short_display_path,
@@ -104,7 +106,7 @@ def create_app():  # noqa: ANN201
 
             await aclose_model_client(agent._config.model)  # noqa: SLF001
 
-    app = FastAPI(title="AuC Web", version="0.2.7", lifespan=lifespan)
+    app = FastAPI(title="AuC Web", version="0.2.8", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
     @app.get("/")
@@ -119,7 +121,7 @@ def create_app():  # noqa: ANN201
         role_catalog = load_role_catalog(sandbox=session.sandbox)
         active_role = role_catalog.active_role_id or role_catalog.default_role_id
         payload: dict[str, Any] = {
-            "version": "0.2.7",
+            "version": "0.2.8",
             "workspace": {
                 "root": session.sandbox,
                 "display": short_display_path(session.sandbox),
@@ -145,6 +147,10 @@ def create_app():  # noqa: ANN201
             },
             "roles": _roles_payload(session.sandbox),
             "work_modes": _work_modes_payload(),
+            "terminal": {
+                "enabled": True,
+                "ws": "/api/terminal/ws",
+            },
         }
         if evolve:
             nug, evo = role_evolution_paths(session.sandbox, active_role)
@@ -413,6 +419,67 @@ def create_app():  # noqa: ANN201
         except FileExistsError as exc:
             raise HTTPException(409, f"already exists: {exc}") from exc
         return JSONResponse(data)
+
+    @app.delete("/api/workspace/path")
+    async def api_delete_path(path: str) -> JSONResponse:
+        session = _get_session()
+        if not path.strip():
+            raise HTTPException(400, "path required")
+        try:
+            data = delete_path(session.sandbox, path.strip())
+        except SandboxViolationError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return JSONResponse(data)
+
+    @app.post("/api/workspace/rename")
+    async def api_rename_path(request: Request) -> JSONResponse:
+        session = _get_session()
+        body = await request.json()
+        rel = body.get("path")
+        new_path = body.get("new_path")
+        if not isinstance(rel, str) or not rel.strip():
+            raise HTTPException(400, "path required")
+        if not isinstance(new_path, str) or not new_path.strip():
+            raise HTTPException(400, "new_path required")
+        try:
+            data = rename_path(session.sandbox, rel.strip(), new_path.strip())
+        except SandboxViolationError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except FileExistsError as exc:
+            raise HTTPException(409, f"already exists: {exc}") from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return JSONResponse(data)
+
+    @app.websocket("/api/terminal/ws")
+    async def api_terminal_ws(websocket: WebSocket):  # noqa: ANN201
+        from auc.web.pty_terminal import bridge_pty_terminal, terminal_available
+        from fastapi import WebSocketDisconnect
+
+        if not terminal_available():
+            await websocket.accept()
+            await websocket.send_text(
+                json.dumps({"type": "error", "message": "当前环境不支持 PTY 终端"})
+            )
+            await websocket.close(code=1008)
+            return
+        session = _get_session()
+        await websocket.accept()
+        try:
+            await bridge_pty_terminal(websocket, session.sandbox)
+        except WebSocketDisconnect:
+            pass
+        except Exception:  # noqa: BLE001
+            try:
+                await websocket.close(code=1011)
+            except Exception:  # noqa: BLE001
+                pass
 
     @app.get("/api/chat/conversations")
     async def api_list_conversations() -> JSONResponse:
@@ -811,7 +878,7 @@ def create_app():  # noqa: ANN201
         )
 
     # 沙盒项目 API / WebSocket 转发（静态预览 /preview/ 时前端请求同源 /api、/ws）
-    _AUC_API_ROOTS = frozenset({"info", "projects", "workspace", "chat"})
+    _AUC_API_ROOTS = frozenset({"info", "projects", "workspace", "chat", "terminal"})
 
     @app.api_route(
         "/api/{path:path}",

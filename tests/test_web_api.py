@@ -96,6 +96,24 @@ def test_workspace_mkdir(client: TestClient) -> None:
     )
 
 
+def test_workspace_delete_and_rename(client: TestClient) -> None:
+    client.put("/api/workspace/file", json={"path": "x.txt", "content": "1"})
+    client.post("/api/workspace/mkdir", json={"path": "sub"})
+    r = client.post(
+        "/api/workspace/rename",
+        json={"path": "x.txt", "new_path": "y.txt"},
+    )
+    assert r.status_code == 200
+    assert r.json()["path"] == "y.txt"
+    assert client.get("/api/workspace/file", params={"path": "y.txt"}).status_code == 200
+    r = client.delete("/api/workspace/path", params={"path": "sub"})
+    assert r.status_code == 200
+    assert r.json()["type"] == "dir"
+    r = client.delete("/api/workspace/path", params={"path": "y.txt"})
+    assert r.status_code == 200
+    assert client.get("/api/workspace/tree").json()["entries"] == []
+
+
 def test_workspace_tree_errors(client: TestClient) -> None:
     assert client.get("/api/workspace/tree", params={"path": "../up"}).status_code == 403
     assert client.get("/api/workspace/tree", params={"path": "missing-dir"}).status_code == 404
