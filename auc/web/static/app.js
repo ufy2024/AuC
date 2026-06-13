@@ -116,6 +116,8 @@ function initSidebarChrome() {
   setButtonIcon($("#sidebar-show"), "chevronRight", { size: 18 });
   setButtonIcon($("#btn-terminal"), "terminal", { size: 16 });
   setButtonIcon($("#terminal-close"), "chevronDown", { size: 15 });
+  setButtonIcon($("#terminal-new"), "plus", { size: 14 });
+  setButtonIcon($("#terminal-picker"), "chevronDown", { size: 14 });
   setButtonIcon($("#ws-new-file"), "filePlus", { size: 15 });
   setButtonIcon($("#ws-new-folder"), "folderPlus", { size: 15 });
   setButtonIcon($("#ws-refresh"), "refresh", { size: 15 });
@@ -474,11 +476,9 @@ async function loadInfo() {
     state.roleId = state.info.agent.role_default;
   }
   state.activeConversationId = state.info.conversation?.active_id || null;
-  $("#version").textContent = state.info.version;
+  renderVersionInfo(state.info);
   $("#model-pill").textContent = `${state.info.model.provider} / ${state.info.model.model}`;
   $("#ws-pill").textContent = state.info.workspace.display;
-  const tcwd = $("#terminal-cwd");
-  if (tcwd) tcwd.textContent = state.info.workspace?.display || "";
   populateWorkModeSelects();
   bindWorkModeSelects();
   populateRoleSelects();
@@ -490,10 +490,109 @@ async function loadInfo() {
   await loadConversations();
 }
 
+function renderVersionInfo(info) {
+  const versionEl = $("#version");
+  const release = info.release || {};
+  const current = release.current_version || info.version || "";
+  if (versionEl) {
+    versionEl.textContent = `v${current}`;
+    versionEl.classList.toggle("has-update", !!release.update_available);
+    if (release.update_available && release.latest_version) {
+      versionEl.title = `当前 v${current}，PyPI 最新 v${release.latest_version}，建议升级`;
+    } else {
+      versionEl.title = `当前版本 v${current}`;
+    }
+  }
+  renderUpdateNotices(release);
+}
+
+function isUpdateDismissed(release) {
+  if (!release?.latest_version) return true;
+  return localStorage.getItem(`auc-update-dismiss-${release.latest_version}`) === "1";
+}
+
+function updateNoticeCopy(release) {
+  const current = release.current_version || "";
+  const latest = release.latest_version || "";
+  const cmd = release.install_cmd || "pip install -U ufy-auc";
+  return {
+    headline: `检测到新版本：PyPI 已发布 v${latest}，您当前运行 v${current}。`,
+    detail: "建议尽快升级以获得最新功能、修复与 Web 界面改进。",
+    cmd,
+    chatHeadline: `AuC 有新版本可用（v${latest}），当前为 v${current}。`,
+    chatDetail: `请在终端执行以下命令完成升级：`,
+  };
+}
+
+function dismissUpdateNotice(release) {
+  if (release?.latest_version) {
+    localStorage.setItem(`auc-update-dismiss-${release.latest_version}`, "1");
+  }
+  $("#update-banner")?.classList.add("hidden");
+  $("#chat-update-notice")?.classList.add("hidden");
+  $("#chat-update-msg")?.remove();
+}
+
+function renderUpdateNotices(release) {
+  const banner = $("#update-banner");
+  const chatNotice = $("#chat-update-notice");
+  const chatMessages = $("#chat-messages");
+
+  if (!release?.update_available || !release.latest_version || isUpdateDismissed(release)) {
+    banner?.classList.add("hidden");
+    chatNotice?.classList.add("hidden");
+    $("#chat-update-msg")?.remove();
+    return;
+  }
+
+  const copy = updateNoticeCopy(release);
+
+  if (banner) {
+    const text = $("#update-banner-text");
+    const cmd = $("#update-banner-cmd");
+    const link = $("#update-banner-link");
+    if (text) text.textContent = `${copy.headline} ${copy.detail}`;
+    if (cmd) cmd.textContent = copy.cmd;
+    if (link && release.pypi_url) link.href = release.pypi_url;
+    banner.classList.remove("hidden");
+  }
+
+  if (chatNotice) {
+    const text = $("#chat-update-text");
+    const hint = $("#chat-update-hint");
+    if (text) text.textContent = copy.chatHeadline;
+    if (hint) {
+      hint.innerHTML = `${copy.chatDetail} <code>${copy.cmd}</code>`;
+    }
+    chatNotice.classList.remove("hidden");
+  }
+
+  if (chatMessages) {
+    let msg = $("#chat-update-msg");
+    if (!msg) {
+      msg = document.createElement("div");
+      msg.id = "chat-update-msg";
+      msg.className = "msg msg-note update-msg";
+      chatMessages.prepend(msg);
+    }
+    msg.innerHTML =
+      `<div class="update-msg-title">版本更新提示</div>` +
+      `<p class="update-msg-body">${copy.chatHeadline} ${copy.chatDetail}</p>` +
+      `<code class="update-msg-cmd">${copy.cmd}</code>`;
+  }
+}
+
+function bindUpdateBanner() {
+  const dismiss = () => dismissUpdateNotice(state.info?.release);
+  $("#update-banner-dismiss")?.addEventListener("click", dismiss);
+  $("#chat-update-dismiss")?.addEventListener("click", dismiss);
+}
+
 async function refreshAgentStats() {
   try {
     const info = await api("/api/info");
     state.info = { ...state.info, ...info };
+    renderVersionInfo(state.info);
     renderAgentProfile(state.info);
   } catch { /* ignore */ }
 }
@@ -1364,6 +1463,7 @@ async function renderChatHistory(messages) {
       }
     }
   }
+  if (state.info?.release) renderUpdateNotices(state.info.release);
   scrollMessages();
 }
 
@@ -1990,6 +2090,7 @@ async function boot() {
   initThemes();
   initSidebarChrome();
   initTerminalPanel();
+  bindUpdateBanner();
   window.addEventListener("auc-terminal-resize", layoutEditor);
   setMode(state.mode);
   bindMdToolbar();

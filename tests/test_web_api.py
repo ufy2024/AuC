@@ -34,6 +34,10 @@ def test_info_and_tree(client: TestClient) -> None:
     mode_ids = {m["id"] for m in data["work_modes"]}
     assert "auto" in mode_ids
     assert "implement" in mode_ids
+    release = data.get("release") or {}
+    assert release.get("current_version") == data["version"]
+    assert "update_available" in release
+    assert "install_cmd" in release
     tree = client.get("/api/workspace/tree")
     assert tree.status_code == 200
     assert "entries" in tree.json()

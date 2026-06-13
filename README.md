@@ -4,7 +4,7 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
-**v0.2.8** — Web 内置 PTY 终端、工作区删除/重命名、对话定义角色；v0.2.7 起支持 Monokai/Material 主题与工作区新建。
+**v0.2.9** — VS Code 风格多终端标签、PyPI 版本更新提示（Web Code/Chat + CLI）；v0.2.8 起 Web PTY 终端、工作区删除/重命名、对话定义角色。
 
 [![CI](https://github.com/ufy2024/AuC/actions/workflows/ci.yml/badge.svg)](https://github.com/ufy2024/AuC/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/ufy-auc)](https://pypi.org/project/ufy-auc/)

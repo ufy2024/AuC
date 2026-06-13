@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from auc.chat_agent import ChatAgentOptions, build_chat_agent, resolve_sandbox_root
+from auc import __version__
 from auc.config import load_model_config
 from auc.integration.evolution import evolution_paths
 from auc.roles import load_role_catalog, role_evolution_paths
@@ -18,6 +19,7 @@ from auc.multimodal import is_image_path, strip_images_for_memory
 from auc.web.preview import inject_preview_shim, is_html_path, media_type_for, resolve_preview_file
 from auc.web.projects import discover_projects, project_to_dict
 from auc.web.runner import ProjectRunner
+from auc.version_check import print_update_notice, release_info
 from auc.web.workspace import (
     SandboxViolationError,
     create_directory,
@@ -106,7 +108,7 @@ def create_app():  # noqa: ANN201
 
             await aclose_model_client(agent._config.model)  # noqa: SLF001
 
-    app = FastAPI(title="AuC Web", version="0.2.8", lifespan=lifespan)
+    app = FastAPI(title="AuC Web", version=__version__, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
     @app.get("/")
@@ -121,7 +123,7 @@ def create_app():  # noqa: ANN201
         role_catalog = load_role_catalog(sandbox=session.sandbox)
         active_role = role_catalog.active_role_id or role_catalog.default_role_id
         payload: dict[str, Any] = {
-            "version": "0.2.8",
+            "version": __version__,
             "workspace": {
                 "root": session.sandbox,
                 "display": short_display_path(session.sandbox),
@@ -151,6 +153,7 @@ def create_app():  # noqa: ANN201
                 "enabled": True,
                 "ws": "/api/terminal/ws",
             },
+            "release": await asyncio.to_thread(release_info),
         }
         if evolve:
             nug, evo = role_evolution_paths(session.sandbox, active_role)
@@ -1046,6 +1049,7 @@ def main(argv: list[str] | None = None) -> int:
         f"workspace: {short_display_path(_state['session'].sandbox)}",
         flush=True,
     )
+    print_update_notice()
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
 

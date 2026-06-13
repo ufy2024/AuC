@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/themes.css?v=22" />
-  <link rel="stylesheet" href="/static/styles.css?v=22" />
+  <link rel="stylesheet" href="/static/themes.css?v=25" />
+  <link rel="stylesheet" href="/static/styles.css?v=25" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-  <link rel="stylesheet" href="/static/vendor/xterm.css?v=22" />
+  <link rel="stylesheet" href="/static/vendor/xterm.css?v=25" />
 </head>
 <body>
   <div id="app" class="mode-code" data-color-theme="monokai" data-icon-theme="office-material">
@@ -15,7 +15,7 @@
       <div class="brand">
         <span class="logo">◆</span>
         <span class="name">AuC</span>
-        <span class="version" id="version"></span>
+        <span class="version" id="version" title="当前版本"></span>
       </div>
       <div class="mode-switch" role="tablist">
         <button type="button" class="mode-btn active" data-mode="code" role="tab">Code</button>
@@ -39,6 +39,15 @@
         <span class="ws-pill" id="ws-pill" title="工作区"></span>
       </div>
     </header>
+
+    <div id="update-banner" class="update-banner hidden" role="status" aria-live="polite">
+      <p class="update-banner-text" id="update-banner-text"></p>
+      <p class="update-banner-hint">
+        升级命令：<code class="update-banner-cmd" id="update-banner-cmd"></code>
+      </p>
+      <a class="update-banner-link" id="update-banner-link" href="#" target="_blank" rel="noopener">查看 PyPI 发布页</a>
+      <button type="button" class="btn ghost sm" id="update-banner-dismiss">关闭提示</button>
+    </div>
 
     <nav class="sidebar-rail" id="sidebar-rail" aria-label="侧栏快捷栏">
       <button type="button" class="rail-btn" id="sidebar-show" title="展开侧栏"></button>
@@ -135,14 +144,17 @@
           <div class="terminal-panel is-collapsed" id="terminal-panel">
             <div class="terminal-resize-handle" id="terminal-resize-handle" title="拖动调整高度"></div>
             <header class="terminal-toolbar">
-              <span class="terminal-title">终端</span>
-              <span class="terminal-cwd" id="terminal-cwd"></span>
+              <nav class="terminal-tabs" id="terminal-tabs" aria-label="终端标签"></nav>
               <div class="terminal-actions">
-                <button type="button" class="btn ghost sm" id="terminal-new" title="新建会话">+</button>
-                <button type="button" class="icon-btn" id="terminal-close" title="关闭终端"></button>
+                <button type="button" class="icon-btn sm" id="terminal-new" title="新建终端 (Ctrl+Shift+`)"></button>
+                <div class="terminal-picker-wrap">
+                  <button type="button" class="icon-btn sm" id="terminal-picker" title="选择终端" aria-haspopup="true" aria-expanded="false"></button>
+                  <div class="terminal-picker-menu hidden" id="terminal-picker-menu" role="menu"></div>
+                </div>
+                <button type="button" class="icon-btn" id="terminal-close" title="隐藏终端面板"></button>
               </div>
             </header>
-            <div class="terminal-host" id="terminal-host"></div>
+            <div class="terminal-hosts" id="terminal-hosts"></div>
           </div>
         </div>
       </main>
@@ -150,6 +162,11 @@
       <!-- Chat 模式：顶部智能体信息 -->
       <header class="chat-header" id="chat-header">
         <div class="chat-header-inner">
+          <div id="chat-update-notice" class="chat-update-notice hidden" role="status" aria-live="polite">
+            <p class="chat-update-text" id="chat-update-text"></p>
+            <p class="chat-update-hint" id="chat-update-hint"></p>
+            <button type="button" class="btn ghost sm" id="chat-update-dismiss">知道了</button>
+          </div>
           <div class="agent-profile" id="agent-profile">
             <div class="agent-avatar" aria-hidden="true">◆</div>
             <h1 class="agent-title" id="agent-title">Coder 专家</h1>
@@ -259,6 +276,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=22" type="module"></script>
+  <script src="/static/app.js?v=25" type="module"></script>
 </body>
 </html>

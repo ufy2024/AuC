@@ -1,18 +1,29 @@
-/** Code 模式底部终端（xterm.js ESM + WebSocket PTY） */
+/** Code 模式底部终端（VS Code 风格多标签 + xterm ESM + WebSocket PTY） */
 
 const $ = (sel) => document.querySelector(sel);
 
-const XTERM_MOD = new URL("./vendor/xterm.esm.js?v=22", import.meta.url);
-const FIT_MOD = new URL("./vendor/addon-fit.esm.js?v=22", import.meta.url);
+const XTERM_MOD = new URL("./vendor/xterm.esm.js?v=23", import.meta.url);
+const FIT_MOD = new URL("./vendor/addon-fit.esm.js?v=23", import.meta.url);
+const SHELL_LABEL = "bash";
 
-let term = null;
-let fitAddon = null;
-let socket = null;
-let resizeObserver = null;
-let pendingInput = null;
-let reconnectNotice = false;
+/** @type {Map<number, TerminalSession>} */
+const sessions = new Map();
+let activeSessionId = null;
+let sessionCounter = 0;
 let xtermLibs = null;
 let xtermLoading = null;
+let hostResizeObserver = null;
+
+/** @typedef {{
+ *   id: number,
+ *   title: string,
+ *   term: import('@xterm/xterm').Terminal,
+ *   fitAddon: import('@xterm/addon-fit').FitAddon | null,
+ *   hostEl: HTMLElement,
+ *   socket: WebSocket | null,
+ *   pendingInput: string | null,
+ *   reconnectNotice: boolean,
+ * }} TerminalSession */
 
 function monacoThemeName() {
   const id = document.getElementById("app")?.dataset?.colorTheme || "monokai";
@@ -53,8 +64,10 @@ async function loadXtermLibs() {
   return xtermLoading;
 }
 
-function showTerminalLoadError(host, message) {
-  host.innerHTML = `<div class="terminal-load-error">${message}</div>`;
+function showTerminalLoadError(message) {
+  const hosts = $("#terminal-hosts");
+  if (!hosts) return;
+  hosts.innerHTML = `<div class="terminal-load-error">${message}</div>`;
 }
 
 function wsUrl() {
@@ -62,119 +75,260 @@ function wsUrl() {
   return `${proto}//${location.host}/api/terminal/ws`;
 }
 
-function sendResize() {
-  if (!term || !socket || socket.readyState !== WebSocket.OPEN) return;
+function nextSessionTitle() {
+  const same = [...sessions.values()].filter((s) => s.title === SHELL_LABEL || s.title.startsWith(`${SHELL_LABEL} (`)).length;
+  if (same === 0) return SHELL_LABEL;
+  return `${SHELL_LABEL} (${same + 1})`;
+}
+
+function sendResize(session) {
+  if (!session?.term || !session.socket || session.socket.readyState !== WebSocket.OPEN) return;
   try {
-    fitAddon?.fit();
+    session.fitAddon?.fit();
   } catch {
-    /* host may have zero size during layout */
+    /* layout not ready */
   }
-  socket.send(
+  session.socket.send(
     JSON.stringify({
       type: "resize",
-      cols: term.cols || 80,
-      rows: term.rows || 24,
+      cols: session.term.cols || 80,
+      rows: session.term.rows || 24,
     }),
   );
 }
 
-function flushPendingInput() {
-  if (!pendingInput || !socket || socket.readyState !== WebSocket.OPEN) return;
-  socket.send(pendingInput);
-  pendingInput = null;
+function resizeActiveSession() {
+  const session = activeSessionId != null ? sessions.get(activeSessionId) : null;
+  if (session) sendResize(session);
 }
 
-function sendInput(data) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    pendingInput = data;
-    connectTerminal();
-    return;
-  }
-  socket.send(data);
+function flushPendingInput(session) {
+  if (!session.pendingInput || !session.socket || session.socket.readyState !== WebSocket.OPEN) return;
+  session.socket.send(session.pendingInput);
+  session.pendingInput = null;
 }
 
-function connectTerminal() {
-  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+function sendInput(session, data) {
+  if (!session.socket || session.socket.readyState !== WebSocket.OPEN) {
+    session.pendingInput = data;
+    connectSession(session);
     return;
   }
-  socket = new WebSocket(wsUrl());
+  session.socket.send(data);
+}
+
+function connectSession(session) {
+  if (session.socket && (session.socket.readyState === WebSocket.OPEN || session.socket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+  const socket = new WebSocket(wsUrl());
+  session.socket = socket;
   socket.binaryType = "arraybuffer";
   socket.addEventListener("open", () => {
-    reconnectNotice = false;
-    sendResize();
-    flushPendingInput();
-    term?.focus();
+    session.reconnectNotice = false;
+    if (session.id === activeSessionId) sendResize(session);
+    flushPendingInput(session);
+    if (session.id === activeSessionId) session.term.focus();
   });
   socket.addEventListener("message", (ev) => {
-    if (!term) return;
     if (ev.data instanceof ArrayBuffer) {
-      term.write(new Uint8Array(ev.data));
+      session.term.write(new Uint8Array(ev.data));
     } else if (ev.data instanceof Blob) {
-      ev.data.arrayBuffer().then((buf) => term.write(new Uint8Array(buf)));
+      ev.data.arrayBuffer().then((buf) => session.term.write(new Uint8Array(buf)));
     } else {
-      term.write(String(ev.data));
+      session.term.write(String(ev.data));
     }
   });
   socket.addEventListener("close", () => {
-    socket = null;
-    if (term && isTerminalOpen() && !reconnectNotice) {
-      reconnectNotice = true;
-      term.write("\r\n\x1b[33m[终端已断开，继续输入将自动重连]\x1b[0m\r\n");
+    session.socket = null;
+    if (session.id === activeSessionId && isTerminalOpen() && !session.reconnectNotice) {
+      session.reconnectNotice = true;
+      session.term.write("\r\n\x1b[33m[终端已断开，继续输入将自动重连]\x1b[0m\r\n");
     }
   });
   socket.addEventListener("error", () => {
-    term?.write("\r\n\x1b[31m[终端连接失败]\x1b[0m\r\n");
+    session.term.write("\r\n\x1b[31m[终端连接失败]\x1b[0m\r\n");
   });
 }
 
-function disconnectTerminal() {
-  pendingInput = null;
-  reconnectNotice = false;
-  if (socket) {
-    socket.close();
-    socket = null;
+function disconnectSession(session) {
+  session.pendingInput = null;
+  session.reconnectNotice = false;
+  if (session.socket) {
+    session.socket.close();
+    session.socket = null;
   }
 }
 
-async function ensureTerminal() {
-  if (term) return true;
-  const host = $("#terminal-host");
-  if (!host) return false;
+function ensureHostObserver() {
+  if (hostResizeObserver) return;
+  const hosts = $("#terminal-hosts");
+  if (!hosts) return;
+  hostResizeObserver = new ResizeObserver(() => {
+    if (isTerminalOpen()) resizeActiveSession();
+  });
+  hostResizeObserver.observe(hosts);
+}
 
-  host.querySelector(".terminal-load-error")?.remove();
+function createSessionHost(id) {
+  const hosts = $("#terminal-hosts");
+  const el = document.createElement("div");
+  el.className = "terminal-host";
+  el.dataset.sessionId = String(id);
+  el.hidden = true;
+  hosts.appendChild(el);
+  return el;
+}
 
+async function createSession({ activate = true } = {}) {
   let libs;
   try {
     libs = await loadXtermLibs();
   } catch (err) {
-    showTerminalLoadError(
-      host,
-      `终端组件加载失败：${err?.message || err}。请硬刷新（Ctrl+Shift+R）后重试。`,
-    );
-    return false;
+    showTerminalLoadError(`终端组件加载失败：${err?.message || err}。请硬刷新（Ctrl+Shift+R）后重试。`);
+    return null;
   }
 
+  $("#terminal-hosts")?.querySelector(".terminal-load-error")?.remove();
+
+  const id = ++sessionCounter;
+  const hostEl = createSessionHost(id);
   const { Terminal, FitAddon } = libs;
-  term = new Terminal({
+  const term = new Terminal({
     cursorBlink: true,
     fontSize: 13,
     fontFamily: '"JetBrains Mono", "Fira Code", Menlo, Consolas, monospace',
     theme: xtermTheme(),
     allowProposedApi: true,
   });
+  let fitAddon = null;
   if (FitAddon) {
     fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
   }
-  term.open(host);
-  term.onData((data) => sendInput(data));
-  term.onResize(() => sendResize());
+  term.open(hostEl);
 
-  resizeObserver = new ResizeObserver(() => {
-    if (isTerminalOpen()) sendResize();
+  /** @type {TerminalSession} */
+  const session = {
+    id,
+    title: nextSessionTitle(),
+    term,
+    fitAddon,
+    hostEl,
+    socket: null,
+    pendingInput: null,
+    reconnectNotice: false,
+  };
+
+  term.onData((data) => sendInput(session, data));
+  term.onResize(() => {
+    if (session.id === activeSessionId) sendResize(session);
   });
-  resizeObserver.observe(host);
-  return true;
+
+  sessions.set(id, session);
+  connectSession(session);
+  ensureHostObserver();
+
+  if (activate) activateSession(id);
+  else renderTabs();
+  return session;
+}
+
+function activateSession(id) {
+  const session = sessions.get(id);
+  if (!session) return;
+  activeSessionId = id;
+  for (const s of sessions.values()) {
+    s.hostEl.hidden = s.id !== id;
+  }
+  renderTabs();
+  hidePickerMenu();
+  requestAnimationFrame(() => {
+    sendResize(session);
+    session.term.focus();
+  });
+}
+
+function closeSession(id) {
+  const session = sessions.get(id);
+  if (!session) return;
+  disconnectSession(session);
+  session.term.dispose();
+  session.hostEl.remove();
+  sessions.delete(id);
+
+  if (sessions.size === 0) {
+    activeSessionId = null;
+    renderTabs();
+    hidePickerMenu();
+    return;
+  }
+  if (activeSessionId === id) {
+    const ids = [...sessions.keys()];
+    activateSession(ids[ids.length - 1]);
+  } else {
+    renderTabs();
+    renderPickerMenu();
+  }
+}
+
+function renderTabs() {
+  const bar = $("#terminal-tabs");
+  if (!bar) return;
+  bar.innerHTML = "";
+  for (const session of sessions.values()) {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "terminal-tab" + (session.id === activeSessionId ? " active" : "");
+    tab.title = session.title;
+    tab.innerHTML =
+      `<span class="terminal-tab-label">${session.title}</span>` +
+      `<span class="terminal-tab-close" aria-label="关闭终端" title="关闭">×</span>`;
+    tab.addEventListener("click", (ev) => {
+      if (ev.target.closest(".terminal-tab-close")) return;
+      activateSession(session.id);
+    });
+    tab.querySelector(".terminal-tab-close")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      closeSession(session.id);
+    });
+    bar.appendChild(tab);
+  }
+}
+
+function hidePickerMenu() {
+  $("#terminal-picker-menu")?.classList.add("hidden");
+  $("#terminal-picker")?.setAttribute("aria-expanded", "false");
+}
+
+function togglePickerMenu() {
+  const menu = $("#terminal-picker-menu");
+  const btn = $("#terminal-picker");
+  if (!menu || !btn || sessions.size === 0) return;
+  const open = menu.classList.toggle("hidden");
+  if (!open) {
+    renderPickerMenu();
+    btn.setAttribute("aria-expanded", "true");
+  } else {
+    btn.setAttribute("aria-expanded", "false");
+  }
+}
+
+function renderPickerMenu() {
+  const menu = $("#terminal-picker-menu");
+  if (!menu) return;
+  menu.innerHTML = "";
+  for (const session of sessions.values()) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "terminal-picker-item" + (session.id === activeSessionId ? " active" : "");
+    item.textContent = session.title;
+    item.addEventListener("click", () => {
+      activateSession(session.id);
+      hidePickerMenu();
+    });
+    menu.appendChild(item);
+  }
 }
 
 export function isTerminalOpen() {
@@ -192,7 +346,7 @@ export function setTerminalHeight(px) {
   const panel = $("#terminal-panel");
   if (panel) panel.style.setProperty("--terminal-height", `${h}px`);
   localStorage.setItem("auc-terminal-height", String(h));
-  sendResize();
+  resizeActiveSession();
   window.dispatchEvent(new Event("auc-terminal-resize"));
   return h;
 }
@@ -205,12 +359,16 @@ export async function openTerminal() {
   panel.classList.remove("is-collapsed");
   btn?.classList.add("active");
   localStorage.setItem("auc-terminal-open", "1");
-  if (!(await ensureTerminal())) return;
-  connectTerminal();
-  requestAnimationFrame(() => {
-    sendResize();
-    term?.focus();
-  });
+
+  if (sessions.size === 0) {
+    await createSession({ activate: true });
+    return;
+  }
+  if (activeSessionId != null && sessions.has(activeSessionId)) {
+    activateSession(activeSessionId);
+  } else {
+    activateSession([...sessions.keys()][0]);
+  }
 }
 
 export function closeTerminal() {
@@ -220,7 +378,7 @@ export function closeTerminal() {
   panel?.classList.add("is-collapsed");
   btn?.classList.remove("active");
   localStorage.setItem("auc-terminal-open", "0");
-  disconnectTerminal();
+  hidePickerMenu();
   window.dispatchEvent(new Event("auc-terminal-resize"));
 }
 
@@ -229,9 +387,15 @@ export function toggleTerminal() {
   else void openTerminal();
 }
 
+export async function newTerminal() {
+  if (!isTerminalOpen()) await openTerminal();
+  await createSession({ activate: true });
+}
+
 export function refreshTerminalTheme() {
-  if (!term) return;
-  term.options.theme = xtermTheme();
+  for (const session of sessions.values()) {
+    session.term.options.theme = xtermTheme();
+  }
 }
 
 export function initTerminalPanel() {
@@ -243,10 +407,14 @@ export function initTerminalPanel() {
 
   $("#btn-terminal")?.addEventListener("click", () => toggleTerminal());
   $("#terminal-close")?.addEventListener("click", () => closeTerminal());
-  $("#terminal-new")?.addEventListener("click", () => {
-    disconnectTerminal();
-    term?.clear();
-    connectTerminal();
+  $("#terminal-new")?.addEventListener("click", () => void newTerminal());
+  $("#terminal-picker")?.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    togglePickerMenu();
+  });
+
+  document.addEventListener("click", (ev) => {
+    if (!ev.target.closest(".terminal-picker-wrap")) hidePickerMenu();
   });
 
   const handle = $("#terminal-resize-handle");
@@ -269,13 +437,20 @@ export function initTerminalPanel() {
     });
   }
 
+  window.addEventListener("keydown", (ev) => {
+    if (ev.ctrlKey && ev.shiftKey && ev.code === "Backquote") {
+      ev.preventDefault();
+      void newTerminal();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (isTerminalOpen()) resizeActiveSession();
+  });
+
   if (localStorage.getItem("auc-terminal-open") === "1") {
     void openTerminal();
   } else {
     panel.classList.add("is-collapsed");
   }
-
-  window.addEventListener("resize", () => {
-    if (isTerminalOpen()) sendResize();
-  });
 }
