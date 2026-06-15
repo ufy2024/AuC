@@ -4,10 +4,13 @@ from pathlib import Path
 
 from auc.config import (
     default_config_path,
+    describe_config_layers,
     discover_config_path,
     load_merged_settings,
     load_model_config,
     migrate_yaml_to_json,
+    project_local_settings_path,
+    project_settings_path,
     user_config_dir,
 )
 from auc.model.anthropic import AnthropicClient
@@ -134,7 +137,7 @@ def test_deepseek_defaults(monkeypatch) -> None:
     from auc.config import _default_base_url, _default_model, normalize_provider
 
     assert normalize_provider("deepseek") == "deepseek"
-    assert _default_base_url("deepseek") == "https://api.deepseek.com"
+    assert _default_base_url("deepseek") == "https://api.deepseek.com/v1"
     assert _default_model("deepseek") == "deepseek-chat"
 
 
@@ -143,8 +146,28 @@ def test_create_deepseek_client(monkeypatch) -> None:
     cfg = load_model_config(provider="deepseek", api_key="test")
     client = create_model_client(cfg)
     assert isinstance(client, OpenAICompatibleClient)
-    assert client.base_url == "https://api.deepseek.com"
+    assert client.base_url == "https://api.deepseek.com/v1"
     assert cfg.model == "deepseek-chat"
+
+
+def test_normalize_deepseek_base_url() -> None:
+    from auc.config import normalize_openai_compatible_base_url
+
+    assert normalize_openai_compatible_base_url("https://api.deepseek.com") == (
+        "https://api.deepseek.com/v1"
+    )
+    assert normalize_openai_compatible_base_url("https://api.deepseek.com/") == (
+        "https://api.deepseek.com/v1"
+    )
+    assert normalize_openai_compatible_base_url("https://api.deepseek.com/v1") == (
+        "https://api.deepseek.com/v1"
+    )
+    assert normalize_openai_compatible_base_url("https://api.deepseek.com/anthropic") == (
+        "https://api.deepseek.com/anthropic"
+    )
+    assert normalize_openai_compatible_base_url("http://ailab.example/api") == (
+        "http://ailab.example/api"
+    )
 
 
 def test_config_init_deepseek_template() -> None:
@@ -229,3 +252,28 @@ def test_load_merged_settings_layers(monkeypatch, tmp_path) -> None:
     )
     merged, _ = load_merged_settings(repo_root=proj)
     assert merged["model"]["id"] == "b"
+
+
+def test_describe_config_layers_global_and_project(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    udir = user_config_dir()
+    udir.mkdir(parents=True)
+    (udir / "settings.json").write_text('{"model":{"id":"global"}}', encoding="utf-8")
+    proj = tmp_path / "repo"
+    auc = proj / ".auc"
+    auc.mkdir(parents=True)
+    (auc / "settings.json").write_text('{"model":{"id":"proj"}}', encoding="utf-8")
+    (auc / "settings.local.json").write_text('{"model":{"id":"local"}}', encoding="utf-8")
+
+    info = describe_config_layers(repo_root=proj)
+    assert info["effective_scope"] == "project_local"
+    assert len(info["layers"]) == 3
+    cfg = load_model_config(repo_root=str(proj))
+    assert cfg.model == "local"
+
+
+def test_project_settings_path_helpers(tmp_path) -> None:
+    proj = tmp_path / "p"
+    assert project_settings_path(proj).name == "settings.json"
+    assert project_local_settings_path(proj).name == "settings.local.json"
+    assert default_config_path().name == "settings.json"

@@ -20,6 +20,10 @@ from auc.web.preview import inject_preview_shim, is_html_path, media_type_for, r
 from auc.web.projects import discover_projects, project_to_dict
 from auc.web.runner import ProjectRunner
 from auc.version_check import print_update_notice, release_info
+from auc.web.model_settings import (
+    model_settings_payload,
+    save_model_settings,
+)
 from auc.web.workspace import (
     SandboxViolationError,
     create_directory,
@@ -163,6 +167,64 @@ def create_app():  # noqa: ANN201
                 "role_id": active_role,
                 "legacy_global": short_display_path(str(evolution_paths(session.sandbox)[1])),
             }
+        return JSONResponse(payload)
+
+    async def _reload_session_model(cfg: Any) -> None:
+        from auc.model.factory import aclose_model_client
+
+        session = _get_session()
+        if session.active_run_id:
+            raise HTTPException(409, "对话生成中，请等待完成后再修改模型配置")
+        await aclose_model_client(session.agent._config.model)  # noqa: SLF001
+        opts = ChatAgentOptions(
+            sandbox=session.sandbox,
+            repo=_state.get("repo"),
+            evolve=bool(_state.get("evolve", True)),
+        )
+        approval = _state.get("approval")
+        agent = build_chat_agent(cfg, opts, approval=approval)
+        session.agent = agent
+        session.cfg = cfg
+        _state["agent"] = agent
+
+    @app.get("/api/settings/model")
+    async def api_get_model_settings() -> JSONResponse:
+        session = _get_session()
+        return JSONResponse(model_settings_payload(session.cfg, sandbox_root=session.sandbox))
+
+    @app.put("/api/settings/model")
+    async def api_put_model_settings(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"invalid JSON: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(400, "body must be object")
+        session = _get_session()
+        provider = str(body.get("provider") or session.cfg.provider)
+        model = str(body.get("model") or session.cfg.model)
+        base_url = body.get("base_url")
+        api_key = body.get("api_key")
+        scope = str(body.get("scope") or "project_local")
+        if scope not in ("global", "project", "project_local"):
+            raise HTTPException(400, "scope must be global|project|project_local")
+        if api_key is not None:
+            api_key = str(api_key).strip() or None
+        try:
+            cfg, path = save_model_settings(
+                session.sandbox,
+                provider=provider,
+                model=model,
+                base_url=str(base_url).strip() if base_url else None,
+                api_key=api_key,
+                scope=scope,  # type: ignore[arg-type]
+                repo_root=session.sandbox,
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        await _reload_session_model(cfg)
+        payload = model_settings_payload(session.cfg, sandbox_root=session.sandbox, save_path=path)
+        payload["ok"] = True
         return JSONResponse(payload)
 
     def _runner() -> ProjectRunner:
@@ -881,7 +943,7 @@ def create_app():  # noqa: ANN201
         )
 
     # 沙盒项目 API / WebSocket 转发（静态预览 /preview/ 时前端请求同源 /api、/ws）
-    _AUC_API_ROOTS = frozenset({"info", "projects", "workspace", "chat", "terminal"})
+    _AUC_API_ROOTS = frozenset({"info", "projects", "workspace", "chat", "terminal", "settings"})
 
     @app.api_route(
         "/api/{path:path}",
@@ -991,6 +1053,7 @@ def init_web_state(
     root = resolve_sandbox_root(sandbox=sandbox, repo=repo)
     approval = WebApprovalPort()
     _state["approval"] = approval
+    _state["repo"] = repo
     agent = build_chat_agent(cfg, opts, approval=approval)
     store = ConversationStore(root)
     conv_id, history = store.get_or_create_active()
@@ -1032,15 +1095,15 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     repo = args.repo or None
+    sandbox = args.sandbox or args.repo or "."
     cfg = load_model_config(
         config_path=args.config,
         provider=args.provider,
         model=args.model,
         api_key=args.api_key,
         base_url=args.base_url,
-        repo_root=repo,
+        repo_root=repo or sandbox,
     )
-    sandbox = args.sandbox or args.repo or "."
     init_web_state(sandbox=sandbox, repo=repo, cfg=cfg, evolve=not args.no_evolve)
 
     app = create_app()

@@ -167,6 +167,70 @@ button { cursor: pointer; border: none; background: none; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.model-pill.clickable {
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.model-pill.clickable:hover {
+  border-color: var(--border);
+  background: var(--hover);
+}
+.model-settings-card {
+  width: min(440px, 92vw);
+}
+.model-field {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  margin-bottom: .65rem;
+}
+.model-field-label {
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.model-field-hint {
+  font-size: .7rem;
+  color: var(--muted);
+}
+.model-secret-row {
+  display: flex;
+  align-items: stretch;
+  gap: .35rem;
+}
+.model-secret-input {
+  flex: 1;
+  min-width: 0;
+}
+.model-secret-toggle {
+  flex-shrink: 0;
+  width: 34px;
+  height: auto;
+  align-self: stretch;
+}
+.model-secret-toggle[aria-pressed="true"] {
+  color: var(--accent);
+}
+.model-preset-row {
+  display: flex;
+  align-items: stretch;
+  gap: .35rem;
+}
+.model-preset-row .ws-create-input {
+  flex: 1;
+  min-width: 0;
+}
+.model-preset-row .btn.sm {
+  flex-shrink: 0;
+  padding: 0 .65rem;
+  font-size: .72rem;
+}
+.model-layer-note {
+  margin: 0 0 .75rem;
+  font-size: .68rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
 
 /* ── 布局 ── */
 .layout {

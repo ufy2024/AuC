@@ -261,7 +261,7 @@ def print_welcome(
     sandbox: str,
     *,
     evolve: bool,
-    version: str = "0.2.9",
+    version: str = "0.2.10",
 ) -> None:
     model = cfg.model
     ws = _short_path(sandbox)

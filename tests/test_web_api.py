@@ -295,3 +295,53 @@ def test_preview_injects_shim_when_backend_running() -> None:
             await runner.stop_all()
 
     asyncio.run(_run())
+
+
+def test_model_settings_get_and_put(client: TestClient) -> None:
+    data = client.get("/api/settings/model").json()
+    assert data["provider"] in ("openai", "anthropic", "deepseek")
+    assert "model" in data
+    assert "api_key_masked" in data
+    assert data.get("api_key") == "x"
+    assert "base_url" in data
+    assert "layers" in data
+    assert "active_scope" in data
+
+    updated = client.put(
+        "/api/settings/model",
+        json={
+            "provider": "openai",
+            "model": "deepseek-v4-pro",
+            "base_url": "http://ailab.example/api",
+            "api_key": "sk-test-key-12345",
+        },
+    )
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["ok"] is True
+    assert body["model"] == "deepseek-v4-pro"
+    assert body["base_url"] == "http://ailab.example/api"
+    assert body["api_key_masked"].startswith("sk-t")
+
+    # 留空 api_key 应保持不变
+    kept = client.put(
+        "/api/settings/model",
+        json={"provider": "openai", "model": "deepseek-v4-flash", "base_url": "http://ailab.example/api"},
+    )
+    assert kept.status_code == 200
+    assert kept.json()["model"] == "deepseek-v4-flash"
+    assert kept.json()["api_key_masked"].startswith("sk-t")
+
+
+def test_model_settings_normalizes_deepseek_base_url(client: TestClient) -> None:
+    resp = client.put(
+        "/api/settings/model",
+        json={
+            "provider": "openai",
+            "model": "deepseek-chat",
+            "base_url": "https://api.deepseek.com",
+            "api_key": "sk-test-key-12345",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["base_url"] == "https://api.deepseek.com/v1"

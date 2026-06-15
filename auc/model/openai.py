@@ -99,6 +99,9 @@ class OpenAICompatibleClient:
 
     def __post_init__(self) -> None:
         _require_httpx()
+        from auc.config import normalize_openai_compatible_base_url
+
+        self.base_url = normalize_openai_compatible_base_url(self.base_url)
         if self.api_key is None:
             self.api_key = os.environ.get("OPENAI_API_KEY")
         if not self.api_key:

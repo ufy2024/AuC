@@ -588,6 +588,161 @@ function bindUpdateBanner() {
   $("#chat-update-dismiss")?.addEventListener("click", dismiss);
 }
 
+// ── 模型配置（顶栏 model-pill） ──
+let modelSettingsCache = null;
+let modelKeyVisible = false;
+
+function setModelKeyVisible(visible) {
+  modelKeyVisible = !!visible;
+  const input = $("#model-settings-api-key");
+  const btn = $("#model-settings-key-toggle");
+  if (input) input.type = modelKeyVisible ? "text" : "password";
+  if (btn) {
+    btn.setAttribute("aria-pressed", modelKeyVisible ? "true" : "false");
+    btn.title = modelKeyVisible ? "隐藏密钥" : "显示密钥";
+    btn.setAttribute("aria-label", btn.title);
+    setButtonIcon(btn, modelKeyVisible ? "eyeOff" : "eye", { size: 16 });
+  }
+}
+
+function hideModelSettings() {
+  $("#model-settings-overlay")?.classList.add("hidden");
+  $("#model-settings-error")?.classList.add("hidden");
+  setModelKeyVisible(false);
+  const input = $("#model-settings-api-key");
+  if (input) input.value = "";
+}
+
+function renderModelLayers(s) {
+  const layers = s.layers || {};
+  const activeScope = s.active_scope || layers.active_scope;
+  const scopeLabels = {
+    global: "全局",
+    project: "项目共享",
+    project_local: "项目本地",
+  };
+  const activeEl = $("#model-settings-active-scope");
+  if (activeEl) {
+    activeEl.textContent = scopeLabels[activeScope] || activeScope || "默认";
+  }
+  const note = $("#model-settings-layers");
+  if (note) {
+    const globalFiles = (layers.global_files || []).filter((f) => f.exists).map((f) => f.path);
+    const projectFiles = (layers.project_files || []).filter((f) => f.exists).map((f) => f.path);
+    const parts = [];
+    if (globalFiles.length) parts.push(`全局：${globalFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
+    if (projectFiles.length) parts.push(`项目：${projectFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
+    note.textContent = parts.length
+      ? `${parts.join("  →  ")}（后者覆盖前者）`
+      : "尚未发现配置文件，保存后将创建对应层级。";
+  }
+  const scopeSel = $("#model-settings-scope");
+  const scopeHint = $("#model-settings-scope-hint");
+  if (scopeSel && layers.save_scopes) {
+    const preferred = activeScope && activeScope !== "global" ? activeScope : "project_local";
+    scopeSel.value = ["global", "project", "project_local"].includes(preferred) ? preferred : "project_local";
+    updateModelScopeHint(layers.save_scopes, scopeSel.value);
+  } else if (scopeHint) {
+    scopeHint.textContent = layers.priority_note || "";
+  }
+}
+
+function updateModelScopeHint(saveScopes, scopeId) {
+  const hint = $("#model-settings-scope-hint");
+  if (!hint) return;
+  const row = (saveScopes || []).find((s) => s.id === scopeId);
+  hint.textContent = row?.hint || row?.path || "";
+}
+
+async function openModelSettings() {
+  const overlay = $("#model-settings-overlay");
+  if (!overlay) return;
+  try {
+    modelSettingsCache = await api("/api/settings/model");
+  } catch (err) {
+    alert(`加载模型配置失败：${err.message}`);
+    return;
+  }
+  const s = modelSettingsCache;
+  $("#model-settings-provider").value = s.provider || "openai";
+  $("#model-settings-model").value = s.model || "";
+  $("#model-settings-base-url").value = s.base_url || "";
+  $("#model-settings-api-key").value = s.api_key || "";
+  setModelKeyVisible(false);
+  renderModelLayers(s);
+  const hint = $("#model-settings-key-hint");
+  if (hint) {
+    hint.textContent = s.api_key_set
+      ? `已配置（${s.api_key_masked}），点击右侧眼睛可查看完整密钥`
+      : "尚未配置 API Key";
+  }
+  overlay.classList.remove("hidden");
+  $("#model-settings-model")?.focus();
+}
+
+async function saveModelSettings() {
+  const errEl = $("#model-settings-error");
+  errEl?.classList.add("hidden");
+  const body = {
+    provider: $("#model-settings-provider")?.value || "openai",
+    model: $("#model-settings-model")?.value?.trim() || "",
+    base_url: $("#model-settings-base-url")?.value?.trim() || "",
+    scope: $("#model-settings-scope")?.value || "project_local",
+  };
+  const key = $("#model-settings-api-key")?.value?.trim();
+  if (key) body.api_key = key;
+  try {
+    const data = await api("/api/settings/model", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    modelSettingsCache = data;
+    if (state.info) {
+      state.info.model = {
+        ...state.info.model,
+        provider: data.provider,
+        model: data.model,
+        configName: data.config_name,
+        configId: data.config_id,
+      };
+      $("#model-pill").textContent = `${data.provider} / ${data.model}`;
+      renderAgentProfile(state.info);
+    }
+    hideModelSettings();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message || String(err);
+      errEl.classList.remove("hidden");
+    }
+  }
+}
+
+function applyAilabPreset() {
+  $("#model-settings-provider").value = "openai";
+  $("#model-settings-model").value = "DeepSeek";
+  $("#model-settings-base-url").value = "http://ailab.hcrdi.com/api";
+}
+
+function bindModelSettings() {
+  setButtonIcon($("#model-settings-key-toggle"), "eye", { size: 16 });
+  $("#model-pill")?.addEventListener("click", () => void openModelSettings());
+  $("#model-settings-cancel")?.addEventListener("click", hideModelSettings);
+  $("#model-settings-save")?.addEventListener("click", () => void saveModelSettings());
+  $("#model-settings-ailab-preset")?.addEventListener("click", applyAilabPreset);
+  $("#model-settings-scope")?.addEventListener("change", (ev) => {
+    const scopes = modelSettingsCache?.layers?.save_scopes;
+    updateModelScopeHint(scopes, ev.target.value);
+  });
+  $("#model-settings-key-toggle")?.addEventListener("click", () => {
+    setModelKeyVisible(!modelKeyVisible);
+    $("#model-settings-api-key")?.focus();
+  });
+  $("#model-settings-overlay")?.addEventListener("click", (ev) => {
+    if (ev.target.id === "model-settings-overlay") hideModelSettings();
+  });
+}
+
 async function refreshAgentStats() {
   try {
     const info = await api("/api/info");
@@ -2091,6 +2246,7 @@ async function boot() {
   initSidebarChrome();
   initTerminalPanel();
   bindUpdateBanner();
+  bindModelSettings();
   window.addEventListener("auc-terminal-resize", layoutEditor);
   setMode(state.mode);
   bindMdToolbar();

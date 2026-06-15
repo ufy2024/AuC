@@ -74,8 +74,19 @@ def _default_base_url(provider: Provider) -> str:
     if provider == "anthropic":
         return "https://api.anthropic.com"
     if provider == "deepseek":
-        return "https://api.deepseek.com"
+        return "https://api.deepseek.com/v1"
     return "https://api.openai.com/v1"
+
+
+def normalize_openai_compatible_base_url(base_url: str) -> str:
+    """DeepSeek 官方 OpenAI 兼容接口在 /v1 下，避免请求落到 /chat/completions。"""
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        return base
+    lower = base.lower()
+    if "api.deepseek.com" in lower and "/anthropic" not in lower and not lower.endswith("/v1"):
+        return f"{base}/v1"
+    return base
 
 
 def _default_api_key_env(provider: Provider) -> str:
@@ -107,6 +118,133 @@ def project_auc_dir(repo_root: Path | None = None) -> Path:
     return (repo_root or Path.cwd()) / PROJECT_AUC_DIR
 
 
+def global_settings_path() -> Path:
+    return default_config_path()
+
+
+def project_settings_path(repo_root: Path | str | None = None) -> Path:
+    return project_auc_dir(Path(repo_root) if repo_root else None) / "settings.json"
+
+
+def project_local_settings_path(repo_root: Path | str | None = None) -> Path:
+    return project_auc_dir(Path(repo_root) if repo_root else None) / "settings.local.json"
+
+
+ConfigScope = Literal["global", "project", "project_local"]
+
+
+def resolve_config_repo_root(
+    *,
+    repo_root: str | Path | None = None,
+    sandbox: str | Path | None = None,
+) -> Path | None:
+    """项目级配置根目录：显式 repo > sandbox > 当前工作目录。"""
+    if repo_root:
+        return Path(repo_root)
+    if sandbox:
+        return Path(sandbox)
+    return None
+
+
+def global_config_layers() -> list[Path]:
+    """用户级配置层（低优先级）。"""
+    env_path = os.environ.get("AUC_CONFIG")
+    if env_path:
+        p = Path(env_path).expanduser()
+        return [p] if p.is_file() else []
+
+    layers: list[Path] = []
+    udir = user_config_dir()
+    for name in (
+        LEGACY_CONFIG_YAML,
+        "config.json",
+        DEFAULT_SETTINGS_FILENAME,
+    ):
+        p = udir / name
+        if p.is_file():
+            layers.append(p)
+    return layers
+
+
+def project_config_layers(repo_root: Path | None = None) -> list[Path]:
+    """项目级配置层（覆盖全局，后者优先）。"""
+    layers: list[Path] = []
+    proj = project_auc_dir(repo_root)
+    for name in ("settings.json", "settings.local.json"):
+        p = proj / name
+        if p.is_file():
+            layers.append(p)
+
+    root = repo_root or Path.cwd()
+    for name in (".auc.yaml", "auc.yaml"):
+        p = root / name
+        if p.is_file() and p not in layers:
+            layers.append(p)
+    return layers
+
+
+def config_scope_for_path(path: Path | str | None, *, repo_root: Path | str | None = None) -> ConfigScope | None:
+    if not path:
+        return None
+    p = Path(path).expanduser().resolve()
+    if p == global_settings_path().resolve():
+        return "global"
+    proj = project_auc_dir(Path(repo_root) if repo_root else None).resolve()
+    if p == (proj / "settings.json").resolve():
+        return "project"
+    if p == (proj / "settings.local.json").resolve():
+        return "project_local"
+    return None
+
+
+def describe_config_layers(
+    *,
+    explicit: str | None = None,
+    repo_root: str | Path | None = None,
+) -> dict[str, Any]:
+    """返回全局/项目配置层说明，供 CLI 与 Web 展示。"""
+    root = Path(repo_root) if repo_root else None
+    if explicit:
+        p = Path(explicit).expanduser()
+        layers = [p] if p.is_file() else []
+        return {
+            "global_dir": str(user_config_dir()),
+            "project_dir": str(project_auc_dir(root)),
+            "layers": [str(x) for x in layers],
+            "effective_path": str(layers[-1]) if layers else None,
+            "effective_scope": config_scope_for_path(layers[-1], repo_root=root) if layers else None,
+            "priority_note": "显式 --config 仅使用该文件",
+        }
+
+    global_layers = global_config_layers()
+    project_layers = project_config_layers(root)
+    merged = global_layers + project_layers
+
+    def _file_row(path: Path) -> dict[str, Any]:
+        return {
+            "path": str(path),
+            "exists": path.is_file(),
+            "scope": config_scope_for_path(path, repo_root=root),
+        }
+
+    return {
+        "global_dir": str(user_config_dir()),
+        "project_dir": str(project_auc_dir(root)),
+        "global_files": [
+            _file_row(user_config_dir() / name)
+            for name in (LEGACY_CONFIG_YAML, "config.json", DEFAULT_SETTINGS_FILENAME)
+        ],
+        "project_files": [
+            _file_row(project_auc_dir(root) / name)
+            for name in ("settings.json", "settings.local.json")
+        ],
+        "layers": [str(p) for p in merged],
+        "effective_path": str(merged[-1]) if merged else None,
+        "effective_scope": config_scope_for_path(merged[-1], repo_root=root) if merged else None,
+        "priority_note": "项目级覆盖全局：settings.json < settings.local.json",
+    }
+
+
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Shallow-deep merge like Claude settings layers."""
     out = dict(base)
@@ -127,36 +265,7 @@ def discover_config_layers(
         p = Path(explicit).expanduser()
         return [p] if p.is_file() else []
 
-    layers: list[Path] = []
-    env_path = os.environ.get("AUC_CONFIG")
-    if env_path:
-        p = Path(env_path).expanduser()
-        if p.is_file():
-            return [p]
-
-    udir = user_config_dir()
-    for name in (
-        LEGACY_CONFIG_YAML,
-        "config.json",
-        DEFAULT_SETTINGS_FILENAME,
-    ):
-        p = udir / name
-        if p.is_file():
-            layers.append(p)
-
-    proj = project_auc_dir(repo_root)
-    for name in ("settings.json", "settings.local.json"):
-        p = proj / name
-        if p.is_file():
-            layers.append(p)
-
-    # 项目根 legacy
-    for name in (".auc.yaml", "auc.yaml"):
-        p = Path.cwd() / name
-        if p.is_file() and p not in layers:
-            layers.append(p)
-
-    return layers
+    return global_config_layers() + project_config_layers(repo_root)
 
 
 def discover_config_path(explicit: str | None = None) -> Path | None:
@@ -512,7 +621,7 @@ def load_model_config(
     if cfg.api_key == "":
         cfg.api_key = None
 
-    cfg.base_url = (
+    cfg.base_url = normalize_openai_compatible_base_url(
         base_url
         or os.environ.get("AUC_BASE_URL")
         or _from_file("base_url")

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/themes.css?v=25" />
-  <link rel="stylesheet" href="/static/styles.css?v=25" />
+  <link rel="stylesheet" href="/static/themes.css?v=26" />
+  <link rel="stylesheet" href="/static/styles.css?v=26" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="/static/vendor/xterm.css?v=25" />
 </head>
@@ -35,7 +35,7 @@
             </div>
           </div>
         </div>
-        <span class="model-pill" id="model-pill"></span>
+        <span class="model-pill clickable" id="model-pill" title="点击配置模型与 API Key"></span>
         <span class="ws-pill" id="ws-pill" title="工作区"></span>
       </div>
     </header>
@@ -262,6 +262,58 @@
     </div>
   </div>
 
+  <div id="model-settings-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card model-settings-card">
+      <h3 class="approval-title">模型配置</h3>
+      <p class="approval-summary" id="model-settings-scope-summary">
+        项目级配置优先于全局；当前生效：<code id="model-settings-active-scope">—</code>
+      </p>
+      <p class="model-layer-note" id="model-settings-layers"></p>
+      <label class="model-field">
+        <span class="model-field-label">保存到</span>
+        <select id="model-settings-scope" class="work-mode-select">
+          <option value="project_local">项目本地 · .auc/settings.local.json</option>
+          <option value="project">项目共享 · .auc/settings.json</option>
+          <option value="global">全局 · ~/.Au/AuC/settings.json</option>
+        </select>
+        <span class="model-field-hint" id="model-settings-scope-hint"></span>
+      </label>
+      <label class="model-field">
+        <span class="model-field-label">Provider</span>
+        <select id="model-settings-provider" class="work-mode-select">
+          <option value="openai">OpenAI 兼容</option>
+          <option value="anthropic">Anthropic 兼容</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
+      </label>
+      <label class="model-field">
+        <span class="model-field-label">模型 ID</span>
+        <input type="text" class="ws-create-input" id="model-settings-model" autocomplete="off" spellcheck="false" placeholder="例如 deepseek-chat" />
+        <span class="model-field-hint" id="model-settings-model-hint">AILab 网关请填 <code>DeepSeek</code>；官方 API 常用 deepseek-chat</span>
+      </label>
+      <label class="model-field">
+        <span class="model-field-label">API Base URL</span>
+        <div class="model-preset-row">
+          <input type="text" class="ws-create-input" id="model-settings-base-url" autocomplete="off" spellcheck="false" placeholder="http://ailab.hcrdi.com/api" />
+          <button type="button" class="btn ghost sm" id="model-settings-ailab-preset" title="填入 AILab 网关模板">AILab</button>
+        </div>
+      </label>
+      <label class="model-field">
+        <span class="model-field-label">API Key</span>
+        <div class="model-secret-row">
+          <input type="password" class="ws-create-input model-secret-input" id="model-settings-api-key" autocomplete="off" spellcheck="false" placeholder="输入 API Key" />
+          <button type="button" class="icon-btn model-secret-toggle" id="model-settings-key-toggle" title="显示密钥" aria-label="显示密钥" aria-pressed="false"></button>
+        </div>
+        <span class="model-field-hint" id="model-settings-key-hint"></span>
+      </label>
+      <p class="ws-create-error hidden" id="model-settings-error"></p>
+      <div class="approval-actions">
+        <button type="button" class="btn ghost" id="model-settings-cancel">取消</button>
+        <button type="button" class="btn primary" id="model-settings-save">保存</button>
+      </div>
+    </div>
+  </div>
+
   <div id="approval-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
     <div class="approval-card">
       <h3 class="approval-title">访问外部链接需授权</h3>
@@ -276,6 +328,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=25" type="module"></script>
+  <script src="/static/app.js?v=30" type="module"></script>
 </body>
 </html>
