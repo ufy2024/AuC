@@ -57,9 +57,9 @@ def fetch_latest_version(*, timeout: float = 3.0, force: bool = False) -> str | 
     return _cache_latest
 
 
-def release_info(*, timeout: float = 3.0) -> dict[str, object]:
+def release_info(*, timeout: float = 3.0, force: bool = False) -> dict[str, object]:
     current = __version__
-    latest = fetch_latest_version(timeout=timeout)
+    latest = fetch_latest_version(timeout=timeout, force=force)
     available = bool(latest and is_newer(latest, current))
     return {
         "package": PYPI_PACKAGE,
@@ -71,8 +71,8 @@ def release_info(*, timeout: float = 3.0) -> dict[str, object]:
     }
 
 
-def print_update_notice(*, timeout: float = 2.0) -> None:
-    info = release_info(timeout=timeout)
+def print_update_notice(*, timeout: float = 2.0, force: bool = False) -> None:
+    info = release_info(timeout=timeout, force=force)
     if not info.get("update_available"):
         return
     from auc.terminal import yellow

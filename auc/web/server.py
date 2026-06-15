@@ -169,6 +169,18 @@ def create_app():  # noqa: ANN201
             }
         return JSONResponse(payload)
 
+    @app.get("/api/release")
+    async def api_release(force: bool = False) -> JSONResponse:
+        return JSONResponse(await asyncio.to_thread(release_info, force=force))
+
+    @app.post("/api/release/upgrade")
+    async def api_release_upgrade() -> JSONResponse:
+        from auc.web.upgrade import upgrade_package
+
+        result = await upgrade_package()
+        status = 200 if result.get("ok") else 500
+        return JSONResponse(result, status_code=status)
+
     async def _reload_session_model(cfg: Any) -> None:
         from auc.model.factory import aclose_model_client
 
@@ -943,7 +955,7 @@ def create_app():  # noqa: ANN201
         )
 
     # 沙盒项目 API / WebSocket 转发（静态预览 /preview/ 时前端请求同源 /api、/ws）
-    _AUC_API_ROOTS = frozenset({"info", "projects", "workspace", "chat", "terminal", "settings"})
+    _AUC_API_ROOTS = frozenset({"info", "projects", "workspace", "chat", "terminal", "settings", "release"})
 
     @app.api_route(
         "/api/{path:path}",

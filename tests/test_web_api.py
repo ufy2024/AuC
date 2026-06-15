@@ -43,6 +43,25 @@ def test_info_and_tree(client: TestClient) -> None:
     assert "entries" in tree.json()
 
 
+def test_api_release_endpoint(client: TestClient) -> None:
+    data = client.get("/api/release").json()
+    assert data["current_version"]
+    assert "update_available" in data
+    forced = client.get("/api/release?force=1").json()
+    assert forced["current_version"] == data["current_version"]
+
+
+def test_api_release_upgrade_skips_when_current(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "auc.web.upgrade.release_info",
+        lambda **kwargs: {"update_available": False, "current_version": "0.2.10"},
+    )
+    resp = client.post("/api/release/upgrade")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["skipped"] is True
+
+
 def test_index_html(client: TestClient) -> None:
     r = client.get("/")
     assert r.status_code == 200

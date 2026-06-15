@@ -495,15 +495,43 @@ function renderVersionInfo(info) {
   const release = info.release || {};
   const current = release.current_version || info.version || "";
   if (versionEl) {
-    versionEl.textContent = `v${current}`;
-    versionEl.classList.toggle("has-update", !!release.update_available);
     if (release.update_available && release.latest_version) {
-      versionEl.title = `当前 v${current}，PyPI 最新 v${release.latest_version}，建议升级`;
+      versionEl.textContent = `v${current} → v${release.latest_version}`;
+      versionEl.title = `有新版本可用，点击重新检查 · ${release.install_cmd || "pip install -U ufy-auc"}`;
     } else {
-      versionEl.title = `当前版本 v${current}`;
+      versionEl.textContent = `v${current}`;
+      versionEl.title = release.latest_version
+        ? `已是最新版本 v${current}（PyPI v${release.latest_version}）· 点击重新检查`
+        : `当前版本 v${current} · 点击检查 PyPI 更新`;
     }
+    versionEl.classList.toggle("has-update", !!release.update_available);
   }
   renderUpdateNotices(release);
+}
+
+async function refreshReleaseInfo({ force = false } = {}) {
+  try {
+    const q = force ? "?force=1" : "";
+    const release = await api(`/api/release${q}`);
+    if (state.info) {
+      state.info.release = release;
+      state.info.version = release.current_version || state.info.version;
+    }
+    renderVersionInfo(state.info || { release, version: release.current_version });
+    return release;
+  } catch {
+    return null;
+  }
+}
+
+const RELEASE_RECHECK_MS = 30 * 60 * 1000;
+let releaseRecheckTimer = null;
+
+function scheduleReleaseRecheck() {
+  if (releaseRecheckTimer) clearInterval(releaseRecheckTimer);
+  releaseRecheckTimer = setInterval(() => {
+    void refreshReleaseInfo({ force: true });
+  }, RELEASE_RECHECK_MS);
 }
 
 function isUpdateDismissed(release) {
@@ -524,6 +552,61 @@ function updateNoticeCopy(release) {
   };
 }
 
+let upgradeInFlight = false;
+
+function setUpgradeButtonsBusy(busy) {
+  upgradeInFlight = busy;
+  for (const id of ["update-banner-upgrade", "chat-update-upgrade", "chat-update-msg-upgrade"]) {
+    const btn = $(`#${id}`);
+    if (!btn) continue;
+    btn.disabled = busy;
+    if (id === "update-banner-upgrade" || id === "chat-update-upgrade") {
+      btn.textContent = busy ? "升级中…" : "一键升级";
+    }
+  }
+}
+
+function showUpgradeStatus(text, kind = "") {
+  const el = $("#update-upgrade-status");
+  if (!el) return;
+  el.textContent = text || "";
+  el.classList.toggle("hidden", !text);
+  el.classList.toggle("ok", kind === "ok");
+  el.classList.toggle("err", kind === "err");
+}
+
+async function runOneClickUpgrade() {
+  if (upgradeInFlight) return;
+  setUpgradeButtonsBusy(true);
+  showUpgradeStatus("正在通过 pip 升级，请稍候…");
+  try {
+    const data = await api("/api/release/upgrade", { method: "POST" });
+    if (data.skipped) {
+      showUpgradeStatus(data.message || "已是最新版本", "ok");
+      await refreshReleaseInfo({ force: true });
+      return;
+    }
+    if (data.ok) {
+      showUpgradeStatus(data.message || "升级完成，请重启 auc web", "ok");
+      if (state.info) state.info.release = data.release || state.info.release;
+      renderVersionInfo(state.info || { release: data.release });
+      const msg = $("#chat-update-msg");
+      if (msg) {
+        const status = document.createElement("p");
+        status.className = "update-msg-body";
+        status.textContent = data.message || "升级完成，请重启 auc web";
+        msg.appendChild(status);
+      }
+    } else {
+      showUpgradeStatus(data.message || "升级失败", "err");
+    }
+  } catch (err) {
+    showUpgradeStatus(err.message || String(err), "err");
+  } finally {
+    setUpgradeButtonsBusy(false);
+  }
+}
+
 function dismissUpdateNotice(release) {
   if (release?.latest_version) {
     localStorage.setItem(`auc-update-dismiss-${release.latest_version}`, "1");
@@ -531,6 +614,7 @@ function dismissUpdateNotice(release) {
   $("#update-banner")?.classList.add("hidden");
   $("#chat-update-notice")?.classList.add("hidden");
   $("#chat-update-msg")?.remove();
+  showUpgradeStatus("");
 }
 
 function renderUpdateNotices(release) {
@@ -578,7 +662,11 @@ function renderUpdateNotices(release) {
     msg.innerHTML =
       `<div class="update-msg-title">版本更新提示</div>` +
       `<p class="update-msg-body">${copy.chatHeadline} ${copy.chatDetail}</p>` +
-      `<code class="update-msg-cmd">${copy.cmd}</code>`;
+      `<code class="update-msg-cmd">${copy.cmd}</code>` +
+      `<div class="update-msg-actions">` +
+      `<button type="button" class="btn primary sm" id="chat-update-msg-upgrade">一键升级</button>` +
+      `</div>`;
+    $("#chat-update-msg-upgrade")?.addEventListener("click", () => void runOneClickUpgrade());
   }
 }
 
@@ -586,6 +674,9 @@ function bindUpdateBanner() {
   const dismiss = () => dismissUpdateNotice(state.info?.release);
   $("#update-banner-dismiss")?.addEventListener("click", dismiss);
   $("#chat-update-dismiss")?.addEventListener("click", dismiss);
+  $("#update-banner-upgrade")?.addEventListener("click", () => void runOneClickUpgrade());
+  $("#chat-update-upgrade")?.addEventListener("click", () => void runOneClickUpgrade());
+  $("#version")?.addEventListener("click", () => void refreshReleaseInfo({ force: true }));
 }
 
 // ── 模型配置（顶栏 model-pill） ──
@@ -2258,6 +2349,7 @@ async function boot() {
   // 找回刷新/覆盖导致丢失的授权卡片，并周期兜底（run 挂起等待授权时可恢复）
   recoverPendingApprovals();
   setInterval(recoverPendingApprovals, 15000);
+  scheduleReleaseRecheck();
 }
 
 boot().catch((e) => {

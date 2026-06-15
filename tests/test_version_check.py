@@ -24,6 +24,19 @@ def test_release_info_update_available(monkeypatch) -> None:
     assert info["install_cmd"] == "pip install -U ufy-auc"
 
 
+def test_release_info_force_refresh(monkeypatch) -> None:
+    calls: list[bool] = []
+
+    def _fetch(**kwargs: object) -> str:
+        calls.append(bool(kwargs.get("force")))
+        return "0.2.10"
+
+    monkeypatch.setattr(vc, "__version__", "0.2.9")
+    monkeypatch.setattr(vc, "fetch_latest_version", _fetch)
+    vc.release_info(force=True)
+    assert calls == [True]
+
+
 def test_release_info_up_to_date(monkeypatch) -> None:
     monkeypatch.setattr(vc, "__version__", "0.2.9")
     monkeypatch.setattr(vc, "fetch_latest_version", lambda **kwargs: "0.2.9")

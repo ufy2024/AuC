@@ -40,10 +40,17 @@ button { cursor: pointer; border: none; background: none; }
 .logo { color: var(--logo-color); font-size: 1rem; }
 .name { font-weight: 700; font-size: .95rem; }
 .version { font-size: .72rem; opacity: .55; }
+.version.clickable { cursor: pointer; }
+.version.clickable:hover { opacity: .85; }
 .version.has-update {
   opacity: 1;
   color: var(--jupyter-orange);
-  cursor: help;
+  font-weight: 600;
+  cursor: pointer;
+}
+.version.has-update::after {
+  content: " ↑";
+  font-size: .65rem;
 }
 
 .update-banner {
@@ -82,6 +89,24 @@ button { cursor: pointer; border: none; background: none; }
   white-space: nowrap;
 }
 .update-banner-link:hover { text-decoration: underline; }
+.update-banner .btn.primary.sm {
+  font-size: .72rem;
+  padding: .2rem .65rem;
+}
+.update-upgrade-status {
+  width: 100%;
+  margin: 0;
+  font-size: .72rem;
+  color: var(--muted);
+}
+.update-upgrade-status.ok { color: var(--accent-green, #3fb950); }
+.update-upgrade-status.err { color: var(--danger, #f85149); }
+.update-msg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: .5rem;
+}
 
 .chat-update-notice {
   margin-bottom: .85rem;

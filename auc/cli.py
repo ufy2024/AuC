@@ -732,6 +732,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {line}")
         return 0
 
+    if args.cmd not in ("config", "undo", "extras", "web"):
+        from auc.version_check import print_update_notice
+
+        print_update_notice()
+
     if args.cmd == "config":
         if args.config_cmd == "init":
             return _cmd_config_init(args)

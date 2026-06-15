@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/themes.css?v=26" />
-  <link rel="stylesheet" href="/static/styles.css?v=26" />
+  <link rel="stylesheet" href="/static/themes.css?v=28" />
+  <link rel="stylesheet" href="/static/styles.css?v=28" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="/static/vendor/xterm.css?v=25" />
 </head>
@@ -15,7 +15,7 @@
       <div class="brand">
         <span class="logo">◆</span>
         <span class="name">AuC</span>
-        <span class="version" id="version" title="当前版本"></span>
+        <span class="version clickable" id="version" title="点击检查 PyPI 更新"></span>
       </div>
       <div class="mode-switch" role="tablist">
         <button type="button" class="mode-btn active" data-mode="code" role="tab">Code</button>
@@ -46,7 +46,9 @@
         升级命令：<code class="update-banner-cmd" id="update-banner-cmd"></code>
       </p>
       <a class="update-banner-link" id="update-banner-link" href="#" target="_blank" rel="noopener">查看 PyPI 发布页</a>
+      <button type="button" class="btn primary sm" id="update-banner-upgrade">一键升级</button>
       <button type="button" class="btn ghost sm" id="update-banner-dismiss">关闭提示</button>
+      <p class="update-upgrade-status hidden" id="update-upgrade-status"></p>
     </div>
 
     <nav class="sidebar-rail" id="sidebar-rail" aria-label="侧栏快捷栏">
@@ -165,6 +167,7 @@
           <div id="chat-update-notice" class="chat-update-notice hidden" role="status" aria-live="polite">
             <p class="chat-update-text" id="chat-update-text"></p>
             <p class="chat-update-hint" id="chat-update-hint"></p>
+            <button type="button" class="btn primary sm" id="chat-update-upgrade">一键升级</button>
             <button type="button" class="btn ghost sm" id="chat-update-dismiss">知道了</button>
           </div>
           <div class="agent-profile" id="agent-profile">
@@ -328,6 +331,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=30" type="module"></script>
+  <script src="/static/app.js?v=32" type="module"></script>
 </body>
 </html>
