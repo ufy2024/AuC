@@ -11,6 +11,7 @@ from auc import __version__
 
 PYPI_PACKAGE = "ufy-auc"
 PYPI_JSON_URL = f"https://pypi.org/pypi/{PYPI_PACKAGE}/json"
+PYPI_SIMPLE_INDEX = "https://pypi.org/simple/"
 _CACHE_TTL_SEC = 3600.0
 
 _cache_at = 0.0
@@ -67,7 +68,7 @@ def release_info(*, timeout: float = 3.0, force: bool = False) -> dict[str, obje
         "latest_version": latest,
         "update_available": available,
         "pypi_url": f"https://pypi.org/project/{PYPI_PACKAGE}/",
-        "install_cmd": f"pip install -U {PYPI_PACKAGE}",
+        "install_cmd": f"pip install -U {PYPI_PACKAGE} -i {PYPI_SIMPLE_INDEX}",
     }
 
 

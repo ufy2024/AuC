@@ -16,18 +16,48 @@ def test_infer_pip_install_spec_web(monkeypatch) -> None:
 def test_run_pip_upgrade_success(monkeypatch) -> None:
     class R:
         returncode = 0
-        stdout = "Successfully installed ufy-auc-0.2.11"
+        stdout = "Successfully installed ufy-auc-0.2.12"
         stderr = ""
 
     monkeypatch.setattr(up, "infer_pip_install_spec", lambda: "ufy-auc[web]")
     monkeypatch.setattr("subprocess.run", lambda *a, **k: R())
-    monkeypatch.setattr(up, "_installed_distribution_version", lambda: "0.2.11")
-    monkeypatch.setattr(up, "fetch_latest_version", lambda **kwargs: "0.2.11")
+    versions = iter(["0.2.11", "0.2.12"])
+    monkeypatch.setattr(up, "_installed_distribution_version", lambda: next(versions, "0.2.12"))
+    monkeypatch.setattr(up, "fetch_latest_version", lambda **kwargs: "0.2.12")
 
     result = up.run_pip_upgrade()
     assert result["ok"] is True
-    assert result["installed_version"] == "0.2.11"
+    assert result["installed_version"] == "0.2.12"
     assert result["restart_required"] is True
+
+
+def test_run_pip_upgrade_retries_official_pypi_on_stale_mirror(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def _run(cmd, **kwargs):
+        calls.append(cmd)
+        class R:
+            returncode = 0
+            stdout = (
+                "Requirement already satisfied: ufy-auc[web] (0.2.11)"
+                if "--index-url" not in cmd
+                else "Successfully installed ufy-auc-0.2.12"
+            )
+            stderr = ""
+
+        return R()
+
+    versions = iter(["0.2.11", "0.2.11", "0.2.12"])
+    monkeypatch.setattr(up, "infer_pip_install_spec", lambda: "ufy-auc[web]")
+    monkeypatch.setattr("subprocess.run", _run)
+    monkeypatch.setattr(up, "_installed_distribution_version", lambda: next(versions, "0.2.12"))
+    monkeypatch.setattr(up, "fetch_latest_version", lambda **kwargs: "0.2.12")
+
+    result = up.run_pip_upgrade()
+    assert result["ok"] is True
+    assert len(calls) == 2
+    assert "--index-url" in calls[1]
+    assert "pypi.org" in calls[1][calls[1].index("--index-url") + 1]
 
 
 @pytest.mark.asyncio

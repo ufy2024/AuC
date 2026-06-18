@@ -21,7 +21,7 @@ def test_release_info_update_available(monkeypatch) -> None:
     assert info["current_version"] == "0.1.0"
     assert info["latest_version"] == "0.2.9"
     assert info["update_available"] is True
-    assert info["install_cmd"] == "pip install -U ufy-auc"
+    assert info["install_cmd"] == "pip install -U ufy-auc -i https://pypi.org/simple/"
 
 
 def test_release_info_force_refresh(monkeypatch) -> None:
