@@ -30,7 +30,7 @@ from auc.policy.autonomy import AutonomyPolicy
 from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 from auc.tools import DefaultToolRegistry, make_echo_tool, register_function_tools, tool
 
-__version__ = "0.2.11"
+__version__ = "0.2.12"
 
 __all__ = [
     "__version__",

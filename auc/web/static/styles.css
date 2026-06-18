@@ -182,6 +182,7 @@ button { cursor: pointer; border: none; background: none; }
 }
 
 .topbar-meta { margin-left: auto; display: flex; gap: .5rem; align-items: center; font-size: .75rem; }
+.lang-toggle { font-size: .72rem; padding: .15rem .5rem; min-width: 2.2rem; }
 .model-pill, .ws-pill {
   padding: .2rem .55rem;
   border-radius: 999px;
@@ -1046,11 +1047,75 @@ button { cursor: pointer; border: none; background: none; }
 }
 .image-preview.hidden { display: none; }
 .image-preview img {
-  max-width: 100%; max-height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  box-shadow: var(--shadow);
 }
+.doc-preview {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--editor-bg, var(--bg));
+  padding: .75rem 1rem;
+}
+.doc-preview.hidden { display: none; }
+.doc-preview-loading,
+.doc-preview-note {
+  font-size: .8rem;
+  color: var(--muted);
+  margin: .5rem 0;
+}
+.doc-preview-error {
+  padding: 1rem;
+  color: var(--muted);
+  font-size: .85rem;
+}
+.doc-download-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.doc-download-link:hover { text-decoration: underline; }
+.doc-pdf-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  border: none;
+  background: #fff;
+}
+.doc-word-body {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: .5rem 0 2rem;
+}
+.doc-excel-body { max-width: 100%; }
+.doc-sheet { margin-bottom: 1.5rem; }
+.doc-sheet-title {
+  font-size: .85rem;
+  font-weight: 600;
+  margin: 0 0 .5rem;
+  color: var(--muted);
+}
+.doc-sheet-table {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.doc-sheet-table table {
+  border-collapse: collapse;
+  font-size: .78rem;
+  min-width: 100%;
+}
+.doc-sheet-table th,
+.doc-sheet-table td {
+  border: 1px solid var(--border);
+  padding: .25rem .45rem;
+  white-space: nowrap;
+}
+.doc-sheet-table th {
+  background: var(--hover);
+  font-weight: 600;
+}
+
 .tree-item .tree-icon.img { color: var(--accent); }
 .tree-item .tree-icon.html { color: var(--jupyter-orange, #f37726); }
 

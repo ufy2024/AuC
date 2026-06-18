@@ -27,6 +27,11 @@ import {
   refreshTerminalTheme,
   isTerminalOpen,
 } from "./terminal_panel.js";
+import {
+  hideDocumentPreview,
+  showDocumentPreview,
+} from "./document_panel.js";
+import { applyI18n, getLocale, t, toggleLocale } from "./i18n.js";
 
 const $ = (sel) => document.querySelector(sel);
 const state = {
@@ -75,7 +80,7 @@ function applySidebarState() {
     if (toggle) {
       toggle.classList.toggle("is-collapsed", !open);
       setButtonIcon(toggle, open ? "chevronUp" : "chevronDown", { size: 14 });
-      toggle.title = open ? "折叠" : "展开";
+      toggle.title = open ? t("sidebar.fold") : t("sidebar.unfold");
     }
   }
 }
@@ -340,35 +345,35 @@ function renderAgentProfile(info = state.info) {
   const tags = $("#agent-tags");
   if (!title) return;
 
-  title.textContent = role?.label || agent.name || "Coder 专家";
+  title.textContent = role?.label || agent.name || t("agent.defaultTitle");
   if (desc) {
     desc.textContent =
-      role?.description || agent.description || agent.title || "编程、调试与架构设计助手";
+      role?.description || agent.description || agent.title || t("agent.defaultDesc");
   }
   if (status) {
     if (state.streaming) {
-      status.textContent = "思考中";
+      status.textContent = t("agent.thinking");
       status.className = "agent-status busy";
     } else {
-      status.textContent = (info.turns || 0) > 0 ? "在线" : "就绪";
+      status.textContent = (info.turns || 0) > 0 ? t("agent.online") : t("agent.ready");
       status.className = "agent-status";
     }
   }
   if (meta) {
     const items = [
-      { k: "模型", v: `${info.model?.provider || "?"} / ${info.model?.model || "?"}` },
-      { k: "角色", v: roleLabel(state.roleId) },
-      { k: "模式", v: workModeLabel(state.workMode) },
-      { k: "工作区", v: info.workspace?.display || "." },
-      { k: "对话", v: `${info.turns || 0} 轮` },
+      { k: t("meta.model"), v: `${info.model?.provider || "?"} / ${info.model?.model || "?"}` },
+      { k: t("meta.role"), v: roleLabel(state.roleId) },
+      { k: t("meta.mode"), v: workModeLabel(state.workMode) },
+      { k: t("meta.workspace"), v: info.workspace?.display || "." },
+      { k: t("meta.turns"), v: t("meta.turnsUnit", { n: info.turns || 0 }) },
     ];
-    if (info.evolve) items.push({ k: "进化", v: "已开启" });
+    if (info.evolve) items.push({ k: t("meta.evolve"), v: t("meta.evolveOn") });
     meta.innerHTML = items
       .map((it) => `<span class="agent-meta-item"><em>${it.k}</em>${escapeHtml(it.v)}</span>`)
       .join("");
   }
   if (tags) {
-    const caps = role?.capabilities || agent.capabilities || ["代码编辑", "文件读写", "Mermaid 图表"];
+    const caps = role?.capabilities || agent.capabilities || [t("cap.edit"), t("cap.files"), t("cap.mermaid")];
     tags.innerHTML = caps.map((c) => `<span class="agent-tag">${escapeHtml(c)}</span>`).join("");
   }
 }
@@ -389,7 +394,7 @@ function workModeLabel(id) {
 function populateWorkModeSelects() {
   const modes = state.workModes.length
     ? state.workModes
-    : [{ id: "auto", label: "自动识别", description: "" }];
+    : [{ id: "auto", label: t("workmode.auto"), description: "" }];
   for (const sel of ["#work-mode-select", "#work-mode-agent"]) {
     const el = $(sel);
     if (!el) continue;
@@ -427,7 +432,7 @@ function bindWorkModeSelects() {
 function populateRoleSelects() {
   const roles = state.roles.length
     ? state.roles
-    : [{ id: "coder", label: "编程专家", description: "" }];
+    : [{ id: "coder", label: t("role.coder"), description: "" }];
   for (const sel of ["#role-select", "#role-agent"]) {
     const el = $(sel);
     if (!el) continue;
@@ -496,13 +501,13 @@ function renderVersionInfo(info) {
   const current = release.current_version || info.version || "";
   if (versionEl) {
     if (release.update_available && release.latest_version) {
-      versionEl.textContent = `v${current} → v${release.latest_version}`;
-      versionEl.title = `有新版本可用，点击重新检查 · ${release.install_cmd || "pip install -U ufy-auc"}`;
+      versionEl.textContent = t("update.versionArrow", { current, latest: release.latest_version });
+      versionEl.title = t("update.hasUpdate", { cmd: release.install_cmd || "pip install -U ufy-auc" });
     } else {
       versionEl.textContent = `v${current}`;
       versionEl.title = release.latest_version
-        ? `已是最新版本 v${current}（PyPI v${release.latest_version}）· 点击重新检查`
-        : `当前版本 v${current} · 点击检查 PyPI 更新`;
+        ? t("update.upToDate", { current, latest: release.latest_version })
+        : t("update.current", { current });
     }
     versionEl.classList.toggle("has-update", !!release.update_available);
   }
@@ -544,11 +549,11 @@ function updateNoticeCopy(release) {
   const latest = release.latest_version || "";
   const cmd = release.install_cmd || "pip install -U ufy-auc";
   return {
-    headline: `检测到新版本：PyPI 已发布 v${latest}，您当前运行 v${current}。`,
-    detail: "建议尽快升级以获得最新功能、修复与 Web 界面改进。",
+    headline: t("update.headline", { latest, current }),
+    detail: t("update.detail"),
     cmd,
-    chatHeadline: `AuC 有新版本可用（v${latest}），当前为 v${current}。`,
-    chatDetail: `请在终端执行以下命令完成升级：`,
+    chatHeadline: t("update.chatHeadline", { latest, current }),
+    chatDetail: t("update.chatDetail"),
   };
 }
 
@@ -561,7 +566,7 @@ function setUpgradeButtonsBusy(busy) {
     if (!btn) continue;
     btn.disabled = busy;
     if (id === "update-banner-upgrade" || id === "chat-update-upgrade") {
-      btn.textContent = busy ? "升级中…" : "一键升级";
+      btn.textContent = busy ? t("update.upgrading") : t("update.upgrade");
     }
   }
 }
@@ -578,27 +583,27 @@ function showUpgradeStatus(text, kind = "") {
 async function runOneClickUpgrade() {
   if (upgradeInFlight) return;
   setUpgradeButtonsBusy(true);
-  showUpgradeStatus("正在通过 pip 升级，请稍候…");
+  showUpgradeStatus(t("update.pipBusy"));
   try {
     const data = await api("/api/release/upgrade", { method: "POST" });
     if (data.skipped) {
-      showUpgradeStatus(data.message || "已是最新版本", "ok");
+      showUpgradeStatus(data.message || t("update.alreadyLatest"), "ok");
       await refreshReleaseInfo({ force: true });
       return;
     }
     if (data.ok) {
-      showUpgradeStatus(data.message || "升级完成，请重启 auc web", "ok");
+      showUpgradeStatus(data.message || t("update.success"), "ok");
       if (state.info) state.info.release = data.release || state.info.release;
       renderVersionInfo(state.info || { release: data.release });
       const msg = $("#chat-update-msg");
       if (msg) {
         const status = document.createElement("p");
         status.className = "update-msg-body";
-        status.textContent = data.message || "升级完成，请重启 auc web";
+        status.textContent = data.message || t("update.success");
         msg.appendChild(status);
       }
     } else {
-      showUpgradeStatus(data.message || "升级失败", "err");
+      showUpgradeStatus(data.message || t("update.fail"), "err");
     }
   } catch (err) {
     showUpgradeStatus(err.message || String(err), "err");
@@ -660,11 +665,11 @@ function renderUpdateNotices(release) {
       chatMessages.prepend(msg);
     }
     msg.innerHTML =
-      `<div class="update-msg-title">版本更新提示</div>` +
+      `<div class="update-msg-title">${t("update.title")}</div>` +
       `<p class="update-msg-body">${copy.chatHeadline} ${copy.chatDetail}</p>` +
       `<code class="update-msg-cmd">${copy.cmd}</code>` +
       `<div class="update-msg-actions">` +
-      `<button type="button" class="btn primary sm" id="chat-update-msg-upgrade">一键升级</button>` +
+      `<button type="button" class="btn primary sm" id="chat-update-msg-upgrade">${t("update.upgrade")}</button>` +
       `</div>`;
     $("#chat-update-msg-upgrade")?.addEventListener("click", () => void runOneClickUpgrade());
   }
@@ -690,7 +695,7 @@ function setModelKeyVisible(visible) {
   if (input) input.type = modelKeyVisible ? "text" : "password";
   if (btn) {
     btn.setAttribute("aria-pressed", modelKeyVisible ? "true" : "false");
-    btn.title = modelKeyVisible ? "隐藏密钥" : "显示密钥";
+    btn.title = modelKeyVisible ? t("model.hideKey") : t("model.showKey");
     btn.setAttribute("aria-label", btn.title);
     setButtonIcon(btn, modelKeyVisible ? "eyeOff" : "eye", { size: 16 });
   }
@@ -708,24 +713,28 @@ function renderModelLayers(s) {
   const layers = s.layers || {};
   const activeScope = s.active_scope || layers.active_scope;
   const scopeLabels = {
-    global: "全局",
-    project: "项目共享",
-    project_local: "项目本地",
+    global: t("model.scope.globalLabel"),
+    project: t("model.scope.projectLabel"),
+    project_local: t("model.scope.localLabel"),
   };
   const activeEl = $("#model-settings-active-scope");
   if (activeEl) {
-    activeEl.textContent = scopeLabels[activeScope] || activeScope || "默认";
+    activeEl.textContent = scopeLabels[activeScope] || activeScope || t("model.scope.default");
   }
   const note = $("#model-settings-layers");
   if (note) {
     const globalFiles = (layers.global_files || []).filter((f) => f.exists).map((f) => f.path);
     const projectFiles = (layers.project_files || []).filter((f) => f.exists).map((f) => f.path);
     const parts = [];
-    if (globalFiles.length) parts.push(`全局：${globalFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
-    if (projectFiles.length) parts.push(`项目：${projectFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
+    if (globalFiles.length) {
+      parts.push(`${t("model.layers.global")}：${globalFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
+    }
+    if (projectFiles.length) {
+      parts.push(`${t("model.layers.project")}：${projectFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
+    }
     note.textContent = parts.length
-      ? `${parts.join("  →  ")}（后者覆盖前者）`
-      : "尚未发现配置文件，保存后将创建对应层级。";
+      ? `${parts.join("  →  ")}${t("model.layers.override")}`
+      : t("model.layers.empty");
   }
   const scopeSel = $("#model-settings-scope");
   const scopeHint = $("#model-settings-scope-hint");
@@ -751,7 +760,7 @@ async function openModelSettings() {
   try {
     modelSettingsCache = await api("/api/settings/model");
   } catch (err) {
-    alert(`加载模型配置失败：${err.message}`);
+    alert(t("model.loadFail", { msg: err.message }));
     return;
   }
   const s = modelSettingsCache;
@@ -764,8 +773,8 @@ async function openModelSettings() {
   const hint = $("#model-settings-key-hint");
   if (hint) {
     hint.textContent = s.api_key_set
-      ? `已配置（${s.api_key_masked}），点击右侧眼睛可查看完整密钥`
-      : "尚未配置 API Key";
+      ? t("model.keyConfigured", { masked: s.api_key_masked })
+      : t("model.keyMissing");
   }
   overlay.classList.remove("hidden");
   $("#model-settings-model")?.focus();
@@ -918,8 +927,8 @@ function showTreeContextMenu(ev, entry) {
   ev.preventDefault();
   treeContextEntry = entry;
   menu.innerHTML = `
-    <button type="button" data-action="rename">重命名</button>
-    <button type="button" data-action="delete" class="danger">删除</button>`;
+    <button type="button" data-action="rename">${t("ws.rename")}</button>
+    <button type="button" data-action="delete" class="danger">${t("ws.delete")}</button>`;
   menu.classList.remove("hidden");
   menu.style.left = `${ev.clientX}px`;
   menu.style.top = `${ev.clientY}px`;
@@ -934,8 +943,8 @@ function showTreeContextMenu(ev, entry) {
 }
 
 async function deleteWorkspaceEntry(entry) {
-  const label = entry.type === "dir" ? "文件夹" : "文件";
-  const ok = window.confirm(`确定删除${label}「${entry.name}」？此操作不可撤销。`);
+  const label = entry.type === "dir" ? t("ws.kind.folder") : t("ws.kind.file");
+  const ok = window.confirm(t("ws.deleteConfirm", { kind: label, name: entry.name }));
   if (!ok) return;
   try {
     await api(`/api/workspace/path?path=${encodeURIComponent(entry.path)}`, {
@@ -944,7 +953,7 @@ async function deleteWorkspaceEntry(entry) {
     removePathsAfterDelete(entry.path, entry.type === "dir");
     await loadTree(state.treePath);
   } catch (e) {
-    window.alert(e.message || "删除失败");
+    window.alert(e.message || t("ws.deleteFail"));
   }
 }
 
@@ -958,9 +967,9 @@ function showWsRenameDialog(entry) {
   const confirmBtn = $("#ws-create-confirm");
   if (!overlay || !input) return;
   wsCreateMode = "rename";
-  if (title) title.textContent = "重命名";
-  if (hint) hint.textContent = `原名称：${entry.name}`;
-  if (confirmBtn) confirmBtn.textContent = "确定";
+  if (title) title.textContent = t("ws.rename");
+  if (hint) hint.textContent = t("ws.renameOld", { name: entry.name });
+  if (confirmBtn) confirmBtn.textContent = t("common.confirm");
   if (err) {
     err.textContent = "";
     err.classList.add("hidden");
@@ -998,8 +1007,8 @@ async function loadTree(path = ".") {
       <span class="tree-icon${treeCls}">${icHtml}</span>
       <span class="tree-name">${e.name}</span>
       <span class="tree-actions">
-        <button type="button" class="icon-btn tree-action-rename" title="重命名"></button>
-        <button type="button" class="icon-btn tree-action-delete" title="删除"></button>
+        <button type="button" class="icon-btn tree-action-rename" data-i18n-title="ws.rename"></button>
+        <button type="button" class="icon-btn tree-action-delete" data-i18n-title="ws.delete"></button>
       </span>`;
     setButtonIcon(row.querySelector(".tree-action-rename"), "pencil", { size: 12 });
     setButtonIcon(row.querySelector(".tree-action-delete"), "trash", { size: 12 });
@@ -1021,6 +1030,7 @@ async function loadTree(path = ".") {
     });
     root.appendChild(row);
   }
+  applyI18n(root);
 }
 
 document.addEventListener("click", (ev) => {
@@ -1039,7 +1049,7 @@ let wsCreateResolve = null;
 function joinWorkspacePath(parent, name) {
   const n = name.trim();
   if (!n || n === "." || n === ".." || /[\\/]/.test(n)) {
-    throw new Error("名称不能包含 / 或 \\，且不能为 . 或 ..");
+    throw new Error(t("ws.invalidName"));
   }
   if (parent === "." || !parent) return n;
   return `${parent}/${n}`;
@@ -1055,11 +1065,11 @@ function showWsCreateDialog(mode) {
   if (!overlay || !input) return Promise.resolve(null);
   wsCreateMode = mode;
   wsRenameEntry = null;
-  if (title) title.textContent = mode === "folder" ? "新建文件夹" : "新建文件";
-  if (confirmBtn) confirmBtn.textContent = "创建";
+  if (title) title.textContent = mode === "folder" ? t("ws.createFolder") : t("ws.createFile");
+  if (confirmBtn) confirmBtn.textContent = t("ws.create");
   if (hint) {
-    const loc = state.treePath === "." ? "工作区根目录" : state.treePath;
-    hint.textContent = `将在 ${loc} 下创建`;
+    const loc = state.treePath === "." ? t("ws.root") : state.treePath;
+    hint.textContent = t("ws.createUnder", { loc });
   }
   if (err) {
     err.textContent = "";
@@ -1120,7 +1130,7 @@ async function confirmWsCreate() {
       if (state.activeTab === newPath) await openFile(newPath);
     } catch (e) {
       if (err) {
-        err.textContent = e.message || "重命名失败";
+        err.textContent = e.message || t("ws.renameFail");
         err.classList.remove("hidden");
       }
     }
@@ -1152,7 +1162,7 @@ async function confirmWsCreate() {
       );
       if (exists.ok) {
         if (err) {
-          err.textContent = "文件已存在";
+          err.textContent = t("ws.exists");
           err.classList.remove("hidden");
         }
         return;
@@ -1168,7 +1178,7 @@ async function confirmWsCreate() {
     }
   } catch (e) {
     if (err) {
-      err.textContent = e.message || "创建失败";
+      err.textContent = e.message || t("ws.createFail");
       err.classList.remove("hidden");
     }
   }
@@ -1224,6 +1234,7 @@ function hideMdPreview() {
 
 async function showMdPreviewView(content) {
   hideImagePreview();
+  hideDocumentPreview();
   hideAppPreview();
   $("#monaco").style.display = "none";
   const box = $("#md-preview");
@@ -1277,6 +1288,7 @@ function bindMdToolbar() {
 
 function showImagePreview(data) {
   hideMdPreview();
+  hideDocumentPreview();
   const box = $("#image-preview");
   const url = `data:${data.mime_type};base64,${data.data_base64}`;
   box.innerHTML = `<img src="${url}" alt="${data.path}" />`;
@@ -1291,6 +1303,13 @@ function hideImagePreview() {
   }
 }
 
+function hideDocPreview() {
+  hideDocumentPreview();
+  if (!(isMarkdownPath(state.activeTab) && state.mdViewMode === "preview")) {
+    $("#monaco").style.display = "";
+  }
+}
+
 function hideAppPreview() {
   state.previewUrl = null;
   state.previewTitle = "";
@@ -1299,8 +1318,9 @@ function hideAppPreview() {
   if (frame) frame.src = "about:blank";
 }
 
-function showAppPreview(url, title = "预览") {
+function showAppPreview(url, title = t("editor.preview")) {
   hideImagePreview();
+  hideDocPreview();
   hideMdPreview();
   state.editor?.dispose();
   state.editor = null;
@@ -1334,7 +1354,7 @@ function openProjectPreview(p) {
     showAppPreview(backend.run_url, p.name || backend.name);
     return;
   }
-  alert("请先运行 backend 项目，再预览全栈应用。");
+  alert(t("project.needBackend"));
 }
 
 async function loadProjects() {
@@ -1344,20 +1364,21 @@ async function loadProjects() {
   if (!list) return;
   list.innerHTML = "";
   if (!state.projects.length) {
-    list.innerHTML = '<div class="p-meta" style="padding:.35rem">未发现可运行项目<br>放入 index.html 或 package.json</div>';
+    list.innerHTML =
+      `<div class="p-meta" style="padding:.35rem">${escapeHtml(t("project.empty"))}<br>${escapeHtml(t("project.emptyHint"))}</div>`;
     return;
   }
   for (const p of state.projects) {
     const card = document.createElement("div");
     card.className = "project-card";
-    const runBadge = p.running ? '<span class="badge-run">运行中</span>' : "";
+    const runBadge = p.running ? `<span class="badge-run">${t("project.running")}</span>` : "";
     card.innerHTML = `
       <div class="p-name">${p.name}${runBadge}</div>
       <div class="p-meta">${p.kind} · ${p.description || p.entry}</div>
       <div class="p-actions">
-        <button type="button" class="btn primary sm" data-act="run">▶ 运行</button>
-        ${p.preview_url ? '<button type="button" class="btn ghost sm" data-act="preview">预览</button>' : ""}
-        ${p.running ? '<button type="button" class="btn ghost sm" data-act="stop">停止</button>' : ""}
+        <button type="button" class="btn primary sm" data-act="run">${t("project.run")}</button>
+        ${p.preview_url ? `<button type="button" class="btn ghost sm" data-act="preview">${t("project.preview")}</button>` : ""}
+        ${p.running ? `<button type="button" class="btn ghost sm" data-act="stop">${t("project.stop")}</button>` : ""}
       </div>`;
     card.querySelector('[data-act="run"]')?.addEventListener("click", () => runProject(p.id));
     card.querySelector('[data-act="preview"]')?.addEventListener("click", () => {
@@ -1382,10 +1403,10 @@ async function verifyProxyPreview(runId) {
   try {
     const res = await fetch(`/proxy/${runId}/`, { method: "GET" });
     if (res.status === 502 || res.status === 503 || res.status === 504) {
-      alert("项目服务未响应，可能启动失败。请查看 logs/ 或停止后重新运行。");
+      alert(t("project.noResponse"));
     }
   } catch {
-    alert("无法连接项目预览，请确认依赖已安装并重新运行。");
+    alert(t("project.previewFail"));
   }
 }
 
@@ -1399,12 +1420,12 @@ async function runProject(projectId) {
     state.activeRunId = run.run_id;
     const proj = state.projects.find((p) => p.id === projectId);
     if (run.status === "error") {
-      alert(run.error || "启动失败");
+      alert(run.error || t("project.startFail"));
       await loadProjects();
       return;
     }
     if (run.url) {
-      const title = proj?.name || "项目";
+      const title = proj?.name || t("project.defaultName");
       if (proj?.kind === "html" && run.url.startsWith("/preview/")) {
         openProjectPreview(proj);
       } else {
@@ -1451,6 +1472,7 @@ async function openFile(path) {
     renderMdToolbar();
     $("#app").classList.add("has-editor");
     hideMdPreview();
+    hideDocPreview();
     hideImagePreview();
     state.editor?.dispose();
     state.editor = null;
@@ -1458,6 +1480,24 @@ async function openFile(path) {
     loadTree(state.treePath);
     return;
   }
+  if (data.kind === "document") {
+    if (!state.openTabs.includes(path)) state.openTabs.push(path);
+    state.activeTab = path;
+    renderTabs();
+    renderMdToolbar();
+    $("#app").classList.add("has-editor");
+    hideMdPreview();
+    hideImagePreview();
+    hideAppPreview();
+    state.editor?.dispose();
+    state.editor = null;
+    state.documentCache = state.documentCache || {};
+    state.documentCache[path] = data;
+    await showDocumentPreview(data);
+    loadTree(state.treePath);
+    return;
+  }
+  hideDocPreview();
   hideAppPreview();
   hideImagePreview();
   if (!state.monacoReady) await initMonaco();
@@ -1523,7 +1563,7 @@ function getEditorContext() {
     ctx.active_file = state.activeTab;
     let content = state.editor.getValue();
     if (content.length > 24000) {
-      content = content.slice(0, 24000) + "\n... (编辑器内容已截断)";
+      content = content.slice(0, 24000) + t("editor.truncated");
     }
     ctx.file_content = content;
     ctx.dirty = !!(state._dirty && state._dirty[state.activeTab]);
@@ -1547,11 +1587,11 @@ function updateContextBar() {
   if (auto) auto.checked = state.autoAttach;
   const ctx = getEditorContext();
   if (ctx.selection) {
-    label.textContent = `附带选中 · ${ctx.active_file || ""}`;
+    label.textContent = t("agent.attachSel", { file: ctx.active_file || "" });
   } else if (ctx.active_file && state.autoAttach) {
-    label.textContent = `附带 ${ctx.active_file.split("/").pop()}`;
+    label.textContent = t("agent.attachFileShort", { name: ctx.active_file.split("/").pop() });
   } else {
-    label.textContent = "附带当前文件";
+    label.textContent = t("agent.attachFile");
   }
 }
 
@@ -1573,6 +1613,12 @@ async function reloadOpenFile(path) {
   if (!path) return;
   const data = await api(`/api/workspace/file?path=${encodeURIComponent(path)}`);
   if (data.kind === "image") return;
+  if (data.kind === "document") {
+    state.documentCache = state.documentCache || {};
+    state.documentCache[path] = data;
+    if (state.activeTab === path) await showDocumentPreview(data);
+    return;
+  }
   state.fileCache[path] = data.content;
   if (state._dirty) state._dirty[path] = false;
   if (state.activeTab === path && state.editor) {
@@ -1727,20 +1773,20 @@ function renderConversationList() {
   if (!list) return;
   list.innerHTML = "";
   if (!state.conversations.length) {
-    list.innerHTML = '<div class="conv-empty">暂无记录，发送消息开始对话</div>';
+    list.innerHTML = `<div class="conv-empty">${escapeHtml(t("conv.empty"))}</div>`;
     return;
   }
   for (const c of state.conversations) {
     const row = document.createElement("div");
     row.className = "conv-item" + (c.id === state.activeConversationId ? " active" : "");
     row.dataset.id = c.id;
-    const meta = `${formatConvTime(c.updated_at)} · ${c.message_count || 0} 轮`;
+    const meta = `${formatConvTime(c.updated_at)} · ${t("conv.turns", { n: c.message_count || 0 })}`;
     row.innerHTML = `
       <div class="conv-body">
-        <div class="conv-title">${escapeHtml(c.title || "新对话")}</div>
+        <div class="conv-title">${escapeHtml(c.title || t("conv.newTitle"))}</div>
         <div class="conv-meta">${escapeHtml(meta)}</div>
       </div>
-      <button type="button" class="conv-del" title="删除">${icon("trash", { size: 14 })}</button>`;
+      <button type="button" class="conv-del" title="${escapeHtml(t("conv.del"))}">${icon("trash", { size: 14 })}</button>`;
     row.addEventListener("click", () => switchConversation(c.id));
     row.querySelector(".conv-del").addEventListener("click", (ev) => {
       ev.stopPropagation();
@@ -1846,7 +1892,7 @@ async function repairDiagramsInMessage(msgEl, text) {
         const note = document.createElement("div");
         note.className = "msg msg-note diagram-fixed-note";
         note.textContent =
-          data.method === "agent" ? "› 智能体已修复图表语法" : "› 已自动修复图表语法";
+          data.method === "agent" ? t("diagram.fixedAgent") : t("diagram.fixedAuto");
         msgEl.insertAdjacentElement("afterend", note);
       }
     } catch {
@@ -1942,16 +1988,16 @@ function showNextApproval() {
   const summary = $("#approval-summary");
   const urlEl = $("#approval-url");
   if (!overlay) return;
-  const extra = approvalQueue.length ? `（还有 ${approvalQueue.length} 个待批）` : "";
+  const extra = approvalQueue.length ? t("approval.pending", { n: approvalQueue.length }) : "";
   if (summary) {
     summary.textContent =
-      (payload.risk_summary || `智能体请求执行：${payload.tool || "L3"}`) + extra;
+      (payload.risk_summary || t("approval.request", { tool: payload.tool || "L3" })) + extra;
   }
   if (urlEl) {
     const args = payload.arguments || {};
     const url = args.url || args.command || args.path || "";
     const save = args.save_path || "";
-    urlEl.textContent = url + (save ? `\n保存到: ${save}` : "");
+    urlEl.textContent = url + (save ? `\n${t("approval.saveTo", { path: save })}` : "");
   }
   overlay.classList.remove("hidden");
 }
@@ -1967,12 +2013,12 @@ async function submitApproval(approved) {
       body: JSON.stringify({
         request_id: id,
         approved,
-        reason: approved ? "" : "用户拒绝",
+        reason: approved ? "" : t("approval.deniedReason"),
       }),
     });
-    appendNotes([approved ? "› 已授权" : "› 已拒绝"]);
+    appendNotes([approved ? t("approval.approvedNote") : t("approval.rejectedNote")]);
   } catch (e) {
-    appendNotes(["✗ 授权失败: " + e.message]);
+    appendNotes([t("approval.failedNote", { msg: e.message })]);
   }
   // 队列里还有未决请求则继续弹卡
   showNextApproval();
@@ -2028,7 +2074,7 @@ async function sendMessage(text, channel = "agent") {
       try {
         await syncActiveFileToServer();
       } catch (syncErr) {
-        appendNotes([`保存跳过: ${syncErr.message}`]);
+        appendNotes([t("chat.saveSkip", { msg: syncErr.message })]);
       }
     }
     const context = channel === "agent" ? getEditorContext() : null;
@@ -2127,7 +2173,7 @@ function handleEvent(ev, streamConversationId = null) {
     }
     const el = document.createElement("div");
     el.className = "msg msg-note";
-    el.textContent = "✗ " + (ev.payload?.message || "未知错误");
+    el.textContent = "✗ " + (ev.payload?.message || t("chat.unknownError"));
     targetMessages().appendChild(el);
     return;
   }
@@ -2198,7 +2244,7 @@ function handleEvent(ev, streamConversationId = null) {
   if (ev.type === "run_end" && ev.payload?.status === "cancelled") {
     const el = document.createElement("div");
     el.className = "msg msg-note";
-    el.textContent = "⊘ 已取消";
+    el.textContent = t("chat.cancelled");
     targetMessages().appendChild(el);
   }
 }
@@ -2235,7 +2281,7 @@ async function addImageFiles(files, channel) {
   for (const file of files) {
     if (!file.type.startsWith("image/")) continue;
     if (file.size > 20 * 1024 * 1024) {
-      alert(`图片过大: ${file.name}`);
+      alert(t("chat.imageTooBig", { name: file.name }));
       continue;
     }
     const b64 = await new Promise((res, rej) => {
@@ -2312,13 +2358,13 @@ $("#ctx-auto")?.addEventListener("change", (ev) => {
 $("#btn-insert-file")?.addEventListener("click", () => {
   const input = $("#prompt");
   if (!input) return;
-  input.value = (input.value ? input.value + " " : "") + "@当前文件 ";
+  input.value = (input.value ? input.value + " " : "") + t("agent.insertFileToken");
   input.focus();
 });
 $("#btn-insert-sel")?.addEventListener("click", () => {
   const input = $("#prompt");
   if (!input) return;
-  input.value = (input.value ? input.value + " " : "") + "@选中 ";
+  input.value = (input.value ? input.value + " " : "") + t("agent.insertSelToken");
   input.focus();
 });
 
@@ -2332,7 +2378,27 @@ $("#approval-allow")?.addEventListener("click", () => submitApproval(true));
 $("#approval-deny")?.addEventListener("click", () => submitApproval(false));
 
 // ── 启动 ──
+function refreshUiLocale() {
+  applyI18n();
+  if (state.info) {
+    renderVersionInfo(state.info);
+    renderAgentProfile(state.info);
+  }
+  updateContextBar();
+  populateWorkModeSelects();
+  populateRoleSelects();
+  void loadProjects();
+  void loadConversations();
+  void loadTree(state.treePath);
+  if (state.activeTab && state.documentCache?.[state.activeTab]) {
+    void showDocumentPreview(state.documentCache[state.activeTab]);
+  }
+}
+
 async function boot() {
+  applyI18n();
+  $("#lang-toggle")?.addEventListener("click", () => toggleLocale());
+  window.addEventListener("auc-locale-change", refreshUiLocale);
   initThemes();
   initSidebarChrome();
   initTerminalPanel();
@@ -2353,5 +2419,5 @@ async function boot() {
 }
 
 boot().catch((e) => {
-  document.body.innerHTML = `<pre style="padding:2rem;color:#c00">启动失败: ${e.message}</pre>`;
+  document.body.innerHTML = `<pre style="padding:2rem;color:#c00">${escapeHtml(t("boot.fail", { msg: e.message }))}</pre>`;
 });

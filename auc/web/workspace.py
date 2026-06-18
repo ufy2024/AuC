@@ -8,7 +8,8 @@ from typing import Literal
 import base64
 
 from auc.multimodal import is_image_path, load_image_from_path
-from auc.web.preview import is_html_path
+from auc.web.documents import is_document_path, read_document_file
+from auc.web.preview import is_html_path, media_type_for
 from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 
 EntryType = Literal["file", "dir"]
@@ -144,6 +145,7 @@ def tree_to_dict(tree: WorkspaceTree) -> dict[str, object]:
                 "size": e.size,
                 "is_image": e.type == "file" and is_image_path(e.path),
                 "is_html": e.type == "file" and is_html_path(e.path),
+                "is_document": e.type == "file" and is_document_path(e.path),
             }
             for e in tree.entries
         ],

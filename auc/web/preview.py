@@ -6,7 +6,10 @@ from pathlib import Path
 from auc.sandbox import resolve_under_sandbox
 
 _HTML_EXTS = {".html", ".htm"}
-_PREVIEWABLE = _HTML_EXTS | {".js", ".css", ".json", ".svg", ".woff", ".woff2", ".ttf", ".map", ".ico", ".wasm"}
+_PREVIEWABLE = _HTML_EXTS | {
+    ".js", ".css", ".json", ".svg", ".woff", ".woff2", ".ttf", ".map", ".ico", ".wasm",
+    ".pdf",
+}
 
 
 def is_html_path(path: str) -> bool:

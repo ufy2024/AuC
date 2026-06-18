@@ -66,6 +66,17 @@ def test_index_html(client: TestClient) -> None:
     r = client.get("/")
     assert r.status_code == 200
     assert "AuC" in r.text
+    assert 'id="lang-toggle"' in r.text
+    assert "data-i18n" in r.text
+
+
+def test_i18n_static(client: TestClient) -> None:
+    r = client.get("/static/i18n.js")
+    assert r.status_code == 200
+    body = r.text
+    assert "toggleLocale" in body
+    assert '"zh"' in body
+    assert '"en"' in body
 
 
 def test_auc_api_routes_not_shadowed(client: TestClient) -> None:
@@ -103,6 +114,19 @@ def test_workspace_file_routes(client: TestClient) -> None:
     assert client.get("/api/workspace/file", params={"path": "../etc"}).status_code == 403
     # 不存在
     assert client.get("/api/workspace/file", params={"path": "nope.txt"}).status_code == 404
+
+
+def test_workspace_document_file_meta(client: TestClient) -> None:
+    client.put("/api/workspace/file", json={"path": "docs/report.pdf", "content": "%PDF"})
+    meta = client.get("/api/workspace/file", params={"path": "docs/report.pdf"})
+    assert meta.status_code == 200
+    body = meta.json()
+    assert body["kind"] == "document"
+    assert body["doc_type"] == "pdf"
+    assert body["previewable"] is True
+    raw = client.get("/api/workspace/file/raw", params={"path": "docs/report.pdf"})
+    assert raw.status_code == 200
+    assert raw.content
 
 
 def test_workspace_mkdir(client: TestClient) -> None:

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/themes.css?v=28" />
-  <link rel="stylesheet" href="/static/styles.css?v=28" />
+  <link rel="stylesheet" href="/static/themes.css?v=30" />
+  <link rel="stylesheet" href="/static/styles.css?v=30" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="/static/vendor/xterm.css?v=25" />
 </head>
@@ -15,71 +15,71 @@
       <div class="brand">
         <span class="logo">◆</span>
         <span class="name">AuC</span>
-        <span class="version clickable" id="version" title="点击检查 PyPI 更新"></span>
+        <span class="version clickable" id="version" data-i18n-title="version.check"></span>
       </div>
       <div class="mode-switch" role="tablist">
         <button type="button" class="mode-btn active" data-mode="code" role="tab">Code</button>
         <button type="button" class="mode-btn" data-mode="chat" role="tab">Chat</button>
       </div>
       <div class="topbar-meta">
+        <button type="button" class="btn ghost sm lang-toggle" id="lang-toggle" title="Switch language">EN</button>
         <div class="theme-picker-wrap" id="theme-picker-wrap">
-          <button type="button" class="icon-btn" id="theme-picker-btn" title="颜色主题与图标主题" aria-haspopup="true" aria-expanded="false"></button>
-          <div class="theme-picker-menu hidden" id="theme-picker-menu" role="menu" aria-label="主题">
+          <button type="button" class="icon-btn" id="theme-picker-btn" data-i18n-title="theme.menu" aria-haspopup="true" aria-expanded="false"></button>
+          <div class="theme-picker-menu hidden" id="theme-picker-menu" role="menu" aria-label="Theme">
             <div class="theme-picker-section">
-              <div class="theme-picker-label">颜色主题</div>
+              <div class="theme-picker-label" data-i18n="theme.colors"></div>
               <div class="theme-picker-list" id="color-theme-list"></div>
             </div>
             <div class="theme-picker-section">
-              <div class="theme-picker-label">图标主题</div>
+              <div class="theme-picker-label" data-i18n="theme.icons"></div>
               <div class="theme-picker-list" id="icon-theme-list"></div>
             </div>
           </div>
         </div>
-        <span class="model-pill clickable" id="model-pill" title="点击配置模型与 API Key"></span>
-        <span class="ws-pill" id="ws-pill" title="工作区"></span>
+        <span class="model-pill clickable" id="model-pill" data-i18n-title="model.pill"></span>
+        <span class="ws-pill" id="ws-pill" data-i18n-title="ws.pill"></span>
       </div>
     </header>
 
     <div id="update-banner" class="update-banner hidden" role="status" aria-live="polite">
       <p class="update-banner-text" id="update-banner-text"></p>
       <p class="update-banner-hint">
-        升级命令：<code class="update-banner-cmd" id="update-banner-cmd"></code>
+        <span data-i18n="update.cmd"></span><code class="update-banner-cmd" id="update-banner-cmd"></code>
       </p>
-      <a class="update-banner-link" id="update-banner-link" href="#" target="_blank" rel="noopener">查看 PyPI 发布页</a>
-      <button type="button" class="btn primary sm" id="update-banner-upgrade">一键升级</button>
-      <button type="button" class="btn ghost sm" id="update-banner-dismiss">关闭提示</button>
+      <a class="update-banner-link" id="update-banner-link" href="#" target="_blank" rel="noopener" data-i18n="update.pypi"></a>
+      <button type="button" class="btn primary sm" id="update-banner-upgrade" data-i18n="update.upgrade"></button>
+      <button type="button" class="btn ghost sm" id="update-banner-dismiss" data-i18n="update.dismiss"></button>
       <p class="update-upgrade-status hidden" id="update-upgrade-status"></p>
     </div>
 
-    <nav class="sidebar-rail" id="sidebar-rail" aria-label="侧栏快捷栏">
-      <button type="button" class="rail-btn" id="sidebar-show" title="展开侧栏"></button>
+    <nav class="sidebar-rail" id="sidebar-rail" data-i18n-aria="nav.sidebar">
+      <button type="button" class="rail-btn" id="sidebar-show" data-i18n-title="sidebar.expand"></button>
       <span class="rail-divider"></span>
-      <button type="button" class="rail-btn" data-rail-section="workspace" title="工作区"></button>
-      <button type="button" class="rail-btn" data-rail-section="projects" title="项目"></button>
-      <button type="button" class="rail-btn" data-rail-section="conversations" title="对话"></button>
+      <button type="button" class="rail-btn" data-rail-section="workspace" data-i18n-title="nav.workspace"></button>
+      <button type="button" class="rail-btn" data-rail-section="projects" data-i18n-title="nav.projects"></button>
+      <button type="button" class="rail-btn" data-rail-section="conversations" data-i18n-title="nav.conversations"></button>
     </nav>
 
     <div class="layout">
-      <!-- 工作区侧栏 -->
       <aside class="workspace-panel" id="workspace-panel">
         <div class="sidebar-top">
-          <button type="button" class="icon-btn" id="sidebar-hide" title="收起侧栏"></button>
+          <button type="button" class="icon-btn" id="sidebar-hide" data-i18n-title="sidebar.collapse"></button>
         </div>
 
         <section class="sidebar-section" data-section="workspace" id="section-workspace">
           <header class="section-head">
             <span class="section-leading" id="icon-sec-workspace"></span>
-            <span class="section-title">工作区</span>
+            <span class="section-title" data-i18n="nav.workspace"></span>
             <div class="section-actions">
-              <button type="button" class="icon-btn" id="ws-new-file" title="新建文件"></button>
-              <button type="button" class="icon-btn" id="ws-new-folder" title="新建文件夹"></button>
-              <button type="button" class="icon-btn" id="ws-refresh" title="刷新"></button>
-              <button type="button" class="icon-btn section-toggle" data-section="workspace" title="折叠"></button>
+              <button type="button" class="icon-btn" id="ws-new-file" data-i18n-title="ws.newFile"></button>
+              <button type="button" class="icon-btn" id="ws-new-folder" data-i18n-title="ws.newFolder"></button>
+              <button type="button" class="icon-btn" id="ws-refresh" data-i18n-title="ws.refresh"></button>
+              <button type="button" class="icon-btn section-toggle" data-section="workspace" data-i18n-title="sidebar.fold"></button>
             </div>
           </header>
           <div class="section-body">
             <div class="ws-path" id="ws-path">.</div>
-            <nav class="file-tree" id="file-tree" aria-label="文件树"></nav>
+            <nav class="file-tree" id="file-tree" data-i18n-aria="nav.fileTree"></nav>
             <div id="tree-context-menu" class="tree-context-menu hidden" role="menu"></div>
           </div>
         </section>
@@ -87,10 +87,10 @@
         <section class="sidebar-section" data-section="projects" id="section-projects">
           <header class="section-head">
             <span class="section-leading" id="icon-sec-projects"></span>
-            <span class="section-title">项目</span>
+            <span class="section-title" data-i18n="nav.projects"></span>
             <div class="section-actions">
-              <button type="button" class="icon-btn" id="projects-refresh" title="刷新"></button>
-              <button type="button" class="icon-btn section-toggle" data-section="projects" title="折叠"></button>
+              <button type="button" class="icon-btn" id="projects-refresh" data-i18n-title="ws.refresh"></button>
+              <button type="button" class="icon-btn section-toggle" data-section="projects" data-i18n-title="sidebar.fold"></button>
             </div>
           </header>
           <div class="section-body">
@@ -101,10 +101,10 @@
         <section class="sidebar-section" data-section="conversations" id="section-conversations">
           <header class="section-head">
             <span class="section-leading" id="icon-sec-conversations"></span>
-            <span class="section-title">对话</span>
+            <span class="section-title" data-i18n="nav.conversations"></span>
             <div class="section-actions">
-              <button type="button" class="icon-btn" id="conv-new" title="新对话"></button>
-              <button type="button" class="icon-btn section-toggle" data-section="conversations" title="折叠"></button>
+              <button type="button" class="icon-btn" id="conv-new" data-i18n-title="conv.new"></button>
+              <button type="button" class="icon-btn section-toggle" data-section="conversations" data-i18n-title="sidebar.fold"></button>
             </div>
           </header>
           <div class="section-body">
@@ -113,47 +113,47 @@
         </section>
       </aside>
 
-      <!-- Code 模式：编辑器 -->
       <main class="editor-panel" id="editor-panel">
         <div class="tab-bar" id="tab-bar">
           <div class="tab-bar-tabs" id="tab-bar-tabs"></div>
           <div class="tab-bar-actions">
-            <button type="button" class="icon-btn" id="btn-terminal" title="终端"></button>
+            <button type="button" class="icon-btn" id="btn-terminal" data-i18n-title="terminal.title"></button>
           </div>
         </div>
         <div class="md-toolbar hidden" id="md-toolbar">
-          <button type="button" class="btn ghost sm" data-md-view="edit">编辑</button>
-          <button type="button" class="btn ghost sm" data-md-view="preview">预览</button>
+          <button type="button" class="btn ghost sm" data-md-view="edit" data-i18n="editor.mdEdit"></button>
+          <button type="button" class="btn ghost sm" data-md-view="preview" data-i18n="editor.mdPreview"></button>
         </div>
         <div class="editor-split" id="editor-split">
           <div class="editor-wrap" id="editor-wrap">
             <div id="monaco" class="monaco-host"></div>
             <div id="md-preview" class="md-preview hidden"></div>
             <div id="image-preview" class="image-preview hidden"></div>
+            <div id="doc-preview" class="doc-preview hidden"></div>
             <div id="app-preview" class="app-preview hidden">
               <div class="preview-toolbar">
-                <span id="preview-title">预览</span>
-                <button type="button" class="btn ghost sm" id="preview-stop">停止</button>
-                <button type="button" class="btn ghost sm" id="preview-newtab">新标签页</button>
+                <span id="preview-title" data-i18n="editor.preview"></span>
+                <button type="button" class="btn ghost sm" id="preview-stop" data-i18n="editor.stop"></button>
+                <button type="button" class="btn ghost sm" id="preview-newtab" data-i18n="editor.newTab"></button>
               </div>
-              <iframe id="preview-frame" title="项目预览" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+              <iframe id="preview-frame" data-i18n-title="editor.projectPreview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
             </div>
             <div class="editor-empty" id="editor-empty">
-              <p>从左侧工作区选择文件开始编辑</p>
-              <p class="hint">JupyterLab 风格 · 下方终端 · 右侧 Agent</p>
+              <p data-i18n="editor.pickFile"></p>
+              <p class="hint" data-i18n="editor.hint"></p>
             </div>
           </div>
           <div class="terminal-panel is-collapsed" id="terminal-panel">
-            <div class="terminal-resize-handle" id="terminal-resize-handle" title="拖动调整高度"></div>
+            <div class="terminal-resize-handle" id="terminal-resize-handle" data-i18n-title="terminal.resize"></div>
             <header class="terminal-toolbar">
-              <nav class="terminal-tabs" id="terminal-tabs" aria-label="终端标签"></nav>
+              <nav class="terminal-tabs" id="terminal-tabs" data-i18n-aria="terminal.tabs"></nav>
               <div class="terminal-actions">
-                <button type="button" class="icon-btn sm" id="terminal-new" title="新建终端 (Ctrl+Shift+`)"></button>
+                <button type="button" class="icon-btn sm" id="terminal-new" data-i18n-title="terminal.new"></button>
                 <div class="terminal-picker-wrap">
-                  <button type="button" class="icon-btn sm" id="terminal-picker" title="选择终端" aria-haspopup="true" aria-expanded="false"></button>
+                  <button type="button" class="icon-btn sm" id="terminal-picker" data-i18n-title="terminal.pick" aria-haspopup="true" aria-expanded="false"></button>
                   <div class="terminal-picker-menu hidden" id="terminal-picker-menu" role="menu"></div>
                 </div>
-                <button type="button" class="icon-btn" id="terminal-close" title="隐藏终端面板"></button>
+                <button type="button" class="icon-btn" id="terminal-close" data-i18n-title="terminal.hide"></button>
               </div>
             </header>
             <div class="terminal-hosts" id="terminal-hosts"></div>
@@ -161,37 +161,31 @@
         </div>
       </main>
 
-      <!-- Chat 模式：顶部智能体信息 -->
       <header class="chat-header" id="chat-header">
         <div class="chat-header-inner">
           <div id="chat-update-notice" class="chat-update-notice hidden" role="status" aria-live="polite">
             <p class="chat-update-text" id="chat-update-text"></p>
             <p class="chat-update-hint" id="chat-update-hint"></p>
-            <button type="button" class="btn primary sm" id="chat-update-upgrade">一键升级</button>
-            <button type="button" class="btn ghost sm" id="chat-update-dismiss">知道了</button>
+            <button type="button" class="btn primary sm" id="chat-update-upgrade" data-i18n="update.upgrade"></button>
+            <button type="button" class="btn ghost sm" id="chat-update-dismiss" data-i18n="update.gotIt"></button>
           </div>
           <div class="agent-profile" id="agent-profile">
             <div class="agent-avatar" aria-hidden="true">◆</div>
-            <h1 class="agent-title" id="agent-title">Coder 专家</h1>
-            <span class="agent-status" id="agent-status">就绪</span>
-            <p class="agent-desc" id="agent-desc">编程、调试与架构设计助手</p>
+            <h1 class="agent-title" id="agent-title"></h1>
+            <span class="agent-status" id="agent-status"></span>
+            <p class="agent-desc" id="agent-desc"></p>
               <div class="agent-meta" id="agent-meta"></div>
               <div class="agent-tags" id="agent-tags"></div>
               <div class="work-mode-bar" id="work-mode-bar">
-                <label class="work-mode-label" for="role-select">角色</label>
-                <select id="role-select" class="work-mode-select" title="选择智能体角色（persona 与进化记忆按角色隔离）">
-                  <option value="coder">编程专家</option>
-                </select>
-                <label class="work-mode-label" for="work-mode-select">工作模式</label>
-                <select id="work-mode-select" class="work-mode-select" title="自动识别或手动指定智能体工作模式">
-                  <option value="auto">自动识别</option>
-                </select>
+                <label class="work-mode-label" for="role-select" data-i18n="agent.role"></label>
+                <select id="role-select" class="work-mode-select" data-i18n-title="agent.roleTitle"></select>
+                <label class="work-mode-label" for="work-mode-select" data-i18n="agent.mode"></label>
+                <select id="work-mode-select" class="work-mode-select" data-i18n-title="agent.modeTitle"></select>
               </div>
             </div>
           </div>
         </header>
 
-      <!-- Chat 模式：对话消息区 -->
       <main class="chat-main" id="chat-main">
         <div class="chat-scroll">
           <div class="chat-center">
@@ -200,137 +194,135 @@
         </div>
       </main>
 
-      <!-- Agent 侧栏 -->
       <aside class="agent-panel" id="agent-panel">
         <div class="panel-head">
-          <span class="panel-title">Agent</span>
-          <button type="button" class="icon-btn" id="chat-clear" title="清空对话"></button>
+          <span class="panel-title" data-i18n="nav.agent"></span>
+          <button type="button" class="icon-btn" id="chat-clear" data-i18n-title="agent.clear"></button>
         </div>
         <div class="agent-messages" id="agent-messages"></div>
         <form class="composer" id="composer">
           <div class="context-bar" id="context-bar">
-            <label class="work-mode-inline" title="智能体角色">
-              <span class="work-mode-label">角色</span>
+            <label class="work-mode-inline" data-i18n-title="agent.role">
+              <span class="work-mode-label" data-i18n="agent.role"></span>
               <select id="role-agent" class="work-mode-select sm"></select>
             </label>
-            <label class="work-mode-inline" title="工作模式">
-              <span class="work-mode-label">模式</span>
+            <label class="work-mode-inline" data-i18n-title="agent.mode">
+              <span class="work-mode-label" data-i18n="agent.modeShort"></span>
               <select id="work-mode-agent" class="work-mode-select sm"></select>
             </label>
-            <label class="ctx-toggle" title="自动附带当前打开的文件内容">
+            <label class="ctx-toggle" data-i18n-title="agent.autoAttach">
               <input type="checkbox" id="ctx-auto" checked />
-              <span id="ctx-label">附带当前文件</span>
+              <span id="ctx-label" data-i18n="agent.attachFile"></span>
             </label>
-            <button type="button" class="btn ghost sm" id="btn-insert-file" title="插入 @当前文件">@文件</button>
-            <button type="button" class="btn ghost sm" id="btn-insert-sel" title="插入 @选中">@选中</button>
+            <button type="button" class="btn ghost sm" id="btn-insert-file" data-i18n-title="agent.insertFile" data-i18n="agent.insertFile"></button>
+            <button type="button" class="btn ghost sm" id="btn-insert-sel" data-i18n-title="agent.insertSel" data-i18n="agent.insertSel"></button>
           </div>
           <div class="attach-strip" id="attach-strip-agent"></div>
-          <textarea id="prompt" rows="3" placeholder="描述要如何修改当前代码… 例如：给游戏加个暂停按钮"></textarea>
+          <textarea id="prompt" rows="3" data-i18n-placeholder="agent.promptCode"></textarea>
           <div class="composer-actions">
             <input type="file" id="file-agent" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden />
-            <button type="button" class="btn ghost icon-only" id="btn-attach-agent" title="上传图片"></button>
-            <button type="button" class="btn ghost" id="btn-cancel">停止</button>
-            <button type="submit" class="btn primary" id="btn-send">发送</button>
+            <button type="button" class="btn ghost icon-only" id="btn-attach-agent" data-i18n-title="agent.upload"></button>
+            <button type="button" class="btn ghost" id="btn-cancel" data-i18n="agent.cancel"></button>
+            <button type="submit" class="btn primary" id="btn-send" data-i18n="agent.send"></button>
           </div>
         </form>
       </aside>
     </div>
 
-    <!-- Chat 模式底部输入 -->
     <div class="chat-composer-bar" id="chat-composer-bar">
       <div class="chat-composer-inner">
         <div class="attach-col">
           <div class="attach-strip" id="attach-strip-chat"></div>
-          <textarea id="prompt-chat" rows="2" placeholder="问我任何事… @文件 · 粘贴或上传图片"></textarea>
+          <textarea id="prompt-chat" rows="2" data-i18n-placeholder="agent.promptChat"></textarea>
         </div>
         <input type="file" id="file-chat" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden />
-        <button type="button" class="btn ghost icon-only" id="btn-attach-chat" title="上传图片"></button>
-        <button type="button" class="btn ghost icon-only" id="btn-clear-chat" title="清空"></button>
-        <button type="button" class="btn ghost" id="btn-cancel-chat" disabled>停止</button>
-        <button type="button" class="btn primary" id="btn-send-chat">发送</button>
+        <button type="button" class="btn ghost icon-only" id="btn-attach-chat" data-i18n-title="agent.upload"></button>
+        <button type="button" class="btn ghost icon-only" id="btn-clear-chat" data-i18n-title="agent.clearChat"></button>
+        <button type="button" class="btn ghost" id="btn-cancel-chat" disabled data-i18n="agent.cancel"></button>
+        <button type="button" class="btn primary" id="btn-send-chat" data-i18n="agent.send"></button>
       </div>
     </div>
   </div>
 
   <div id="ws-create-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
     <div class="approval-card ws-create-card">
-      <h3 class="approval-title" id="ws-create-title">新建</h3>
+      <h3 class="approval-title" id="ws-create-title" data-i18n="common.new"></h3>
       <p class="approval-summary" id="ws-create-hint"></p>
       <input type="text" class="ws-create-input" id="ws-create-input" autocomplete="off" spellcheck="false" />
       <p class="ws-create-error hidden" id="ws-create-error"></p>
       <div class="approval-actions">
-        <button type="button" class="btn ghost" id="ws-create-cancel">取消</button>
-        <button type="button" class="btn primary" id="ws-create-confirm">创建</button>
+        <button type="button" class="btn ghost" id="ws-create-cancel" data-i18n="common.cancel"></button>
+        <button type="button" class="btn primary" id="ws-create-confirm" data-i18n="common.create"></button>
       </div>
     </div>
   </div>
 
   <div id="model-settings-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
     <div class="approval-card model-settings-card">
-      <h3 class="approval-title">模型配置</h3>
+      <h3 class="approval-title" data-i18n="model.title"></h3>
       <p class="approval-summary" id="model-settings-scope-summary">
-        项目级配置优先于全局；当前生效：<code id="model-settings-active-scope">—</code>
+        <span data-i18n="model.scopeSummary"></span><code id="model-settings-active-scope">—</code>
       </p>
       <p class="model-layer-note" id="model-settings-layers"></p>
       <label class="model-field">
-        <span class="model-field-label">保存到</span>
+        <span class="model-field-label" data-i18n="model.saveTo"></span>
         <select id="model-settings-scope" class="work-mode-select">
-          <option value="project_local">项目本地 · .auc/settings.local.json</option>
-          <option value="project">项目共享 · .auc/settings.json</option>
-          <option value="global">全局 · ~/.Au/AuC/settings.json</option>
+          <option value="project_local" data-i18n="model.scope.local"></option>
+          <option value="project" data-i18n="model.scope.project"></option>
+          <option value="global" data-i18n="model.scope.global"></option>
         </select>
         <span class="model-field-hint" id="model-settings-scope-hint"></span>
       </label>
       <label class="model-field">
         <span class="model-field-label">Provider</span>
         <select id="model-settings-provider" class="work-mode-select">
-          <option value="openai">OpenAI 兼容</option>
-          <option value="anthropic">Anthropic 兼容</option>
+          <option value="openai" data-i18n="model.provider.openai"></option>
+          <option value="anthropic" data-i18n="model.provider.anthropic"></option>
           <option value="deepseek">DeepSeek</option>
         </select>
       </label>
       <label class="model-field">
-        <span class="model-field-label">模型 ID</span>
-        <input type="text" class="ws-create-input" id="model-settings-model" autocomplete="off" spellcheck="false" placeholder="例如 deepseek-chat" />
-        <span class="model-field-hint" id="model-settings-model-hint">AILab 网关请填 <code>DeepSeek</code>；官方 API 常用 deepseek-chat</span>
+        <span class="model-field-label" data-i18n="model.modelId"></span>
+        <input type="text" class="ws-create-input" id="model-settings-model" autocomplete="off" spellcheck="false" placeholder="deepseek-chat" />
+        <span class="model-field-hint" id="model-settings-model-hint" data-i18n="model.modelHint"></span>
       </label>
       <label class="model-field">
-        <span class="model-field-label">API Base URL</span>
+        <span class="model-field-label" data-i18n="model.baseUrl"></span>
         <div class="model-preset-row">
           <input type="text" class="ws-create-input" id="model-settings-base-url" autocomplete="off" spellcheck="false" placeholder="http://ailab.hcrdi.com/api" />
-          <button type="button" class="btn ghost sm" id="model-settings-ailab-preset" title="填入 AILab 网关模板">AILab</button>
+          <button type="button" class="btn ghost sm" id="model-settings-ailab-preset" title="AILab">AILab</button>
         </div>
       </label>
       <label class="model-field">
-        <span class="model-field-label">API Key</span>
+        <span class="model-field-label" data-i18n="model.apiKey"></span>
         <div class="model-secret-row">
-          <input type="password" class="ws-create-input model-secret-input" id="model-settings-api-key" autocomplete="off" spellcheck="false" placeholder="输入 API Key" />
-          <button type="button" class="icon-btn model-secret-toggle" id="model-settings-key-toggle" title="显示密钥" aria-label="显示密钥" aria-pressed="false"></button>
+          <input type="password" class="ws-create-input model-secret-input" id="model-settings-api-key" autocomplete="off" spellcheck="false" data-i18n-placeholder="model.keyPlaceholder" />
+          <button type="button" class="icon-btn model-secret-toggle" id="model-settings-key-toggle" data-i18n-title="model.showKey" data-i18n-aria="model.showKey" aria-pressed="false"></button>
         </div>
         <span class="model-field-hint" id="model-settings-key-hint"></span>
       </label>
       <p class="ws-create-error hidden" id="model-settings-error"></p>
       <div class="approval-actions">
-        <button type="button" class="btn ghost" id="model-settings-cancel">取消</button>
-        <button type="button" class="btn primary" id="model-settings-save">保存</button>
+        <button type="button" class="btn ghost" id="model-settings-cancel" data-i18n="common.cancel"></button>
+        <button type="button" class="btn primary" id="model-settings-save" data-i18n="common.save"></button>
       </div>
     </div>
   </div>
 
   <div id="approval-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
     <div class="approval-card">
-      <h3 class="approval-title">访问外部链接需授权</h3>
+      <h3 class="approval-title" data-i18n="approval.title"></h3>
       <p class="approval-summary" id="approval-summary"></p>
       <pre class="approval-url" id="approval-url"></pre>
-      <p class="approval-hint">批准后智能体才会发起网络请求；拒绝将中止本次操作。</p>
+      <p class="approval-hint" data-i18n="approval.hint"></p>
       <div class="approval-actions">
-        <button type="button" class="btn ghost" id="approval-deny">拒绝</button>
-        <button type="button" class="btn primary" id="approval-allow">允许访问</button>
+        <button type="button" class="btn ghost" id="approval-deny" data-i18n="approval.deny"></button>
+        <button type="button" class="btn primary" id="approval-allow" data-i18n="approval.allow"></button>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=32" type="module"></script>
+  <script src="/static/app.js?v=35" type="module"></script>
 </body>
 </html>

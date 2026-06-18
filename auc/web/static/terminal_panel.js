@@ -1,5 +1,7 @@
 /** Code 模式底部终端（VS Code 风格多标签 + xterm ESM + WebSocket PTY） */
 
+import { t } from "./i18n.js";
+
 const $ = (sel) => document.querySelector(sel);
 
 const XTERM_MOD = new URL("./vendor/xterm.esm.js?v=23", import.meta.url);
@@ -143,11 +145,11 @@ function connectSession(session) {
     session.socket = null;
     if (session.id === activeSessionId && isTerminalOpen() && !session.reconnectNotice) {
       session.reconnectNotice = true;
-      session.term.write("\r\n\x1b[33m[终端已断开，继续输入将自动重连]\x1b[0m\r\n");
+      session.term.write(`\r\n\x1b[33m[${t("terminal.disconnected")}]\x1b[0m\r\n`);
     }
   });
   socket.addEventListener("error", () => {
-    session.term.write("\r\n\x1b[31m[终端连接失败]\x1b[0m\r\n");
+    session.term.write(`\r\n\x1b[31m[${t("terminal.connectFail")}]\x1b[0m\r\n`);
   });
 }
 
@@ -185,7 +187,7 @@ async function createSession({ activate = true } = {}) {
   try {
     libs = await loadXtermLibs();
   } catch (err) {
-    showTerminalLoadError(`终端组件加载失败：${err?.message || err}。请硬刷新（Ctrl+Shift+R）后重试。`);
+    showTerminalLoadError(t("terminal.loadFail", { msg: err?.message || err }));
     return null;
   }
 
@@ -283,7 +285,7 @@ function renderTabs() {
     tab.title = session.title;
     tab.innerHTML =
       `<span class="terminal-tab-label">${session.title}</span>` +
-      `<span class="terminal-tab-close" aria-label="关闭终端" title="关闭">×</span>`;
+      `<span class="terminal-tab-close" aria-label="${t("terminal.close")}" title="${t("terminal.close")}">×</span>`;
     tab.addEventListener("click", (ev) => {
       if (ev.target.closest(".terminal-tab-close")) return;
       activateSession(session.id);
@@ -453,4 +455,6 @@ export function initTerminalPanel() {
   } else {
     panel.classList.add("is-collapsed");
   }
+
+  window.addEventListener("auc-locale-change", () => renderTabs());
 }

@@ -16,7 +16,9 @@ from auc.web.approval import WebApprovalPort
 from auc.web.conversations import ConversationStore, messages_for_ui
 from auc.web.session import WebSession
 from auc.multimodal import is_image_path, strip_images_for_memory
+from auc.web.documents import is_document_path, read_document_file
 from auc.web.preview import inject_preview_shim, is_html_path, media_type_for, resolve_preview_file
+from auc.sandbox import resolve_under_sandbox
 from auc.web.projects import discover_projects, project_to_dict
 from auc.web.runner import ProjectRunner
 from auc.version_check import print_update_notice, release_info
@@ -456,6 +458,8 @@ def create_app():  # noqa: ANN201
         try:
             if is_image_path(path):
                 data = read_image_file(session.sandbox, path)
+            elif is_document_path(path):
+                data = read_document_file(session.sandbox, path)
             else:
                 data = read_text_file(session.sandbox, path)
         except SandboxViolationError as exc:
@@ -465,6 +469,24 @@ def create_app():  # noqa: ANN201
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         return JSONResponse(data)
+
+    @app.get("/api/workspace/file/raw")
+    async def api_read_file_raw(path: str):  # noqa: ANN201
+        from fastapi.responses import FileResponse
+
+        session = _get_session()
+        try:
+            resolved = resolve_under_sandbox(session.sandbox, path)
+        except SandboxViolationError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        if not resolved.is_file():
+            raise HTTPException(404, "file not found")
+        return FileResponse(
+            resolved,
+            media_type=media_type_for(resolved),
+            filename=resolved.name,
+            headers={"Cache-Control": "no-cache"},
+        )
 
     @app.put("/api/workspace/file")
     async def api_write_file(request: Request) -> JSONResponse:
