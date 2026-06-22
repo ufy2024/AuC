@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Protocol
 
 from auc.messages import ToolResult
 from auc.types import ToolPrivilege
+
+logger = logging.getLogger("auc.tools")
 
 
 @dataclass
@@ -55,7 +58,52 @@ class FunctionTool:
     def parameters(self) -> dict[str, Any]:
         return self._parameters
 
+    def _validate_arguments(self, arguments: dict[str, Any]) -> str | None:
+        """对照函数签名校验参数：拒绝未知键、报告缺失必填项。返回错误信息或 None。"""
+        sig = inspect.signature(self._fn)
+        params = {
+            n: p
+            for n, p in sig.parameters.items()
+            if n not in ("self", "cls")
+        }
+        accepts_kwargs = any(
+            p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+        )
+        if not accepts_kwargs:
+            unknown = [k for k in arguments if k not in params]
+            if unknown:
+                return f"unexpected argument(s): {', '.join(sorted(unknown))}"
+        missing = [
+            n
+            for n, p in params.items()
+            if p.default is inspect.Parameter.empty
+            and p.kind
+            in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            )
+            and n not in arguments
+        ]
+        if missing:
+            return f"missing required argument(s): {', '.join(missing)}"
+        return None
+
     async def invoke(self, arguments: dict[str, Any]) -> ToolResult:
+        if not isinstance(arguments, dict):
+            return ToolResult(
+                tool_call_id="",
+                name=self._name,
+                content="arguments must be a JSON object",
+                is_error=True,
+            )
+        schema_err = self._validate_arguments(arguments)
+        if schema_err is not None:
+            return ToolResult(
+                tool_call_id="",
+                name=self._name,
+                content=schema_err,
+                is_error=True,
+            )
         try:
             result = self._fn(**arguments)
             if inspect.isawaitable(result):
@@ -66,11 +114,20 @@ class FunctionTool:
                 name=self._name,
                 content=content,
             )
-        except Exception as exc:  # noqa: BLE001
+        except (ValueError, FileNotFoundError, PermissionError, OSError) as exc:
+            # 预期内的用户/环境错误：原文反馈，便于模型自纠
             return ToolResult(
                 tool_call_id="",
                 name=self._name,
                 content=str(exc),
+                is_error=True,
+            )
+        except Exception:  # noqa: BLE001 非预期错误：记录完整栈，对模型泛化
+            logger.exception("tool %s raised an unexpected error", self._name)
+            return ToolResult(
+                tool_call_id="",
+                name=self._name,
+                content=f"internal error in tool {self._name}",
                 is_error=True,
             )
 

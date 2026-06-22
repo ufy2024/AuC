@@ -33,11 +33,18 @@ _interaction_store: dict[str, ApprovalDecision] = {}
 
 
 def register_qq_callback(data: str, *, decided_by: str = "qq") -> ApprovalDecision | None:
-    """供 Webhook 路由调用：解析 ``auc:approve|deny:<request_id>`` 并登记决策。"""
+    """供 Webhook 路由调用：解析 ``auc:approve|deny:<request_id>`` 并登记决策。
+
+    首条决策锁定：同一 ``request_id`` 已登记后，后续回调直接返回既有决策，
+    避免 approve/deny 争抢覆盖。
+    """
     parsed = parse_auc_callback(data)
     if parsed is None:
         return None
     action, request_id = parsed
+    existing = _interaction_store.get(request_id)
+    if existing is not None:
+        return existing
     approved = action == "approve"
     decision = ApprovalDecision(
         approved=approved,
@@ -46,6 +53,30 @@ def register_qq_callback(data: str, *, decided_by: str = "qq") -> ApprovalDecisi
     )
     _interaction_store[request_id] = decision
     return decision
+
+
+def verify_qq_signature(
+    secret: str,
+    body: bytes,
+    signature: str,
+    *,
+    timestamp: str = "",
+) -> bool:
+    """校验 QQ 官方 Webhook 的 HMAC 签名（Ed25519 不可用时退回 HMAC-SHA256）。
+
+    secret: client_secret；body: 原始请求体；signature: 头部签名（hex）。
+    """
+    import hashlib
+    import hmac
+
+    if not secret or not signature:
+        return False
+    mac = hmac.new(
+        secret.encode("utf-8"),
+        (timestamp.encode("utf-8") + body) if timestamp else body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(mac, signature.strip().lower())
 
 
 @dataclass
@@ -140,6 +171,13 @@ class QQApprovalPort(HttpImApprovalPort):
             json=params,
         )
         resp.raise_for_status()
+        try:
+            data = resp.json()
+        except Exception:  # noqa: BLE001 非 JSON 响应视为成功（部分 OneBot 实现）
+            return
+        status = data.get("status")
+        if status not in (None, "ok", "async"):
+            raise RuntimeError(f"OneBot send failed: {data}")
 
     async def request_approval(self, req: ApprovalRequest) -> str:
         text = format_approval_card(req)

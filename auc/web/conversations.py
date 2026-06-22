@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -166,10 +168,24 @@ class ConversationStore:
             return {"active_id": None, "conversations": []}
 
     def _write_index(self, data: dict[str, Any]) -> None:
-        self._index_path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        self._atomic_write_json(self._index_path, data)
+
+    @staticmethod
+    def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_name, path)
+        except Exception:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
 
     def _conv_path(self, conv_id: str) -> Path:
         return self.root / f"{conv_id}.json"
@@ -213,10 +229,7 @@ class ConversationStore:
             "updated_at": now,
             "messages": [],
         }
-        self._conv_path(conv_id).write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        self._atomic_write_json(self._conv_path(conv_id), payload)
         idx = self._read_index()
         rows = list(idx.get("conversations") or [])
         rows.insert(
@@ -269,10 +282,7 @@ class ConversationStore:
             "updated_at": now,
             "messages": [message_to_dict(m) for m in messages],
         }
-        path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        self._atomic_write_json(path, payload)
         summary = ConversationSummary(
             id=conv_id,
             title=title,

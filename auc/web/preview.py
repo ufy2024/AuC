@@ -40,6 +40,29 @@ def media_type_for(path: Path) -> str:
     return guessed or "application/octet-stream"
 
 
+def preview_security_headers() -> dict[str, str]:
+    """预览响应安全头：限制框架来源、禁用嗅探，收敛预览页的外联能力。
+
+    预览页仅在主应用同源 iframe 内展示，故 frame-ancestors 限定 'self'；
+    default-src 收敛到 self 以减小 stored XSS 横向触达 /api/* 的面。
+    """
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; "
+        "style-src 'self' 'unsafe-inline' https:; "
+        "img-src 'self' data: blob: https:; "
+        "font-src 'self' data: https:; "
+        "connect-src 'self' https: wss: ws:; "
+        "frame-ancestors 'self'"
+    )
+    return {
+        "Cache-Control": "no-cache",
+        "Content-Security-Policy": csp,
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-Content-Type-Options": "nosniff",
+    }
+
+
 def inject_preview_shim(html: str, run_id: str) -> str:
     """静态 /preview/ 页面注入 API/WS 转发，使绝对路径 /api、/ws 连到运行中的 backend。"""
     prefix = f"/proxy/{run_id}"

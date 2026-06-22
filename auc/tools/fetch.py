@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import socket
 from typing import Any
 from urllib.parse import urlparse
 
@@ -13,8 +14,17 @@ from auc.tools.base import ToolPolicy, tool_from_function
 _MAX_BYTES = 512_000
 _TIMEOUT_SEC = 20.0
 _USER_AGENT = "AuC-agent/1.0 (+local-sandbox)"
+_MAX_REDIRECTS = 8
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_BLOCKED_HOSTNAMES = frozenset(
+    {
+        "localhost",
+        "localhost.localdomain",
+        "metadata.google.internal",
+        "metadata.google",
+    }
+)
 
 
 def _require_httpx() -> Any:
@@ -27,23 +37,60 @@ def _require_httpx() -> Any:
     return httpx
 
 
-def _host_blocked(host: str) -> bool:
-    h = (host or "").strip().lower()
-    if h in ("localhost", "localhost.localdomain"):
+def _ip_blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return bool(
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+        or addr.is_unspecified
+    )
+
+
+def _hostname_blocked(host: str) -> bool:
+    h = (host or "").strip().lower().rstrip(".")
+    if not h:
+        return True
+    if h in _BLOCKED_HOSTNAMES:
         return True
     if h.endswith(".local") or h.endswith(".internal"):
         return True
     try:
-        addr = ipaddress.ip_address(h)
-        return bool(
-            addr.is_private
-            or addr.is_loopback
-            or addr.is_link_local
-            or addr.is_reserved
-            or addr.is_multicast
-        )
+        return _ip_blocked(ipaddress.ip_address(h))
     except ValueError:
-        pass
+        return False
+
+
+def _resolve_host_ips(host: str) -> list[str]:
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError(f"无法解析主机: {host}") from exc
+    ips: list[str] = []
+    for info in infos:
+        ip = info[4][0]
+        if ip not in ips:
+            ips.append(ip)
+    if not ips:
+        raise ValueError(f"无法解析主机: {host}")
+    return ips
+
+
+def _host_blocked(host: str) -> bool:
+    if _hostname_blocked(host):
+        return True
+    try:
+        ips = _resolve_host_ips(host)
+    except ValueError:
+        # DNS 不可用时仅依赖主机名规则（公网域名由连接阶段再失败）
+        return False
+    for ip in ips:
+        try:
+            if _ip_blocked(ipaddress.ip_address(ip)):
+                return True
+        except ValueError:
+            return True
     return False
 
 
@@ -61,6 +108,12 @@ def validate_fetch_url(url: str) -> str:
     return raw
 
 
+def _assert_request_url_allowed(url: str) -> None:
+    host = urlparse(url).hostname
+    if not host or _host_blocked(host):
+        raise ValueError(f"禁止访问内网/本机地址: {host or url}")
+
+
 def _html_to_text(html: str) -> str:
     text = _HTML_TAG_RE.sub(" ", html)
     text = re.sub(r"\s+", " ", text).strip()
@@ -76,10 +129,16 @@ def make_fetch_tool(sandbox_root: str) -> list[tuple[Any, ToolPolicy]]:
         url: 目标链接；save_path: 可选，保存到沙盒内相对路径。
         """
         safe_url = validate_fetch_url(url)
+
+        async def _guard_request(request: httpx.Request) -> None:  # type: ignore[name-defined]
+            _assert_request_url_allowed(str(request.url))
+
         async with httpx.AsyncClient(
             follow_redirects=True,
             timeout=_TIMEOUT_SEC,
             headers={"User-Agent": _USER_AGENT},
+            event_hooks={"request": [_guard_request]},
+            max_redirects=_MAX_REDIRECTS,
         ) as client:
             resp = await client.get(safe_url)
             final_host = urlparse(str(resp.url)).hostname or ""

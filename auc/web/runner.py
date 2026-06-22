@@ -161,7 +161,9 @@ class ProjectRunner:
                 str(port),
             ]
         elif project.kind == "python" and project.run_command:
-            cmd = project.run_command.split()
+            import shlex
+
+            cmd = shlex.split(project.run_command)
         else:
             cmd = ["python", "-m", "http.server", str(port), "--bind", "127.0.0.1"]
 
@@ -246,6 +248,7 @@ class ProjectRunner:
                         await inst.process.wait()
         inst.status = "stopped"
         self._by_project.pop(inst.project_id, None)
+        self._runs.pop(run_id, None)
         return True
 
     async def stop_all(self) -> None:

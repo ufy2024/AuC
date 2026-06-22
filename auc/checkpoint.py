@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import zlib
 from dataclasses import asdict, dataclass, field
@@ -20,6 +21,15 @@ from typing import Any, Literal
 from auc.sandbox import resolve_under_sandbox
 
 CheckpointOp = Literal["write", "delete", "shell"]
+
+_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
+
+
+def validate_run_id(run_id: str) -> str:
+    rid = (run_id or "").strip()
+    if not rid or not _RUN_ID_RE.match(rid):
+        raise ValueError(f"invalid run_id: {run_id!r}")
+    return rid
 
 
 @dataclass
@@ -49,7 +59,14 @@ class CheckpointStore:
         self._base = self._root / ".auc" / "checkpoints"
 
     def _run_dir(self, run_id: str) -> Path:
-        return self._base / run_id
+        safe_id = validate_run_id(run_id)
+        base = self._base.resolve()
+        path = (base / safe_id).resolve()
+        try:
+            path.relative_to(base)
+        except ValueError as exc:
+            raise ValueError(f"invalid run_id path: {run_id!r}") from exc
+        return path
 
     def _manifest(self, run_id: str) -> Path:
         return self._run_dir(run_id) / "manifest.jsonl"
@@ -89,6 +106,7 @@ class CheckpointStore:
         arguments: dict[str, Any],
     ) -> list[CheckpointEntry]:
         """写类工具放行后、invoke 前调用。返回新增的 manifest 条目。"""
+        validate_run_id(run_id)
         ts = datetime.now(timezone.utc).isoformat()
         entries: list[CheckpointEntry] = []
 
@@ -165,6 +183,7 @@ class CheckpointStore:
 
     def revert_to(self, run_id: str, step: int) -> RevertReport:
         """回滚到 `step` 之前的状态：逆序回放 manifest 中 step >= 目标 的条目。"""
+        validate_run_id(run_id)
         report = RevertReport(run_id=run_id, target_step=step)
         entries = [e for e in self.list_entries(run_id) if e.step >= step]
         for entry in reversed(entries):
@@ -176,7 +195,11 @@ class CheckpointStore:
                 continue
             if not entry.path:
                 continue
-            target = self._root / entry.path
+            try:
+                target = resolve_under_sandbox(str(self._root), entry.path)
+            except ValueError:
+                report.warnings.append(f"跳过非法路径: {entry.path}")
+                continue
             if entry.blob is None:
                 # 写前不存在 → 回滚 = 删除
                 if target.exists():

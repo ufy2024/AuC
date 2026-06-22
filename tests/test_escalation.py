@@ -43,6 +43,14 @@ def test_locked_rules_cannot_disable() -> None:
         assert any(r.name == locked for r in rules)
 
 
+def test_escalation_locked_pattern_cannot_be_weakened() -> None:
+    rules = merge_escalation_settings([{"name": "sudo", "pattern": "$^"}])
+    sudo = next(r for r in rules if r.name == "sudo")
+    assert sudo.pattern == r"\bsudo\b|\bsu\s"
+    rule = check_escalation("run_command", {"command": "sudo apt install"}, rules)
+    assert rule is not None and rule.name == "sudo"
+
+
 def test_settings_add_custom_rule() -> None:
     rules = merge_escalation_settings(
         [{"name": "docker-prune", "pattern": r"\bdocker\s+system\s+prune\b", "reason": "清容器"}]

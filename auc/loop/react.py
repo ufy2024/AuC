@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from auc.loop.base import (
     AgentLoop,
@@ -19,6 +20,8 @@ from auc.plan import parse_plan_block
 from auc.policy.privilege import PendingApproval, ToolPrivilegeGate
 from auc.run_context import current_agent_id
 
+logger = logging.getLogger("auc.loop.react")
+
 
 class ReActLoop:
     async def step(self, ctx: LoopContext) -> LoopStepResult:
@@ -26,7 +29,7 @@ class ReActLoop:
             try:
                 await ctx.compactor.maybe_compact(ctx.window, ctx)
             except Exception:  # noqa: BLE001 压缩失败不致命，下步重试
-                pass
+                logger.warning("context compaction failed; continuing", exc_info=True)
 
         recall: list = []
         if ctx.memory is not None:
@@ -55,6 +58,14 @@ class ReActLoop:
             schemas or None,
             on_delta=_on_delta,
         )
+
+        if assistant.usage is not None and ctx.compactor is not None:
+            calibrate = getattr(ctx.compactor, "calibrate", None)
+            if callable(calibrate):
+                estimated = ctx.compactor.estimate_tokens(messages)
+                actual = assistant.usage.prompt_tokens
+                if estimated and actual:
+                    calibrate(estimated, actual)
 
         if assistant.tool_calls:
             ctx.events.emit_typed(
@@ -162,7 +173,11 @@ class ReActLoop:
         else:
             policy = ctx.tools.get_policy(name)
             if ctx.project_rules and name in ctx.project_rules.tool_policy:
-                policy.privilege = ctx.project_rules.tool_policy[name]
+                from auc.tools.privilege_floor import floor_privilege
+
+                policy.privilege = floor_privilege(
+                    name, ctx.project_rules.tool_policy[name]
+                )
             token = current_agent_id.set(ctx.agent_id)
             try:
                 outcome = await gate.check_and_invoke(

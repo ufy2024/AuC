@@ -7,8 +7,9 @@ from typing import Any, AsyncIterator
 
 from auc.messages import ChatMessage, ToolCall
 from auc.multimodal import openai_message_content
-from auc.model.client import AssistantMessage, ModelClient, StreamChunk
+from auc.model.client import AssistantMessage, StreamChunk, TokenUsage
 from auc.model.json_util import PARSE_ERROR_KEY, safe_parse_tool_input
+from auc.model.retry import make_timeout, with_retry
 from auc.tools.base import ToolSchema
 
 try:
@@ -115,7 +116,7 @@ class OpenAICompatibleClient:
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
                 },
-                timeout=self.timeout,
+                timeout=make_timeout(self.timeout),
             )
         return self._client
 
@@ -127,14 +128,25 @@ class OpenAICompatibleClient:
         client = self._get_client()
         body = self._build_body(messages, tools, stream=False)
 
-        resp = await client.post("/chat/completions", json=body)
-        resp.raise_for_status()
-        data = resp.json()
-        choice = data["choices"][0]["message"]
+        async def _do() -> Any:
+            resp = await client.post("/chat/completions", json=body)
+            resp.raise_for_status()
+            return resp.json()
+
+        data = await with_retry(_do, label="openai")
+        if data.get("error"):
+            err = data["error"]
+            msg = err.get("message") if isinstance(err, dict) else str(err)
+            raise RuntimeError(f"OpenAI API error: {msg}")
+        choices = data.get("choices") or []
+        if not choices:
+            raise RuntimeError("OpenAI API returned no choices")
+        choice = choices[0]["message"]
         return AssistantMessage(
             content=choice.get("content"),
             tool_calls=_parse_tool_calls(choice.get("tool_calls")),
             raw=data,
+            usage=TokenUsage.from_api(data.get("usage")),
         )
 
     def _build_body(
@@ -178,6 +190,13 @@ class OpenAICompatibleClient:
                     data = json.loads(payload)
                 except json.JSONDecodeError:
                     continue
+                if data.get("error"):
+                    err = data["error"]
+                    msg = err.get("message") if isinstance(err, dict) else str(err)
+                    raise RuntimeError(f"OpenAI API error: {msg}")
+                usage = TokenUsage.from_api(data.get("usage"))
+                if usage is not None:
+                    yield StreamChunk(usage=usage)
                 for choice in data.get("choices") or []:
                     delta = choice.get("delta") or {}
                     text = delta.get("content")

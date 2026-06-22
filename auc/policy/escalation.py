@@ -24,8 +24,11 @@ DEFAULT_ESCALATIONS: list[EscalationRule] = [
     EscalationRule("chmod-x", r"\bchmod\s+[0-7]*7[0-7]*\s", "危险权限"),
 ]
 
-# 安全底线：这些内置规则不可被用户配置关闭
+# 安全底线：这些内置规则不可被用户配置关闭或弱化 pattern
 LOCKED_RULES = frozenset({"sudo", "pipe-sh", "dot-auc"})
+LOCKED_PATTERNS: dict[str, str] = {
+    r.name: r.pattern for r in DEFAULT_ESCALATIONS if r.name in LOCKED_RULES
+}
 
 # 命令文本可能出现的参数键（run_command 用 command；git 类工具留扩展）
 _COMMAND_KEYS = ("command",)
@@ -75,6 +78,13 @@ def merge_escalation_settings(
                 rules.pop(name, None)
             continue
         base = rules.get(name)
+        if name in LOCKED_RULES:
+            rules[name] = EscalationRule(
+                name=name,
+                pattern=LOCKED_PATTERNS[name],
+                reason=str(item.get("reason") or (base.reason if base else name)),
+            )
+            continue
         rules[name] = EscalationRule(
             name=name,
             pattern=str(item.get("pattern") or (base.pattern if base else "")),

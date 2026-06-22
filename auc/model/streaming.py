@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import inspect
-import json
 from collections.abc import Callable
 from typing import Any
 
 from auc.messages import ToolCall
-from auc.model.client import AssistantMessage, ModelClient, StreamChunk
+from auc.model.client import AssistantMessage, ModelClient, TokenUsage
+from auc.model.json_util import PARSE_ERROR_KEY, safe_parse_tool_input
 from auc.tools.base import ToolSchema
 
 OnDelta = Callable[[str], object]
@@ -23,8 +23,11 @@ async def stream_to_assistant(
     content_parts: list[str] = []
     thinking_parts: list[str] = []
     tool_acc: dict[int, dict[str, Any]] = {}
+    usage: TokenUsage | None = None
 
     async for chunk in model.complete_stream(messages, tools=tools):
+        if chunk.usage is not None:
+            usage = chunk.usage
         if chunk.delta_thinking:
             thinking_parts.append(chunk.delta_thinking)
         if chunk.delta_content:
@@ -46,6 +49,7 @@ async def stream_to_assistant(
         content=content,
         tool_calls=tool_calls,
         thinking=thinking,
+        usage=usage,
     )
 
 
@@ -78,7 +82,14 @@ def _tool_acc_to_list(acc: dict[int, dict[str, Any]]) -> list[ToolCall]:
         args = entry.get("_args_dict")
         if args is None:
             raw = entry.get("arguments") or "{}"
-            args = json.loads(raw) if isinstance(raw, str) and raw else {}
+            name = str(entry.get("name") or "")
+            if isinstance(raw, str) and raw:
+                try:
+                    args = safe_parse_tool_input(raw, tool_name=name)
+                except ValueError as exc:
+                    args = {PARSE_ERROR_KEY: str(exc)}
+            else:
+                args = {}
         out.append(
             ToolCall(
                 id=str(entry.get("id") or f"call_{idx}"),

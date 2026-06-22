@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from auc.context.pairing import group_boundaries
 from auc.context.window import ContextWindow
 from auc.messages import ChatMessage
 from auc.model.client import ModelClient
@@ -55,25 +56,6 @@ def estimate_message_tokens(msg: ChatMessage) -> int:
 
 def estimate_tokens(messages: list[ChatMessage]) -> int:
     return sum(estimate_message_tokens(m) for m in messages)
-
-
-def _group_boundaries(messages: list[ChatMessage]) -> list[int]:
-    """返回安全分割点索引集合：在这些下标处切分不会拆散
-    「assistant(tool_calls) + 对应 tool 结果」组。"""
-    boundaries: list[int] = []
-    i = 0
-    n = len(messages)
-    while i < n:
-        msg = messages[i]
-        if msg.role == "assistant" and msg.tool_calls:
-            j = i + 1
-            while j < n and messages[j].role == "tool":
-                j += 1
-            i = j
-        else:
-            i += 1
-        boundaries.append(i)
-    return boundaries
 
 
 class SummarizingCompactor:
@@ -172,7 +154,7 @@ class SummarizingCompactor:
 
         # 压缩段 = 首条 user 之后到「保留近期消息」之前；边界对齐到工具组末尾
         target_end = len(messages) - cfg.keep_recent_steps
-        boundaries = _group_boundaries(messages)
+        boundaries = group_boundaries(messages)
         end = max(
             (b for b in boundaries if head_idx < b <= target_end),
             default=None,

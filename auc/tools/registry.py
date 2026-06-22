@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from auc.tools.privilege_floor import floor_privilege
 from auc.tools.base import Tool, ToolPolicy, ToolSchema
 from auc.types import ToolPrivilege
 
@@ -55,10 +56,11 @@ class DefaultToolRegistry:
         for name, priv in overrides.items():
             if name in self._policies:
                 old = self._policies[name]
+                effective = floor_privilege(name, priv)
                 self._policies[name] = ToolPolicy(
                     name=name,
-                    privilege=priv,
-                    sandbox_only=priv == "L2",
+                    privilege=effective,
+                    sandbox_only=effective == "L2",
                     mutates_files=old.mutates_files,
                     mutates_state=old.mutates_state,
                 )

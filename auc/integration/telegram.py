@@ -117,7 +117,7 @@ class TelegramApprovalPort(HttpImApprovalPort):
                 ]
             ]
         }
-        await client.post(
+        resp = await client.post(
             self._api("sendMessage"),
             json={
                 "chat_id": self.chat_id,
@@ -125,6 +125,15 @@ class TelegramApprovalPort(HttpImApprovalPort):
                 "reply_markup": keyboard,
             },
         )
+        resp.raise_for_status()
+        try:
+            data = resp.json()
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(f"Telegram sendMessage 无效响应: {exc}") from exc
+        if not data.get("ok"):
+            raise RuntimeError(
+                f"Telegram sendMessage 失败: {data.get('description') or data}"
+            )
         return req.request_id
 
     async def wait_decision(

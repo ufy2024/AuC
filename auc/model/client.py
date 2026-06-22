@@ -8,11 +8,38 @@ from auc.tools.base import ToolSchema
 
 
 @dataclass
+class TokenUsage:
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+    @classmethod
+    def from_api(cls, raw: dict[str, Any] | None) -> "TokenUsage | None":
+        if not isinstance(raw, dict):
+            return None
+        prompt = int(
+            raw.get("prompt_tokens")
+            or raw.get("input_tokens")
+            or 0
+        )
+        completion = int(
+            raw.get("completion_tokens")
+            or raw.get("output_tokens")
+            or 0
+        )
+        total = int(raw.get("total_tokens") or (prompt + completion))
+        if not (prompt or completion or total):
+            return None
+        return cls(prompt_tokens=prompt, completion_tokens=completion, total_tokens=total)
+
+
+@dataclass
 class AssistantMessage:
     content: str | None
     tool_calls: list[ToolCall] | None
     raw: dict[str, Any] | None = None
     thinking: str | None = None
+    usage: TokenUsage | None = None
 
 
 @dataclass
@@ -21,6 +48,7 @@ class StreamChunk:
     delta_thinking: str | None = None
     delta_tool_calls: list[ToolCall] | None = None
     finish_reason: str | None = None
+    usage: TokenUsage | None = None
 
 
 class ModelClient(Protocol):

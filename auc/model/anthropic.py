@@ -7,7 +7,8 @@ from typing import Any, AsyncIterator
 
 from auc.messages import ChatMessage, ToolCall
 from auc.multimodal import anthropic_user_content
-from auc.model.client import AssistantMessage, StreamChunk
+from auc.model.client import AssistantMessage, StreamChunk, TokenUsage
+from auc.model.retry import make_timeout, with_retry
 from auc.model.deepseek_anthropic import (
     deepseek_request_extra,
     inject_assistant_thinking_block,
@@ -194,7 +195,12 @@ def _parse_anthropic_response(data: dict[str, Any]) -> AssistantMessage:
         tool_calls=tool_calls or None,
         raw=data,
         thinking=thinking if thinking or tool_calls else None,
+        usage=TokenUsage.from_api(data.get("usage")),
     )
+
+
+async def _wrap_anthropic(func: Any) -> Any:
+    return await with_retry(func, label="anthropic")
 
 
 @dataclass
@@ -232,7 +238,7 @@ class AnthropicClient:
             self._client = httpx.AsyncClient(
                 base_url=self.base_url.rstrip("/"),
                 headers=headers,
-                timeout=self.timeout,
+                timeout=make_timeout(self.timeout),
             )
         return self._client
 
@@ -279,14 +285,20 @@ class AnthropicClient:
     ) -> AssistantMessage:
         client = self._get_client()
         body = self._build_body(messages, tools, stream=False)
-        resp = await client.post("/v1/messages", json=body)
-        try:
+
+        async def _do() -> Any:
+            resp = await client.post("/v1/messages", json=body)
             resp.raise_for_status()
+            return resp.json()
+
+        try:
+            data = await _wrap_anthropic(_do)
         except Exception as exc:  # noqa: BLE001
-            if hasattr(resp, "status_code") and isinstance(resp.status_code, int):
+            resp = getattr(exc, "response", None)
+            if resp is not None and isinstance(getattr(resp, "status_code", None), int):
                 await self._raise_api_error(resp)
             raise exc
-        return _parse_anthropic_response(resp.json())
+        return _parse_anthropic_response(data)
 
     async def complete_stream(
         self,
@@ -365,7 +377,15 @@ class AnthropicClient:
                             )
                         except ValueError:
                             pass
+                elif event_type == "message_start":
+                    msg_usage = (data.get("message") or {}).get("usage")
+                    usage = TokenUsage.from_api(msg_usage)
+                    if usage is not None:
+                        yield StreamChunk(usage=usage)
                 elif event_type == "message_delta":
+                    usage = TokenUsage.from_api(data.get("usage"))
+                    if usage is not None:
+                        yield StreamChunk(usage=usage)
                     stop = (data.get("delta") or {}).get("stop_reason")
                     if stop:
                         yield StreamChunk(finish_reason=stop)
@@ -395,7 +415,6 @@ class AnthropicClient:
             yield StreamChunk(
                 delta_tool_calls=calls,
                 finish_reason="tool_use",
-                delta_thinking="".join(thinking_parts) or None,
             )
 
     async def aclose(self) -> None:

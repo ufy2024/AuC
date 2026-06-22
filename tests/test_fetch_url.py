@@ -151,7 +151,7 @@ def test_fetch_url_redirect_to_internal_blocked(monkeypatch: pytest.MonkeyPatch)
         monkeypatch.setattr(httpx, "AsyncClient", patched)
         res = asyncio.run(tool.invoke({"url": "https://example.com/r"}))
         assert res.is_error is True
-        assert "重定向目标被禁止" in res.content
+        assert "127.0.0.1" in res.content
 
 
 def test_fetch_url_truncates_large_body(monkeypatch: pytest.MonkeyPatch) -> None:

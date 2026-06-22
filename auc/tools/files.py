@@ -4,8 +4,15 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from auc.sandbox import resolve_under_sandbox
+from auc.sandbox import (
+    DEFAULT_MAX_READ_BYTES,
+    assert_not_hardlink_escape,
+    assert_within_size_limit,
+    resolve_under_sandbox,
+)
 from auc.tools.base import ToolPolicy, tool_from_function
+
+_MAX_WRITE_BYTES = 5_000_000
 
 
 def make_file_tools(
@@ -16,10 +23,16 @@ def make_file_tools(
 
     def _read(path: str) -> str:
         resolved = resolve_under_sandbox(sandbox_root, path)
+        assert_not_hardlink_escape(resolved, sandbox_root)
+        assert_within_size_limit(resolved, DEFAULT_MAX_READ_BYTES)
         return resolved.read_text(encoding="utf-8")
 
     def _write(path: str, content: str, append: bool = False) -> str:
         resolved = resolve_under_sandbox(sandbox_root, path)
+        if len(content.encode("utf-8")) > _MAX_WRITE_BYTES:
+            raise ValueError(
+                f"content too large: exceeds {_MAX_WRITE_BYTES} bytes; write in chunks"
+            )
         resolved.parent.mkdir(parents=True, exist_ok=True)
         # 模型可能以字符串形式传布尔值
         if isinstance(append, str):

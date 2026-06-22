@@ -4,7 +4,7 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
-**v0.2.13** — 修复国内镜像未同步时 Web 一键升级失败；v0.2.12 Web 文档预览与中英文切换。
+**v0.2.14** — 安全与健壮性加固：HTTP 重试/超时细分、token 用量校准、DeepSeek 按 base_url 选型、硬链接逃逸防护、预览页 CSP、QQ/Telegram 签名与响应校验、工具参数校验与错误泛化。v0.2.13 修复国内镜像未同步时 Web 一键升级失败。
 
 [![CI](https://github.com/ufy2024/AuC/actions/workflows/ci.yml/badge.svg)](https://github.com/ufy2024/AuC/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/ufy-auc)](https://pypi.org/project/ufy-auc/)
@@ -147,7 +147,7 @@ asyncio.run(main())
 
 ```bash
 pip install -e ".[dev]"
-pytest -q                                    # 267 项用例
+pytest -q                                    # 347 项用例
 pytest -q --cov=auc --cov-fail-under=75    # CI 同款（当前约 80%）
 ruff check auc tests
 ```

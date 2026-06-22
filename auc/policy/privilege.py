@@ -90,6 +90,12 @@ class ToolPrivilegeGate:
     ) -> ToolResult | PendingApproval:
         sandbox_root = ctx.project_rules.sandbox_root if ctx.project_rules else None
 
+        # 以注册表 canonical policy 为准（防止 merge 降权绕过 L3）
+        try:
+            policy = ctx.tools.get_policy(tool.name)
+        except KeyError:
+            pass
+
         # 1) escalation：危险命令本次调用按 L3 走审批
         effective_privilege = policy.privilege
         risk_override: str | None = None

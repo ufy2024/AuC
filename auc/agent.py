@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -227,6 +228,9 @@ class DefaultAgent:
                         Path(str(repo_root)) if repo_root else Path(sandbox),
                     )
                 except Exception:  # noqa: BLE001
+                    logging.getLogger("auc.agent").warning(
+                        "failed to load settings for role resolution", exc_info=True
+                    )
                     settings = {}
             catalog = load_role_catalog(sandbox=sandbox, settings=settings)
             rid = catalog.resolve(str(role_id))

@@ -12,6 +12,19 @@ from auc.web.documents import is_document_path, read_document_file
 from auc.web.preview import is_html_path, media_type_for
 from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 
+
+def _reject_auc_metadata_path(rel_path: str) -> None:
+    norm = Path(rel_path).as_posix().replace("\\", "/")
+    while norm.startswith("./"):
+        norm = norm[2:]
+    if norm == ".auc" or norm.startswith(".auc/"):
+        raise SandboxViolationError("路径 .auc/ 为框架元数据，禁止通过 workspace API 访问")
+
+
+def _resolve_workspace_path(sandbox_root: str, rel_path: str) -> Path:
+    _reject_auc_metadata_path(rel_path)
+    return resolve_under_sandbox(sandbox_root, rel_path)
+
 EntryType = Literal["file", "dir"]
 
 
@@ -30,6 +43,7 @@ class WorkspaceTree:
 
 
 def list_tree(sandbox_root: str, subpath: str = ".") -> WorkspaceTree:
+    _reject_auc_metadata_path(subpath)
     resolved = resolve_under_sandbox(sandbox_root, subpath)
     if not resolved.is_dir():
         raise FileNotFoundError(f"not a directory: {subpath}")
@@ -66,7 +80,7 @@ def read_image_file(sandbox_root: str, rel_path: str) -> dict[str, object]:
 
 
 def read_text_file(sandbox_root: str, rel_path: str) -> dict[str, object]:
-    resolved = resolve_under_sandbox(sandbox_root, rel_path)
+    resolved = _resolve_workspace_path(sandbox_root, rel_path)
     if not resolved.is_file():
         raise FileNotFoundError(rel_path)
     content = resolved.read_text(encoding="utf-8", errors="replace")
@@ -79,7 +93,7 @@ def read_text_file(sandbox_root: str, rel_path: str) -> dict[str, object]:
 
 
 def write_text_file(sandbox_root: str, rel_path: str, content: str) -> dict[str, object]:
-    resolved = resolve_under_sandbox(sandbox_root, rel_path)
+    resolved = _resolve_workspace_path(sandbox_root, rel_path)
     resolved.parent.mkdir(parents=True, exist_ok=True)
     resolved.write_text(content, encoding="utf-8")
     return {"path": rel_path, "size": len(content.encode("utf-8"))}
@@ -87,6 +101,7 @@ def write_text_file(sandbox_root: str, rel_path: str, content: str) -> dict[str,
 
 def delete_path(sandbox_root: str, rel_path: str) -> dict[str, object]:
     root = Path(sandbox_root).resolve()
+    _reject_auc_metadata_path(rel_path)
     resolved = resolve_under_sandbox(sandbox_root, rel_path)
     if resolved == root:
         raise ValueError("cannot delete sandbox root")
@@ -103,6 +118,8 @@ def delete_path(sandbox_root: str, rel_path: str) -> dict[str, object]:
 
 def rename_path(sandbox_root: str, rel_path: str, new_path: str) -> dict[str, object]:
     root = Path(sandbox_root).resolve()
+    _reject_auc_metadata_path(rel_path)
+    _reject_auc_metadata_path(new_path)
     src = resolve_under_sandbox(sandbox_root, rel_path)
     dst = resolve_under_sandbox(sandbox_root, new_path)
     if src == root:
@@ -119,6 +136,7 @@ def rename_path(sandbox_root: str, rel_path: str, new_path: str) -> dict[str, ob
 
 
 def create_directory(sandbox_root: str, rel_path: str) -> dict[str, object]:
+    _reject_auc_metadata_path(rel_path)
     resolved = resolve_under_sandbox(sandbox_root, rel_path)
     if resolved.exists():
         raise FileExistsError(rel_path)

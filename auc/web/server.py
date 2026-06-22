@@ -12,12 +12,19 @@ from auc import __version__
 from auc.config import load_model_config
 from auc.integration.evolution import evolution_paths
 from auc.roles import load_role_catalog, role_evolution_paths
+from auc.web.auth import extract_request_token, token_ok
 from auc.web.approval import WebApprovalPort
 from auc.web.conversations import ConversationStore, messages_for_ui
 from auc.web.session import WebSession
 from auc.multimodal import is_image_path, strip_images_for_memory
 from auc.web.documents import is_document_path, read_document_file
-from auc.web.preview import inject_preview_shim, is_html_path, media_type_for, resolve_preview_file
+from auc.web.preview import (
+    inject_preview_shim,
+    is_html_path,
+    media_type_for,
+    preview_security_headers,
+    resolve_preview_file,
+)
 from auc.sandbox import resolve_under_sandbox
 from auc.web.projects import discover_projects, project_to_dict
 from auc.web.runner import ProjectRunner
@@ -116,6 +123,16 @@ def create_app():  # noqa: ANN201
 
     app = FastAPI(title="AuC Web", version=__version__, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
+
+    @app.middleware("http")
+    async def web_auth_middleware(request: Request, call_next):  # noqa: ANN001
+        expected = _state.get("web_token")
+        path = request.url.path
+        if expected and path.startswith("/api/"):
+            provided = extract_request_token(request.headers)
+            if not token_ok(expected, provided):
+                return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        return await call_next(request)
 
     @app.get("/")
     async def index() -> FileResponse:
@@ -318,13 +335,13 @@ def create_app():  # noqa: ANN201
                 body = inject_preview_shim(html, inst.run_id)
                 return HTMLResponse(
                     content=body,
-                    headers={"Cache-Control": "no-cache"},
+                    headers=preview_security_headers(),
                 )
 
         return FileResponse(
             resolved,
             media_type=media_type_for(resolved),
-            headers={"Cache-Control": "no-cache"},
+            headers=preview_security_headers(),
         )
 
     async def _bridge_websocket(websocket, backend_uri: str | None, *, err: str | None) -> None:  # noqa: ANN001
@@ -822,13 +839,28 @@ def create_app():  # noqa: ANN201
     @app.post("/api/chat/stream")
     async def api_chat_stream(request: Request) -> StreamingResponse:
         session = _get_session()
+
+        def _sse(obj: dict[str, Any]) -> str:
+            return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+        if session.active_run_id:
+            async def _busy():  # noqa: ANN202
+                yield _sse(
+                    {
+                        "type": "error",
+                        "payload": {
+                            "message": "对话生成中，请等待完成或取消",
+                            "code": "run_in_progress",
+                        },
+                    }
+                )
+
+            return StreamingResponse(_busy(), media_type="text/event-stream")
+
         try:
             body: Any = await request.json()
         except Exception as exc:  # noqa: BLE001
             body = {"__parse_error__": str(exc)}
-
-        def _sse(obj: dict[str, Any]) -> str:
-            return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
         async def _gen():  # noqa: ANN202
             result = None
@@ -1110,6 +1142,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="auc-web", description="AuC Web UI")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--token", default=None, help="Web API token (required for non-local bind)")
     parser.add_argument("--sandbox", default="", help="Workspace root")
     parser.add_argument("--repo", default="", help="Repo root for .aurules")
     parser.add_argument("--config", "-c", default=None)
@@ -1140,12 +1173,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     init_web_state(sandbox=sandbox, repo=repo, cfg=cfg, evolve=not args.no_evolve)
 
+    from auc.web.auth import require_web_token
+
+    web_token = require_web_token(args.host, args.token)
+    _state["web_token"] = web_token
+
     app = create_app()
     print(
         f"AuC Web → http://{args.host}:{args.port}  "
         f"workspace: {short_display_path(_state['session'].sandbox)}",
         flush=True,
     )
+    if web_token:
+        print(f"AuC Web API token: {web_token}", flush=True)
     print_update_notice()
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
