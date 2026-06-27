@@ -170,7 +170,7 @@ CI：GitHub Actions，Python 3.11 / 3.12，覆盖率门槛 ≥75%。
 | `docs/model-config.md` | OpenAI / Anthropic / DeepSeek 配置 |
 | `docs/tool-privilege.md` | L1/L2/L3 工具权限 |
 | `docs/aum-compatibility.md` | AuM 联调与版本 |
-| `docs/test-report.md` | 测试报告与覆盖率 |
+| `docs/test-reports/` | 测试报告与覆盖率（按日期归档） |
 
 ## 路线图
 
