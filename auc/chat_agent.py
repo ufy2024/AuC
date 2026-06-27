@@ -24,9 +24,12 @@ from auc.roles import (
 )
 from auc.tools.fetch import make_fetch_tool
 from auc.tools.files import make_file_tools
+from auc.tools.git import make_git_tools
+from auc.tools.index_tools import make_index_tools
 from auc.tools.search import make_search_tools
 from auc.tools.roles import make_role_tools
 from auc.tools.shell import make_shell_tool
+from auc.tools.todos import make_todos_tool
 
 if TYPE_CHECKING:
     from auc.ports.approval import ApprovalPort
@@ -66,6 +69,7 @@ class ChatAgentOptions:
     max_steps: int = 40
     include_work_mode: bool = True
     role_id: str | None = None
+    enable_subagents: bool = True  # R13：是否注册 spawn_subagent（子 Run 自身关闭）
 
 
 def resolve_sandbox_root(*, sandbox: str | None = None, repo: str | None = None) -> str:
@@ -91,14 +95,31 @@ def build_chat_agent(
         settings = {}
     catalog = load_role_catalog(sandbox=sandbox, settings=settings)
     role_id = catalog.resolve(opts.role_id or str(settings.get("role") or DEFAULT_ROLE_ID))
-    memory = (
-        EvolutionMemoryPort(sandbox_root=sandbox, default_role_id=role_id)
-        if opts.evolve and not opts.no_tools
-        else None
-    )
+    if opts.evolve and not opts.no_tools:
+        from auc.skills import SkillStore
+
+        memory = EvolutionMemoryPort(
+            sandbox_root=sandbox,
+            default_role_id=role_id,
+            skill_store=SkillStore(sandbox),
+        )
+    else:
+        memory = None
     shell_settings = settings.get("shell") or {}
-    registry = DefaultToolRegistry()
-    if not opts.no_tools:
+    gate = ToolPrivilegeGate(
+        approval=approval,
+        escalation_rules=merge_escalation_settings(settings.get("escalations")),
+    )
+    model = create_model_client(cfg)
+    compaction = settings.get("compaction") or {}
+    from auc.hooks import load_hooks
+
+    hooks = load_hooks(settings, sandbox)
+
+    def _build_base_registry() -> DefaultToolRegistry:
+        registry = DefaultToolRegistry()
+        if opts.no_tools:
+            return registry
         for tool, pol in make_file_tools(sandbox):
             registry.register(tool, pol)
         shell_tool, shell_pol = make_shell_tool(
@@ -116,19 +137,60 @@ def build_chat_agent(
             registry.register(tool, pol)
         for tool, pol in make_fetch_tool(sandbox):
             registry.register(tool, pol)
+        todos_tool, todos_pol = make_todos_tool()
+        registry.register(todos_tool, todos_pol)
+        for tool, pol in make_git_tools(sandbox):
+            registry.register(tool, pol)
+        for tool, pol in make_index_tools(sandbox):
+            registry.register(tool, pol)
+        return registry
 
-    gate = ToolPrivilegeGate(
-        approval=approval,
-        escalation_rules=merge_escalation_settings(settings.get("escalations")),
-    )
+    def _build_subagent(kind: str) -> DefaultAgent:
+        """R13：构建一层嵌套的子智能体，复用父进程模型客户端与沙盒。"""
+        child_registry = _build_base_registry()  # 不含 spawn_subagent
+        child_system = build_role_system_prompt(
+            sandbox, kind, include_work_mode=opts.include_work_mode, catalog=catalog
+        )
+        return DefaultAgent(
+            AgentConfig(
+                agent_id=f"chat:{kind}",
+                model=model,
+                tools=child_registry,
+                memory=None,
+                composer=DefaultComposer(),
+                rules=FileRulesPort() if opts.repo else None,
+                slicer_policy=SlicerPolicy(require_package=False),
+                system_prompt=child_system,
+                sandbox_root=sandbox,
+                approval=approval,
+                privilege_gate=gate,
+                loop_config=LoopConfig(
+                    max_steps=min(opts.max_steps, 20),
+                    context_token_limit=int(compaction.get("token_limit") or 96_000),
+                ),
+                autonomy=normalize_autonomy(str(settings.get("autonomy") or "")),
+                hooks=hooks,
+            )
+        )
+
+    registry = _build_base_registry()
+    if not opts.no_tools and opts.enable_subagents:
+        from auc.tools.subagent import make_subagent_tool
+
+        sub_tool, sub_pol = make_subagent_tool(
+            build_agent=_build_subagent,
+            sandbox=sandbox,
+            allowed_kinds=catalog.role_ids(),
+            default_kind=role_id,
+        )
+        registry.register(sub_tool, sub_pol)
+
     system = opts.system_prompt or build_role_system_prompt(
         sandbox,
         role_id,
         include_work_mode=opts.include_work_mode,
         catalog=catalog,
     )
-    model = create_model_client(cfg)
-    compaction = settings.get("compaction") or {}
     loop_config = LoopConfig(
         max_steps=opts.max_steps,
         context_token_limit=int(compaction.get("token_limit") or 96_000),
@@ -148,5 +210,6 @@ def build_chat_agent(
             privilege_gate=gate,
             loop_config=loop_config,
             autonomy=normalize_autonomy(str(settings.get("autonomy") or "")),
+            hooks=hooks,
         )
     )

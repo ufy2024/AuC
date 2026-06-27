@@ -1,0 +1,15 @@
+id: delete-temp
+name: 删除临时文件
+instruction: 删除 tmp.txt
+autonomy: full-auto
+tags: [files]
+files:
+  tmp.txt: "to be removed\n"
+script:
+  - tool: delete_path
+    args:
+      path: tmp.txt
+  - say: 已删除
+checks:
+  - status: completed
+  - missing: tmp.txt

@@ -8,8 +8,10 @@ from auc.events.bus import RunEvent
 from auc.stream_display import ChatStreamPrinter
 
 
-def _ev(ev_type: str, payload: dict) -> RunEvent:
-    return RunEvent(type=ev_type, run_id="r1", agent_id="a1", payload=payload)
+def _ev(ev_type: str, payload: dict, *, ts: float = 1_704_067_200.0) -> RunEvent:
+    return RunEvent(
+        type=ev_type, run_id="r1", agent_id="a1", payload=payload, timestamp=ts
+    )
 
 
 def test_alias_points_to_printer() -> None:
@@ -40,6 +42,7 @@ def test_tool_lifecycle_rendering(capsys: pytest.CaptureFixture[str]) -> None:
     assert "Read(a.py)" in out
     assert "⎿" in out
     assert "读取 12 行" in out
+    assert "[" in out  # 时间戳
     assert printer.tool_count == 1
 
 

@@ -73,11 +73,17 @@ def _split_sections(body: str) -> list[tuple[str, str]]:
 
 
 class FileRulesPort:
-    """Load `.aurules` or `AUM.md` from a repository root."""
+    """Load project rules from a repository root.
+
+    优先级（首个命中即采用）：`.aurules`（AuC 原生，可覆盖）→ `AUM.md`
+    → `AGENTS.md`（2026 跨工具事实标准，Codex 主推）→ `CLAUDE.md`。
+    """
+
+    RULES_FILENAMES = (".aurules", "AUM.md", "AGENTS.md", "CLAUDE.md")
 
     async def load_rules(self, repo_root: str) -> ProjectRules:
         root = Path(repo_root)
-        for name in (".aurules", "AUM.md", "CLAUDE.md"):
+        for name in self.RULES_FILENAMES:
             path = root / name
             if path.is_file():
                 return parse_aurules_markdown(path.read_text(encoding="utf-8"))

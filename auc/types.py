@@ -30,6 +30,7 @@ RunEventType = Literal[
     "plan_ready",
     "todos_updated",
     "usage_updated",
+    "receipt_ready",
     "subagent_start",
     "subagent_end",
     "evolution_lesson",

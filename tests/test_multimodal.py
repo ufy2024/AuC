@@ -70,6 +70,7 @@ def test_openai_complete_with_image_message() -> None:
         client = OpenAICompatibleClient(api_key="test-key")
         mock_http = AsyncMock()
         mock_resp = MagicMock()
+        mock_resp.is_error = False
         mock_resp.raise_for_status = MagicMock()
         mock_resp.json.return_value = {
             "choices": [{"message": {"content": "ok", "tool_calls": None}}]

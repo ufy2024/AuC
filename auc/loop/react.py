@@ -18,7 +18,7 @@ from auc.model.json_util import PARSE_ERROR_KEY
 from auc.model.streaming import stream_to_assistant
 from auc.plan import parse_plan_block
 from auc.policy.privilege import PendingApproval, ToolPrivilegeGate
-from auc.run_context import current_agent_id
+from auc.run_context import current_agent_id, current_loop_context
 
 logger = logging.getLogger("auc.loop.react")
 
@@ -66,6 +66,23 @@ class ReActLoop:
                 actual = assistant.usage.prompt_tokens
                 if estimated and actual:
                     calibrate(estimated, actual)
+
+        # R11：累计用量 + emit usage_updated + 预算上限
+        if ctx.usage_tracker is not None and ctx.usage_tracker.add(assistant.usage):
+            snapshot = ctx.usage_tracker.snapshot()
+            budget = ctx.config.max_total_tokens
+            over_budget = budget > 0 and ctx.usage_tracker.total_tokens >= budget
+            snapshot["budget_max_tokens"] = budget
+            snapshot["budget_exceeded"] = over_budget
+            ctx.events.emit_typed(
+                "usage_updated", ctx.run_id, ctx.agent_id, snapshot
+            )
+            if over_budget:
+                ctx.error = (
+                    f"token 预算超限：累计 {ctx.usage_tracker.total_tokens} "
+                    f"≥ 上限 {budget}"
+                )
+                ctx.cancelled = True
 
         if assistant.tool_calls:
             ctx.events.emit_typed(
@@ -179,6 +196,7 @@ class ReActLoop:
                     name, ctx.project_rules.tool_policy[name]
                 )
             token = current_agent_id.set(ctx.agent_id)
+            ctx_token = current_loop_context.set(ctx)
             try:
                 outcome = await gate.check_and_invoke(
                     tool, policy, arguments, ctx=ctx
@@ -189,6 +207,7 @@ class ReActLoop:
                     tr = outcome
             finally:
                 current_agent_id.reset(token)
+                current_loop_context.reset(ctx_token)
             tr.tool_call_id = tool_call_id
             tr.name = name
 

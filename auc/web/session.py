@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from auc import DefaultAgent
-from auc.config import ModelConfig
+from auc.config import ModelConfig, load_merged_settings
 from auc.messages import ChatMessage, RunRequest
-from auc.multimodal import build_user_message, image_from_payload, prepare_user_input
+from auc.multimodal import (
+    PreparedUserInput,
+    build_user_message,
+    image_from_payload,
+    prepare_user_input,
+)
+from auc.vision_proxy import model_supports_vision, prepare_images_for_model
 from auc.web.conversations import ConversationStore, messages_for_ui
 from auc.web.editor_context import merge_message_with_context
 from auc.roles import format_role_note, load_role_catalog, set_active_role
@@ -54,7 +61,7 @@ class WebSession:
             set_active=True,
         )
 
-    def prepare_request(
+    async def prepare_request(
         self,
         message: str,
         images_payload: list[dict[str, Any]] | None = None,
@@ -72,6 +79,18 @@ class WebSession:
         for item in images_payload or []:
             extra.append(image_from_payload(item))
         prepared = prepare_user_input(merged, self.sandbox, extra_images=extra)
+        settings, _ = load_merged_settings(None, Path(self.sandbox))
+        text, images, vision_notes = await prepare_images_for_model(
+            prepared.text,
+            prepared.images,
+            self.cfg,
+            settings,
+        )
+        prepared = PreparedUserInput(
+            text=text,
+            notes=[*prepared.notes, *vision_notes],
+            images=images,
+        )
         catalog = load_role_catalog(sandbox=self.sandbox)
         rid = catalog.resolve(role_id)
         if role_id and catalog.try_resolve(role_id):

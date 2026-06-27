@@ -1,0 +1,22 @@
+id: fix-add
+name: 修复 add 实现并通过校验
+instruction: 实现 add 使其结果正确
+autonomy: full-auto
+tags: [files, shell]
+files:
+  mod.py: "def add(a, b):\n    return a - b\n"
+script:
+  - tool: write_file
+    args:
+      path: mod.py
+      content: "def add(a, b):\n    return a + b\n"
+  - tool: run_command
+    args:
+      command: 'python3 -B -c "import mod; assert mod.add(1, 2) == 3"'
+  - say: 已修复并通过校验
+checks:
+  - status: completed
+  - file: mod.py
+    contains: "a + b"
+  - run: 'python3 -B -c "import mod; assert mod.add(1, 2) == 3"'
+    exit: 0

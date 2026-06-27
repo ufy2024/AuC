@@ -47,6 +47,7 @@ class AgentConfig:
     autonomy: AutonomyLevel = "auto-edit"  # R6 默认级别，可被 metadata.autonomy 覆盖
     enable_checkpoints: bool = True  # R4
     compaction: CompactionConfig | None = None  # R3，None 时按 loop_config 构造
+    hooks: Any = None  # R14 生命周期钩子（auc.hooks.HookRunner）
 
 
 class DefaultAgent:
@@ -239,6 +240,24 @@ class DefaultAgent:
                 system_prompt = build_role_system_prompt(
                     sandbox, rid, catalog=catalog
                 )
+        # R22：追加已生效的提示覆盖层（人审落盘的 .auc/prompts/active.md）
+        if sandbox:
+            try:
+                from auc.prompt_optimizer import load_active_overlay
+
+                overlay = load_active_overlay(sandbox)
+                if overlay:
+                    system_prompt = (
+                        f"{system_prompt}\n\n{overlay}" if system_prompt else overlay
+                    )
+            except Exception:  # noqa: BLE001 覆盖层加载失败不影响运行
+                pass
+
+        from auc.usage import UsageTracker
+
+        usage_tracker = UsageTracker(
+            model=str(getattr(self._config.model, "model", "") or "")
+        )
 
         ctx = LoopContext(
             agent_id=agent_id,
@@ -260,5 +279,7 @@ class DefaultAgent:
             checkpoints=checkpoints,
             compactor=compactor,
             parent_run_id=request.metadata.get("parent_run_id"),
+            usage_tracker=usage_tracker,
+            hooks=self._config.hooks,
         )
         return ctx, bus

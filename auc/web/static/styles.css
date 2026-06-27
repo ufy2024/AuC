@@ -726,7 +726,57 @@ button { cursor: pointer; border: none; background: none; }
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
+.terminal-action-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .4rem .55rem .4rem .7rem;
+  background: var(--panel, #1e1e1e);
+  border: 1px solid var(--border, #3a3a3a);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .45);
+  max-width: calc(100% - 20px);
+  pointer-events: auto;
+}
+.terminal-action-bar.hidden { display: none !important; }
+.terminal-action-hint {
+  font-size: .72rem;
+  color: var(--muted, #9aa0a6);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+.terminal-action-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  font-size: .68rem;
+  color: var(--muted, #9aa0a6);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.terminal-action-auto input { margin: 0; cursor: pointer; }
+.terminal-action-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--muted, #9aa0a6);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 .2rem;
+  cursor: pointer;
+  opacity: .7;
+}
+.terminal-action-dismiss:hover { opacity: 1; color: var(--text, #eee); }
 .terminal-host {
   flex: 1;
   min-height: 0;
@@ -739,6 +789,10 @@ button { cursor: pointer; border: none; background: none; }
 }
 .terminal-host .xterm-viewport {
   overflow-y: auto !important;
+}
+.terminal-host .xterm-underline {
+  text-decoration: underline;
+  cursor: pointer;
 }
 .terminal-load-error {
   padding: .75rem 1rem;
@@ -806,8 +860,79 @@ button { cursor: pointer; border: none; background: none; }
   font-family: ui-monospace, monospace;
 }
 .msg-tool .result { opacity: .75; margin-top: .2rem; padding-left: 1rem; }
+.log-time {
+  font-size: .68rem;
+  color: var(--muted);
+  margin-right: .35rem;
+  font-variant-numeric: tabular-nums;
+  opacity: .85;
+}
+.msg-note .log-time { margin-right: .3rem; }
+.msg-tool .log-time { font-weight: 400; }
 .msg-note { font-size: .75rem; color: var(--muted); }
+.msg-usage {
+  font-size: .7rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  opacity: .8;
+  font-variant-numeric: tabular-nums;
+}
 .msg-stream { white-space: pre-wrap; word-break: break-word; }
+
+/* ── R10 任务清单卡片 ── */
+.msg-todos {
+  padding: .5rem .65rem;
+  border-radius: 8px;
+  background: var(--tool-bg);
+  border: 1px solid var(--border);
+  font-size: .8rem;
+}
+.msg-todos .todos-head {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-weight: 600;
+  margin-bottom: .35rem;
+}
+.msg-todos .todos-progress {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-weight: 500;
+}
+.msg-todos .todos-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
+.msg-todos .todo-item { display: flex; align-items: flex-start; gap: .45rem; line-height: 1.4; }
+.msg-todos .todo-icon { width: 1em; flex: 0 0 auto; text-align: center; }
+.msg-todos .todo-completed .todo-text { text-decoration: line-through; opacity: .6; }
+.msg-todos .todo-completed .todo-icon { color: var(--ok, #3fb950); }
+.msg-todos .todo-in_progress { font-weight: 600; }
+.msg-todos .todo-in_progress .todo-icon { color: var(--accent, #58a6ff); }
+.msg-todos .todo-cancelled .todo-text { text-decoration: line-through; opacity: .45; }
+
+.msg-receipt {
+  padding: .4rem .6rem;
+  border-radius: 8px;
+  background: var(--tool-bg);
+  border: 1px solid var(--border);
+  font-size: .8rem;
+}
+.msg-receipt summary {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.msg-receipt summary::-webkit-details-marker { display: none; }
+.msg-receipt .receipt-body { margin-top: .5rem; }
+
+.msg-subagent {
+  font-size: .75rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+  opacity: .85;
+}
 
 /* ── 助手消息：图表 / Markdown / 代码块 ── */
 .msg-rendered { display: flex; flex-direction: column; gap: .65rem; min-width: 0; }
@@ -1219,6 +1344,59 @@ button { cursor: pointer; border: none; background: none; }
   max-height: 120px;
   overflow: auto;
 }
+
+/* ── R27 审查选项 ── */
+.review-options {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin: .25rem 0 .9rem;
+}
+.review-radio {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.review-radio input[disabled] + span { opacity: .45; }
+
+/* ── R9 审批 Diff 预览 ── */
+.approval-card:has(#approval-diff:not(.hidden)) { width: min(680px, 100%); }
+.approval-diff {
+  margin: 0 0 .6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.approval-diff.hidden { display: none; }
+.approval-diff-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .35rem .6rem;
+  background: var(--tool-bg);
+  border-bottom: 1px solid var(--border);
+  font-size: .72rem;
+  font-weight: 600;
+}
+.approval-diff-stat { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; }
+.approval-diff-body {
+  margin: 0;
+  padding: .5rem .6rem;
+  max-height: 320px;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: .72rem;
+  line-height: 1.45;
+  white-space: pre;
+}
+.approval-diff-body span { display: block; }
+.approval-diff-body .diff-add { background: rgba(63, 185, 80, .16); color: #1a7f37; }
+.approval-diff-body .diff-del { background: rgba(248, 81, 73, .16); color: #b62324; }
+.approval-diff-body .diff-hunk { color: var(--accent, #58a6ff); }
+.approval-diff-body .diff-meta { color: var(--muted); }
+.approval-diff-body .diff-ctx { color: var(--text); opacity: .8; }
 .ws-create-input {
   width: 100%;
   box-sizing: border-box;
@@ -1481,6 +1659,8 @@ button { cursor: pointer; border: none; background: none; }
 }
 #app.mode-chat .chat-messages .msg-assistant,
 #app.mode-chat .chat-messages .msg-tool,
+#app.mode-chat .chat-messages .msg-todos,
+#app.mode-chat .chat-messages .msg-receipt,
 #app.mode-chat .chat-messages .msg-note {
   max-width: 100%;
   align-self: stretch;

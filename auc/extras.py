@@ -11,6 +11,8 @@ INSTALL_MODES: Final[dict[str, str]] = {
     "web": "Web UI（Code + Chat 双模式，含 FastAPI + uvicorn + httpx）",
     "telegram": "Telegram 二次授权（需 httpx）",
     "qq": "QQ 二次授权（OneBot 11 / 官方机器人，需 httpx）",
+    "mcp": "MCP 客户端（接入外部 stdio/HTTP MCP server，需官方 mcp SDK）",
+    "index": "多语言符号索引（tree-sitter）+ 向量语义层（sentence-transformers）",
     "chat": "终端对话完整体验（llm + cli）",
     "openai": "同 llm（兼容旧名）",
     "all": "全部可选组件",

@@ -1,6 +1,6 @@
 # AuC 架构总览（现状 As-Is）
 
-> 版本：v1.1 · 2026-06　|　本文描述**当前已实现**的架构。目标演进（R1–R23）见 [架构设计.md](架构设计.md)。
+> 版本：v1.2 · 2026-06　|　本文描述**当前已实现**的架构。目标演进（R1–R28）见 [架构设计.md](架构设计.md)。实现快照见 [竞品分析与优化计划.md](竞品分析与优化计划.md) §1。
 
 AuC（**Agents-ufy-Core**）是 ufy 智能体体系中的**单智能体核心框架**：用 Python 与 asyncio 实现可终止的「推理—行动」循环，不内置多智能体编排。AuM（Meta）可在 AuC 定义的端口之上提供记忆、**上下文切片**、**项目军规**与 **L3 二次授权** 网关；AuC 亦可独立运行（`memory=None`）并自带 Web/CLI 双端与进化记忆。
 
@@ -32,16 +32,22 @@ flowchart TB
     Conv["ConversationStore<br/>.auc/conversations/"]
   end
 
+  subgraph policy ["策略层（已实现）"]
+    Auto["AutonomyPolicy R6"]
+    Esc["EscalationRules R1"]
+    Gate[ToolPrivilegeGate]
+  end
+
   subgraph auc [AuC Core]
     Agent[DefaultAgent]
     Loop[ReActLoop + Runner]
     Tools[ToolRegistry]
-    Gate[ToolPrivilegeGate]
     LLM[ModelClient]
-    Ctx[ContextWindow]
+    Ctx[ContextWindow + Compactor R3]
     Events[EventBus]
-    WM[work_mode]
-    Roles[roles]
+    WM[work_mode + plan R5]
+    Roles[roles R25]
+    Ckpt[CheckpointStore R4]
     Evo[EvolutionMemoryPort]
   end
 
@@ -62,8 +68,11 @@ flowchart TB
   Agent --> Loop
   Loop --> LLM
   Loop --> Gate
+  Gate --> Auto
+  Gate --> Esc
   Gate --> Tools
   Loop --> Ctx
+  Loop --> Ckpt
   Agent --> Events
   WM --> Agent
   Roles --> Agent
@@ -82,12 +91,16 @@ flowchart TB
 | **AgentLoopRunner** | 驱动 Loop 直至终止条件 |
 | **ModelClient** | LLM 适配（OpenAI / Anthropic / DeepSeek） |
 | **ToolRegistry** | 工具注册与 schema 暴露 |
-| **ToolPrivilegeGate** | L1/L2/L3 分级与 L3 挂起 |
+| **SummarizingCompactor** | 两级上下文压缩（tool 折叠 + 模型摘要，R3） |
+| **CheckpointStore** | 写类工具前快照；`auc undo` 回滚（R4） |
+| **AutonomyPolicy** | 会话级自治级别 confirm-all / auto-edit / full-auto（R6） |
+| **EscalationRules** | 危险 shell 命令升级 L3（R1） |
+| **ToolPrivilegeGate** | L1/L2/L3 分级、自治/升级裁决与 L3 挂起 |
 | **ContextWindow** | 当前 Run 的消息工作区（`ListContextWindow`） |
-| **EventBus** | Run 生命周期事件分发 |
-| **work_mode** | 8 种工作模式 + 自动识别 |
+| **EventBus** | Run 生命周期事件分发（含 `plan_ready`、`context_compacted` 等） |
+| **work_mode** | 8 种工作模式 + `plan` 计划模式（R5） |
 | **roles** | 5 种内置角色 persona；`metadata.role_id` 覆盖系统提示；`agent_id=chat:{role}` |
-| **EvolutionMemoryPort** | `.auc/evolution.yaml` 跨会话经验召回；**按 `role:{id}` 标签分片**（遗留无标签条目全局可见） |
+| **EvolutionMemoryPort** | 按角色目录 `.auc/roles/<id>/` 进化召回；遗留全局文件只读兼容 |
 | **ConversationStore** | Web 会话持久化（目标：CLI/Web 共享，见 R7） |
 | **MemoryPort**（端口） | AuM 或 `EvolutionMemoryPort` 实现 |
 | **ContextPackage** | 任务相关代码片段包 |
@@ -111,19 +124,28 @@ auc/
 ├── multimodal.py         # 图片输入
 ├── sandbox.py            # 沙盒路径校验
 ├── messages.py / types.py
+├── checkpoint.py         # CheckpointStore（R4）
+├── plan.py               # 计划块解析（R5）
+├── vision_proxy.py       # 视觉代理转写
 ├── loop/
-│   ├── base.py           # AgentLoop, LoopContext, LoopResult
-│   └── react.py          # ReActLoop
+│   ├── base.py           # LoopContext（含 autonomy/todos）
+│   └── react.py          # ReActLoop + Compactor 挂钩
 ├── model/                # OpenAI / Anthropic / DeepSeek 适配
 ├── tools/
 │   ├── files.py          # read/write/delete/list_dir
+│   ├── shell.py          # run_command（R1）
+│   ├── search.py         # grep_search / glob_files（R2）
+│   ├── roles.py          # define/switch/list roles（R25）
 │   ├── fetch.py          # fetch_url (L3)
 │   └── registry.py
 ├── context/
-│   └── window.py         # ListContextWindow, TruncatePolicy
+│   ├── window.py         # ListContextWindow, TruncatePolicy
+│   └── compactor.py      # SummarizingCompactor（R3）
 ├── ports/                # memory, rules, package, approval
 ├── policy/
-│   └── privilege.py      # ToolPrivilegeGate
+│   ├── privilege.py      # ToolPrivilegeGate
+│   ├── autonomy.py       # AutonomyPolicy（R6）
+│   └── escalation.py     # EscalationRules（R1）
 ├── events/
 │   └── bus.py
 ├── integration/
@@ -148,12 +170,15 @@ auc/
 | 工具 | 级别 | 说明 |
 |------|------|------|
 | `read_file` / `list_dir` | L1 | 沙盒内 |
-| `write_file` / `delete_file` | L2 | 沙盒内 |
+| `grep_search` / `glob_files` | L1 | 内容/文件名搜索（R2） |
+| `write_file` / `delete_file` | L2 | 沙盒内；触发检查点 |
+| `run_command` | L2 | 沙盒 shell（R1）；危险命令可升级 L3 |
 | `fetch_url` | L3 | SSRF 防护，需授权 |
-| `save_lesson` / `promote_nugget` | L1/L2 | 进化记忆 |
+| `save_lesson` / `promote_nugget` | L1/L2 | 进化记忆（按角色分片） |
+| `define_role` / `switch_role` 等 | L1/L2 | 多角色管理（R25） |
 | `echo` | L1 | 测试用 |
 
-> **缺口**（见 [需求.md](需求.md)）：无 `run_command`、无 `grep_search`/`glob_files`、无生产级上下文压缩（`summarize` 策略未实现）、无检查点回滚、无 plan 工作模式、无会话级自治级别。
+> **主要缺口**（见 [竞品分析与优化计划.md](竞品分析与优化计划.md)）：无语义索引（R26）、Web Diff UI（R9）、MCP（R16）、Hooks（R14）、后台作业（R17）、自进化自动闭环（R20–R23）等。
 
 ## 一次 Run 的数据流
 
@@ -198,7 +223,7 @@ sequenceDiagram
 
 ## 上下文与压缩（现状）
 
-`TruncatePolicy` 支持 `drop_oldest`、`drop_middle`；`summarize` 已在 `types.py` 枚举中声明，**尚未实现**（`ListContextWindow.truncate` 对 `summarize` 回退为截尾）。生产级 auto-compaction 规划见 [详细设计.md](详细设计.md) §3（`SummarizingCompactor`）。
+`SummarizingCompactor`（`context/compactor.py`）已实现两级压缩：超软阈值折叠旧 tool 输出，超硬阈值调用模型摘要早期回合，并 emit `context_compacted`。`ListContextWindow.truncate` 仍保留 `drop_oldest`/`drop_middle` 作为兜底。
 
 ## 终止条件
 
@@ -221,7 +246,7 @@ sequenceDiagram
 | 跨 Run 记忆 | 端口 + `EvolutionMemoryPort`（内置可选） | `MemoryPort` 完整实现 |
 | 代码上下文切片 | `SemanticSlicer`（内置）+ `ContextPackage` 类型 | `SemanticSlicer` 增强版 |
 | 项目军规 | `FileRulesPort` | Rules Matrix |
-| 上下文压缩 | `TruncatePolicy`（基础策略） | 可替换智能实现 |
+| 上下文压缩 | `SummarizingCompactor`（R3 已落地） | 可替换智能实现 |
 | Web 会话持久化 | `ConversationStore`（Web 包内） | 可集中式 `SessionStore` |
 | CLI 会话恢复 | 未实现（R7） | — |
 
@@ -231,7 +256,8 @@ sequenceDiagram
 
 | 文档 | 内容 |
 |------|------|
-| [需求.md](需求.md) | 差距分析与 R1–R23 需求清单 |
+| [需求.md](需求.md) | 差距分析与 R1–R28 需求清单 |
+| [竞品分析与优化计划.md](竞品分析与优化计划.md) | 三强对比、缺陷清单、O1–O4 排程 |
 | [架构设计.md](架构设计.md) | 目标架构（To-Be） |
 | [方案设计.md](方案设计.md) | 技术选型与决策 |
 | [详细设计.md](详细设计.md) | 接口、数据格式与测试计划 |

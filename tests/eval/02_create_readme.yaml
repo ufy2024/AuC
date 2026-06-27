@@ -1,0 +1,15 @@
+id: create-readme
+name: 新建 README 文件
+instruction: 为项目创建一份说明文档
+autonomy: full-auto
+tags: [files]
+script:
+  - tool: write_file
+    args:
+      path: README.md
+      content: "# Demo\n\nHello AuC.\n"
+  - say: 已创建 README
+checks:
+  - status: completed
+  - file: README.md
+    contains: "Hello AuC"

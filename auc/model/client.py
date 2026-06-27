@@ -96,6 +96,12 @@ class InMemoryModelClient:
         if msg.content:
             for ch in msg.content:
                 yield StreamChunk(delta_content=ch)
-            yield StreamChunk(finish_reason="stop")
+            yield StreamChunk(finish_reason="stop", usage=msg.usage)
         if msg.tool_calls:
-            yield StreamChunk(delta_tool_calls=msg.tool_calls, finish_reason="stop")
+            yield StreamChunk(
+                delta_tool_calls=msg.tool_calls,
+                finish_reason="stop",
+                usage=msg.usage,
+            )
+        if not msg.content and not msg.tool_calls and msg.usage is not None:
+            yield StreamChunk(finish_reason="stop", usage=msg.usage)

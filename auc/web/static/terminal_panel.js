@@ -7,6 +7,8 @@ const $ = (sel) => document.querySelector(sel);
 const XTERM_MOD = new URL("./vendor/xterm.esm.js?v=23", import.meta.url);
 const FIT_MOD = new URL("./vendor/addon-fit.esm.js?v=23", import.meta.url);
 const SHELL_LABEL = "bash";
+const OUTPUT_BUFFER_MAX = 48_000;
+const AUTO_AGENT_KEY = "auc-terminal-auto-agent";
 
 /** @type {Map<number, TerminalSession>} */
 const sessions = new Map();
@@ -15,6 +17,37 @@ let sessionCounter = 0;
 let xtermLibs = null;
 let xtermLoading = null;
 let hostResizeObserver = null;
+
+/** @type {{ text: string, kind: "error" | "selection", sessionId: number } | null} */
+let actionBarPayload = null;
+let actionBarHideTimer = null;
+
+const ERROR_MARKERS = [
+  /Traceback \(most recent call last\)/,
+  /SyntaxError:/,
+  /TypeError:/,
+  /NameError:/,
+  /ValueError:/,
+  /ModuleNotFoundError:/,
+  /ImportError:/,
+  /FileNotFoundError:/,
+  /PermissionError:/,
+  /RuntimeError:/,
+  /AssertionError:/,
+  /CommandNotFoundError:/,
+  /\bError:\s/,
+  /\bERROR\b/,
+  /npm ERR!/,
+  /\bERR!/,
+  /command not found/i,
+  /Permission denied/i,
+  /No such file or directory/i,
+  /\bfatal:/i,
+  /\bpanic:/i,
+  /FAILED\b/,
+  /✖/,
+  /Exit code [1-9]\d*/i,
+];
 
 /** @typedef {{
  *   id: number,
@@ -25,7 +58,246 @@ let hostResizeObserver = null;
  *   socket: WebSocket | null,
  *   pendingInput: string | null,
  *   reconnectNotice: boolean,
+ *   outputBuffer: string,
+ *   lastErrorText: string | null,
  * }} TerminalSession */
+
+/** 终端内可点击跳转的 URL（http/https 及 localhost:port） */
+const TERMINAL_URL_RE =
+  /(?:https?:\/\/[^\s<>"'`[\]{}|\\^]+|(?:localhost|127\.0\.0\.1):\d{2,5}(?:\/[^\s]*)?)/gi;
+
+function trimTerminalUrl(raw) {
+  let url = String(raw || "").trim();
+  while (/[.,;:!?)}\]'"]+$/.test(url)) url = url.slice(0, -1);
+  return url;
+}
+
+function normalizeTerminalHref(raw) {
+  const url = trimTerminalUrl(raw);
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^(?:localhost|127\.0\.0\.1):\d+/i.test(url)) return `http://${url}`;
+  return url;
+}
+
+function openTerminalLink(href) {
+  const url = normalizeTerminalHref(href);
+  if (!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/**
+ * 构造「字符串下标 → 终端单元列(1-based)」映射。
+ * 终端里中文/符号是双宽字符（占 2 列但 translateToString 只产出 1 个 JS 字符），
+ * 若直接用 match.index 当列号，链接下划线会相对真实文本偏移。这里按每个单元的
+ * 宽度累计列号，使下划线与 URL 文本严格对齐。
+ */
+function buildColumnMap(line) {
+  const map = [];
+  const cols = line.length || 0;
+  for (let x = 0; x < cols; x++) {
+    const cell = line.getCell(x);
+    if (!cell) continue;
+    if (cell.getWidth() === 0) continue; // 双宽字符的尾随空单元，不产出字符
+    let chars = cell.getChars();
+    if (chars === "") chars = " ";
+    for (let k = 0; k < chars.length; k++) map.push(x + 1);
+  }
+  return map;
+}
+
+function attachTerminalLinks(term) {
+  if (typeof term.registerLinkProvider !== "function") return;
+  term.registerLinkProvider({
+    provideLinks(lineNumber, callback) {
+      const line = term.buffer.active.getLine(lineNumber - 1);
+      if (!line) {
+        callback(undefined);
+        return;
+      }
+      const text = line.translateToString(false);
+      // 优先用单元宽度映射列号；旧版 xterm 无 getCell 时回退到字符下标。
+      const colMap =
+        typeof line.getCell === "function" ? buildColumnMap(line) : null;
+      const links = [];
+      TERMINAL_URL_RE.lastIndex = 0;
+      let match;
+      while ((match = TERMINAL_URL_RE.exec(text)) !== null) {
+        const raw = match[0];
+        const href = normalizeTerminalHref(raw);
+        if (!href) continue;
+        const startIdx = match.index;
+        const endIdx = match.index + raw.length - 1;
+        const startX = colMap ? colMap[startIdx] ?? startIdx + 1 : startIdx + 1;
+        const endX = colMap ? colMap[endIdx] ?? endIdx + 1 : endIdx + 1;
+        links.push({
+          text: raw,
+          range: {
+            start: { x: startX, y: lineNumber },
+            end: { x: endX, y: lineNumber },
+          },
+          activate: (_event, linkText) => openTerminalLink(linkText || raw),
+        });
+      }
+      callback(links.length ? links : undefined);
+    },
+  });
+}
+
+function stripAnsi(raw) {
+  return String(raw || "")
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/\r/g, "");
+}
+
+function appendOutputBuffer(session, chunk) {
+  const plain = stripAnsi(chunk);
+  if (!plain) return;
+  session.outputBuffer = (session.outputBuffer + plain).slice(-OUTPUT_BUFFER_MAX);
+  const err = extractErrorBlock(session.outputBuffer);
+  if (!err || err === session.lastErrorText) return;
+  session.lastErrorText = err;
+  showActionBar(err, "error", session.id);
+  if (isAutoAgentEnabled()) {
+    sendTextToAgent(err, { kind: "error", auto: true });
+    hideActionBarSoon(4000);
+  }
+}
+
+function extractErrorBlock(buffer) {
+  const lines = buffer.split("\n");
+  let start = -1;
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    if (ERROR_MARKERS.some((re) => re.test(line))) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return null;
+  // 向上包含若干上下文行（命令或空行）
+  const from = Math.max(0, start - 2);
+  const block = lines.slice(from).join("\n").trim();
+  return block.length >= 8 ? block : null;
+}
+
+function isAutoAgentEnabled() {
+  return localStorage.getItem(AUTO_AGENT_KEY) !== "0";
+}
+
+function showActionBar(text, kind, sessionId) {
+  actionBarPayload = { text: String(text || "").trim(), kind, sessionId };
+  if (!actionBarPayload.text) return;
+  const bar = $("#terminal-action-bar");
+  const hint = $("#terminal-action-hint");
+  if (!bar || !hint) return;
+  hint.textContent =
+    kind === "error" ? t("terminal.errorDetected") : t("terminal.selection");
+  bar.classList.remove("hidden");
+  if (actionBarHideTimer) clearTimeout(actionBarHideTimer);
+  if (kind === "selection") {
+    actionBarHideTimer = setTimeout(hideActionBar, 12_000);
+  }
+}
+
+function hideActionBar() {
+  $("#terminal-action-bar")?.classList.add("hidden");
+  actionBarPayload = null;
+  if (actionBarHideTimer) {
+    clearTimeout(actionBarHideTimer);
+    actionBarHideTimer = null;
+  }
+}
+
+function hideActionBarSoon(ms = 3000) {
+  if (actionBarHideTimer) clearTimeout(actionBarHideTimer);
+  actionBarHideTimer = setTimeout(hideActionBar, ms);
+}
+
+export function sendTextToAgent(text, meta = {}) {
+  const payload = String(text || "").trim();
+  if (!payload) return;
+  window.dispatchEvent(
+    new CustomEvent("auc-terminal-to-agent", {
+      detail: { text: payload, ...meta },
+    }),
+  );
+}
+
+async function copyActionText() {
+  const text = actionBarPayload?.text;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+  flashActionHint(t("terminal.copied"));
+}
+
+function sendActionToAgent() {
+  const text = actionBarPayload?.text;
+  if (!text) return;
+  sendTextToAgent(text, { kind: actionBarPayload?.kind || "selection" });
+  flashActionHint(t("terminal.sentAgent"));
+  hideActionBarSoon(1500);
+}
+
+function flashActionHint(msg) {
+  const hint = $("#terminal-action-hint");
+  if (!hint) return;
+  const prev = hint.textContent;
+  hint.textContent = msg;
+  setTimeout(() => {
+    if (actionBarPayload && hint.textContent === msg) {
+      hint.textContent =
+        actionBarPayload.kind === "error"
+          ? t("terminal.errorDetected")
+          : t("terminal.selection");
+    } else if (!actionBarPayload) {
+      hint.textContent = prev;
+    }
+  }, 1600);
+}
+
+function bindSelectionActions(session) {
+  const onSel = () => {
+    if (session.id !== activeSessionId) return;
+    const sel = session.term.getSelection()?.trim();
+    if (sel) {
+      showActionBar(sel, "selection", session.id);
+    } else if (actionBarPayload?.kind === "selection") {
+      hideActionBar();
+    }
+  };
+  if (typeof session.term.onSelectionChange === "function") {
+    session.term.onSelectionChange(onSel);
+  }
+  session.hostEl.addEventListener("mouseup", () => {
+    requestAnimationFrame(onSel);
+  });
+}
+
+function bindTerminalActionBar() {
+  $("#terminal-action-copy")?.addEventListener("click", () => void copyActionText());
+  $("#terminal-action-agent")?.addEventListener("click", () => sendActionToAgent());
+  $("#terminal-action-dismiss")?.addEventListener("click", () => hideActionBar());
+  const auto = $("#terminal-auto-agent");
+  if (auto) {
+    auto.checked = isAutoAgentEnabled();
+    auto.addEventListener("change", () => {
+      localStorage.setItem(AUTO_AGENT_KEY, auto.checked ? "1" : "0");
+    });
+  }
+}
 
 function monacoThemeName() {
   const id = document.getElementById("app")?.dataset?.colorTheme || "monokai";
@@ -69,7 +341,13 @@ async function loadXtermLibs() {
 function showTerminalLoadError(message) {
   const hosts = $("#terminal-hosts");
   if (!hosts) return;
-  hosts.innerHTML = `<div class="terminal-load-error">${message}</div>`;
+  hosts.querySelectorAll(".terminal-host, .terminal-load-error").forEach((el) => el.remove());
+  const div = document.createElement("div");
+  div.className = "terminal-load-error";
+  div.textContent = message;
+  const bar = $("#terminal-action-bar");
+  if (bar) hosts.insertBefore(div, bar);
+  else hosts.appendChild(div);
 }
 
 function wsUrl() {
@@ -133,13 +411,24 @@ function connectSession(session) {
     if (session.id === activeSessionId) session.term.focus();
   });
   socket.addEventListener("message", (ev) => {
+    let chunk;
     if (ev.data instanceof ArrayBuffer) {
-      session.term.write(new Uint8Array(ev.data));
+      chunk = new Uint8Array(ev.data);
     } else if (ev.data instanceof Blob) {
-      ev.data.arrayBuffer().then((buf) => session.term.write(new Uint8Array(buf)));
+      ev.data.arrayBuffer().then((buf) => {
+        const bytes = new Uint8Array(buf);
+        session.term.write(bytes);
+        appendOutputBuffer(session, new TextDecoder().decode(bytes));
+      });
+      return;
     } else {
-      session.term.write(String(ev.data));
+      chunk = String(ev.data);
+      session.term.write(chunk);
+      appendOutputBuffer(session, chunk);
+      return;
     }
+    session.term.write(chunk);
+    appendOutputBuffer(session, new TextDecoder().decode(chunk));
   });
   socket.addEventListener("close", () => {
     session.socket = null;
@@ -209,6 +498,7 @@ async function createSession({ activate = true } = {}) {
     term.loadAddon(fitAddon);
   }
   term.open(hostEl);
+  attachTerminalLinks(term);
 
   /** @type {TerminalSession} */
   const session = {
@@ -220,12 +510,15 @@ async function createSession({ activate = true } = {}) {
     socket: null,
     pendingInput: null,
     reconnectNotice: false,
+    outputBuffer: "",
+    lastErrorText: null,
   };
 
   term.onData((data) => sendInput(session, data));
   term.onResize(() => {
     if (session.id === activeSessionId) sendResize(session);
   });
+  bindSelectionActions(session);
 
   sessions.set(id, session);
   connectSession(session);
@@ -456,5 +749,10 @@ export function initTerminalPanel() {
     panel.classList.add("is-collapsed");
   }
 
-  window.addEventListener("auc-locale-change", () => renderTabs());
+  window.addEventListener("auc-locale-change", () => {
+    renderTabs();
+    const auto = $("#terminal-auto-agent");
+    if (auto) auto.checked = isAutoAgentEnabled();
+  });
+  bindTerminalActionBar();
 }

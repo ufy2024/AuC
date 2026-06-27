@@ -1,0 +1,21 @@
+id: two-files
+name: 创建多个文件
+instruction: 创建 a.txt 与 b.txt
+autonomy: full-auto
+tags: [files]
+script:
+  - tool: write_file
+    args:
+      path: a.txt
+      content: "alpha\n"
+  - tool: write_file
+    args:
+      path: b.txt
+      content: "beta\n"
+  - say: 两个文件已创建
+checks:
+  - status: completed
+  - file: a.txt
+    contains: alpha
+  - file: b.txt
+    contains: beta

@@ -24,6 +24,7 @@ from auc.terminal import (
     display_width,
     draw_panel,
     green,
+    log_time_prefix,
     magenta,
     pad_to,
     red,
@@ -118,6 +119,7 @@ class ClaudeCodeStreamPrinter:
         self._tool_started: dict[str, float] = {}
         self._tool_count = 0
         self._cancelled = False
+        self._last_usage: dict[str, Any] | None = None
 
     def feed(self, ev: RunEvent) -> None:
         if ev.type == "run_start":
@@ -143,7 +145,7 @@ class ClaudeCodeStreamPrinter:
             self._tool_started[key] = time.monotonic()
             if key not in self._pending_tools:
                 self._pending_tools.add(key)
-                self._print_tool_line(label)
+                self._print_tool_line(label, ts=ev.timestamp)
         elif ev.type == "tool_end" and self._show_tools:
             self._tool_count += 1
             tool = ev.payload.get("tool", "tool")
@@ -156,16 +158,43 @@ class ClaudeCodeStreamPrinter:
                     elapsed = dim(f" {ms}ms")
                     del self._tool_started[key]
                     break
-            self._print_tool_result(summary, is_error=is_error, suffix=elapsed)
+            self._print_tool_result(
+                summary, is_error=is_error, suffix=elapsed, ts=ev.timestamp
+            )
+        elif ev.type == "todos_updated":
+            self.finish_reply()
+            self._print_todos(ev.payload.get("todos") or [], ts=ev.timestamp)
+        elif ev.type == "usage_updated":
+            self._last_usage = dict(ev.payload or {})
+        elif ev.type == "subagent_start":
+            self.finish_reply()
+            kind = ev.payload.get("kind", "")
+            task = (ev.payload.get("task") or "").strip().replace("\n", " ")
+            if len(task) > 60:
+                task = task[:60] + "…"
+            print(
+                f"  {log_time_prefix(ev.timestamp)}{cyan('⌥')} "
+                f"{white(f'子智能体[{kind}]')} {dim(task)}"
+            )
+        elif ev.type == "subagent_end":
+            kind = ev.payload.get("kind", "")
+            status = ev.payload.get("status", "")
+            files = ev.payload.get("changed_files") or []
+            extra = f" {len(files)} 文件" if files else ""
+            print(
+                f"    {log_time_prefix(ev.timestamp)}{dim('⎿')} "
+                f"{dim(f'子智能体[{kind}] {status}{extra}')}"
+            )
         elif ev.type == "run_end":
             self.finish_reply()
+            self._print_usage()
             status = ev.payload.get("status", "")
             if status == "cancelled":
                 self._cancelled = True
-                print(dim("  ⊘ ") + yellow("已取消"))
+                print(f"  {log_time_prefix(ev.timestamp)}{dim('⊘ ')}{yellow('已取消')}")
             err = ev.payload.get("error")
             if err and status == "error":
-                print(red(f"  ✗ {err}"))
+                print(f"  {log_time_prefix(ev.timestamp)}{red(f'✗ {err}')}")
 
     @property
     def tool_count(self) -> int:
@@ -182,11 +211,59 @@ class ClaudeCodeStreamPrinter:
             self._marker_printed = True
             self._in_reply = True
 
-    def _print_tool_line(self, label: str) -> None:
-        print(f"  {yellow('●')} {white(label)}")
+    def _print_tool_line(self, label: str, *, ts: float | None = None) -> None:
+        print(f"  {log_time_prefix(ts)}{yellow('●')} {white(label)}")
+
+    def _print_usage(self) -> None:
+        u = self._last_usage
+        if not u or not u.get("total_tokens"):
+            return
+        parts = [
+            f"↑{u.get('prompt_tokens', 0)}",
+            f"↓{u.get('completion_tokens', 0)}",
+            f"Σ{u.get('total_tokens', 0)} tok",
+        ]
+        cost = u.get("cost_usd") or 0
+        if cost:
+            parts.append(f"${cost:.4f}")
+        line = "  " + dim("⛁ " + " · ".join(parts))
+        if u.get("budget_exceeded"):
+            line += "  " + yellow("(预算超限，已停止)")
+        print(line)
+
+    def _print_todos(
+        self, todos: list[dict[str, Any]], *, ts: float | None = None
+    ) -> None:
+        if not todos:
+            return
+        done = sum(1 for t in todos if t.get("status") == "completed")
+        print(
+            f"  {log_time_prefix(ts)}{cyan('☑')} "
+            f"{white('任务清单')} {dim(f'{done}/{len(todos)}')}"
+        )
+        icons = {
+            "completed": green("✓"),
+            "in_progress": cyan("◐"),
+            "pending": dim("○"),
+            "cancelled": dim("✗"),
+        }
+        for todo in todos:
+            status = todo.get("status", "pending")
+            icon = icons.get(status, dim("○"))
+            text = str(todo.get("content") or "")
+            if status == "completed":
+                text = dim(text)
+            elif status == "in_progress":
+                text = white(text)
+            print(f"      {icon} {text}")
 
     def _print_tool_result(
-        self, summary: str, *, is_error: bool, suffix: str = ""
+        self,
+        summary: str,
+        *,
+        is_error: bool,
+        suffix: str = "",
+        ts: float | None = None,
     ) -> None:
         if not summary:
             return
@@ -194,7 +271,7 @@ class ClaudeCodeStreamPrinter:
         if len(line) > 88:
             line = line[:85] + "…"
         body = red(line) if is_error else dim(line)
-        print(f"    {dim('⎿')} {body}{suffix}")
+        print(f"    {log_time_prefix(ts)}{dim('⎿')} {body}{suffix}")
 
     def finish_reply(self) -> None:
         if self._in_reply:
@@ -237,6 +314,24 @@ def print_note(text: str) -> None:
     print(f"  {dim('›')} {text}")
 
 
+def replay_conversation(history: list[ChatMessage]) -> None:
+    """恢复对话时回显历史消息（用户气泡 + 助手回复 + 工具行）。"""
+    for msg in history:
+        if msg.role == "user":
+            text = (msg.content or "").strip()
+            if text:
+                print_user_echo(text, image_count=len(msg.images or []))
+        elif msg.role == "assistant":
+            if msg.content and msg.content.strip():
+                print(f"\n{magenta('◆')}  {msg.content.strip()}")
+        elif msg.role == "tool":
+            name = msg.name or "tool"
+            summary = (msg.content or "").replace("\n", " ").strip()
+            if len(summary) > 100:
+                summary = summary[:97] + "..."
+            print(f"  {yellow('●')} {white(name)} {dim(summary)}")
+
+
 def expand_file_refs(text: str, sandbox: str) -> tuple[str, list[str]]:
     prepared = prepare_user_input(text, sandbox)
     return prepared.text, prepared.notes
@@ -261,7 +356,7 @@ def print_welcome(
     sandbox: str,
     *,
     evolve: bool,
-    version: str = "0.2.14",
+    version: str = "0.3.0",
 ) -> None:
     model = cfg.model
     ws = _short_path(sandbox)
@@ -414,10 +509,34 @@ async def run_interactive_repl(
     args: argparse.Namespace,
     sandbox: str,
     run_turn: Any,
+    store: Any = None,
+    conversation_id: str | None = None,
 ) -> int:
     evolve = not getattr(args, "no_evolve", False)
     print_welcome(cfg, sandbox, evolve=evolve)
     session = ReplSession()
+
+    conv_id = conversation_id
+
+    def _persist() -> None:
+        nonlocal conv_id
+        if store is None:
+            return
+        try:
+            if conv_id is None:
+                conv_id = store.create()
+            store.save_messages(conv_id, session.history)
+        except Exception:  # noqa: BLE001 持久化失败不应中断对话
+            pass
+
+    if store is not None and conv_id is not None:
+        try:
+            session.history = store.load_messages(conv_id)
+        except Exception:  # noqa: BLE001
+            session.history = []
+        if session.history:
+            replay_conversation(session.history)
+            print_note(dim(f"已恢复对话（{len(session.history)} 条消息）"))
 
     while True:
         raw = await read_user_input(sandbox)
@@ -436,6 +555,11 @@ async def run_interactive_repl(
             session.history = []
             session.turn_count = 0
             session.total_seconds = 0.0
+            if store is not None:
+                try:
+                    conv_id = store.create()
+                except Exception:  # noqa: BLE001
+                    conv_id = None
             print_note(dim("对话上下文已清空"))
             continue
         if cmd == "status":
@@ -525,6 +649,21 @@ async def run_interactive_repl(
             break
 
         prepared = prepare_user_input(text, sandbox)
+        from auc.config import load_merged_settings
+        from auc.vision_proxy import prepare_images_for_model
+
+        settings, _ = load_merged_settings(None, Path(sandbox))
+        vtext, vimages, vnotes = await prepare_images_for_model(
+            prepared.text,
+            prepared.images,
+            cfg,
+            settings,
+        )
+        prepared = PreparedUserInput(
+            text=vtext,
+            notes=[*prepared.notes, *vnotes],
+            images=vimages,
+        )
         from auc.work_mode import enrich_user_turn
 
         enriched, _, _ = enrich_user_turn(prepared.text)
@@ -551,6 +690,7 @@ async def run_interactive_repl(
         elapsed = time.monotonic() - t0
         session.turn_count += 1
         session.total_seconds += elapsed
+        _persist()
         if code == 0:
             result = getattr(agent, "last_run_result", None)
             status = result.status if result else "completed"
@@ -591,6 +731,7 @@ async def run_interactive_repl(
                 args._approved_plan = None
             session.turn_count += 1
             session.total_seconds += time.monotonic() - t1
+            _persist()
             if code == 0:
                 result = getattr(agent, "last_run_result", None)
                 print_turn_footer(

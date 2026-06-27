@@ -85,6 +85,22 @@ class SummarizingCompactor:
         if before <= cfg.token_limit * cfg.soft_ratio:
             return False
 
+        # R14 pre_compact 生命周期钩子（best-effort）
+        hooks = getattr(ctx, "hooks", None)
+        if hooks is not None and hooks.has("pre_compact"):
+            try:
+                await hooks.run_lifecycle(
+                    "pre_compact",
+                    {
+                        "event": "pre_compact",
+                        "run_id": ctx.run_id,
+                        "agent_id": ctx.agent_id,
+                        "before_tokens": before,
+                    },
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
         # 一级：折叠较旧的 tool 输出
         folded = self._fold_tools(messages)
         after_fold = self.estimate_tokens(messages)

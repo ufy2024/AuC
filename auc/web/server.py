@@ -17,6 +17,7 @@ from auc.web.approval import WebApprovalPort
 from auc.web.conversations import ConversationStore, messages_for_ui
 from auc.web.session import WebSession
 from auc.multimodal import is_image_path, strip_images_for_memory
+from auc.vision_proxy import model_supports_vision, resolve_vision_config
 from auc.web.documents import is_document_path, read_document_file
 from auc.web.preview import (
     inject_preview_shim,
@@ -99,6 +100,24 @@ def _get_session() -> WebSession:
     return session
 
 
+def _git_diff_text(sandbox: str, *, staged: bool, path: str | None) -> str:
+    """R27：取沙盒内 git diff 文本（供 Web 审查改动）。"""
+    import subprocess
+
+    cmd = ["git", "--no-pager", "diff"]
+    if staged:
+        cmd.append("--cached")
+    if path:
+        cmd += ["--", path]
+    try:
+        out = subprocess.run(
+            cmd, cwd=sandbox, capture_output=True, text=True, timeout=60
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError(f"git diff 失败: {exc}") from exc
+    return out.stdout
+
+
 def create_app():  # noqa: ANN201
     try:
         from fastapi import FastAPI, HTTPException
@@ -111,7 +130,27 @@ def create_app():  # noqa: ANN201
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):  # noqa: ANN001, ARG001
+        # R16：启动时注册外部 MCP server 工具到当前 agent 的工具表
+        import logging as _logging
+
+        agent = _state.get("agent")
+        if agent is not None:
+            try:
+                from auc.config import load_merged_settings as _lms
+                from auc.integration.mcp import setup_mcp
+
+                _settings, _ = _lms(None, Path(_state.get("sandbox") or "."))
+                mcp_setup = await setup_mcp(agent._config.tools, _settings)  # noqa: SLF001
+                if mcp_setup is not None:
+                    _state["mcp_setup"] = mcp_setup
+                    for w in mcp_setup.warnings:
+                        _logging.getLogger("auc.web").warning(w)
+            except Exception:  # noqa: BLE001 MCP 失败不影响 Web 启动
+                _logging.getLogger("auc.web").warning("MCP 初始化失败", exc_info=True)
         yield
+        mcp_setup = _state.get("mcp_setup")
+        if mcp_setup is not None:
+            await mcp_setup.aclose()
         runner: ProjectRunner | None = _state.get("runner")
         if runner is not None:
             await runner.stop_all()
@@ -145,6 +184,13 @@ def create_app():  # noqa: ANN201
         evolve = _state.get("evolve", True)
         role_catalog = load_role_catalog(sandbox=session.sandbox)
         active_role = role_catalog.active_role_id or role_catalog.default_role_id
+        from pathlib import Path as _Path
+
+        from auc.config import load_merged_settings
+
+        merged_settings, _ = load_merged_settings(None, _Path(session.sandbox))
+        vision_native = model_supports_vision(cfg)
+        vision_proxy = resolve_vision_config(merged_settings, cfg) is not None
         payload: dict[str, Any] = {
             "version": __version__,
             "workspace": {
@@ -163,7 +209,11 @@ def create_app():  # noqa: ANN201
                 "active_id": session.active_conversation_id,
                 "messages": messages_for_ui(session.history),
             },
-            "multimodal": True,
+            "multimodal": {
+                "enabled": True,
+                "native": vision_native,
+                "vision_proxy": vision_proxy,
+            },
             "agent": {
                 "id": session.agent.agent_id,
                 "work_mode_default": "auto",
@@ -457,6 +507,25 @@ def create_app():  # noqa: ANN201
         skip = {"transfer-encoding", "content-encoding", "content-length"}
         out_headers = {k: v for k, v in resp.headers.items() if k.lower() not in skip}
         return Response(content=resp.content, status_code=resp.status_code, headers=out_headers)
+
+    @app.get("/api/receipt")
+    async def api_receipt(run_id: str = "") -> JSONResponse:
+        """R28：返回某 Run 的任务回执 Markdown（默认最近一次）。"""
+        from auc.receipt import ReceiptStore
+
+        session = _get_session()
+        store = ReceiptStore(session.sandbox)
+        runs = store.list_runs()
+        if not runs:
+            raise HTTPException(404, "no receipts")
+        rid = run_id.strip() or runs[0]
+        try:
+            md = store.read_markdown(rid)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        if md is None:
+            raise HTTPException(404, f"receipt not found: {rid}")
+        return JSONResponse({"run_id": rid, "markdown": md, "runs": runs})
 
     @app.get("/api/workspace/tree")
     async def api_tree(path: str = ".") -> JSONResponse:
@@ -929,7 +998,7 @@ def create_app():  # noqa: ANN201
                     )
                     return
                 try:
-                    req, notes = session.prepare_request(
+                    req, notes = await session.prepare_request(
                         message,
                         images,
                         editor_context,
@@ -971,15 +1040,29 @@ def create_app():  # noqa: ANN201
                 except Exception:  # noqa: BLE001
                     pass
                 result = session.agent.last_run_result
-                if (
-                    result is not None
-                    and result.status == "completed"
-                    and session.agent._config.memory is not None  # noqa: SLF001
-                ):
+                _mem = session.agent._config.memory  # noqa: SLF001
+                if result is not None and result.status == "completed" and _mem is not None:
                     try:
-                        await session.agent._config.memory.remember(  # noqa: SLF001
+                        await _mem.remember(
                             strip_images_for_memory(result.messages),
                             run_id=result.run_id,
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
+                # R20+R23：自动复盘 + 进化度量
+                if result is not None and _mem is not None:
+                    try:
+                        from auc.evolution_loop import run_evolution_cycle
+                        from auc.skills import SkillStore
+
+                        run_evolution_cycle(
+                            _mem,
+                            sandbox_root=session.sandbox,
+                            status=result.status,
+                            messages=strip_images_for_memory(result.messages),
+                            run_id=result.run_id,
+                            agent_id=session.agent.agent_id,
+                            skill_store=SkillStore(session.sandbox),
                         )
                     except Exception:  # noqa: BLE001
                         pass
@@ -1001,6 +1084,136 @@ def create_app():  # noqa: ANN201
                 )
                 if status != "completed" and err:
                     yield _sse({"type": "error", "payload": {"message": err}})
+
+        return StreamingResponse(
+            _gen(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @app.post("/api/chat/review")
+    async def api_chat_review(request: Request) -> StreamingResponse:
+        """R27 多轮专项审查：reviewer 角色按 pass 序列只读评审，SSE 流式返回。"""
+        from auc.messages import RunRequest
+        from auc.review import (
+            REVIEW_PASSES,
+            ReviewResult,
+            build_pass_prompt,
+            findings_to_todos,
+            parse_review_findings,
+            render_review_report,
+        )
+
+        session = _get_session()
+
+        def _sse(obj: dict[str, Any]) -> str:
+            return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+        if session.active_run_id:
+            async def _busy():  # noqa: ANN202
+                yield _sse(
+                    {
+                        "type": "error",
+                        "payload": {"message": "对话生成中，请等待完成或取消", "code": "run_in_progress"},
+                    }
+                )
+
+            return StreamingResponse(_busy(), media_type="text/event-stream")
+
+        try:
+            body = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            body = {"__parse_error__": str(exc)}
+
+        async def _gen():  # noqa: ANN202
+            try:
+                if not isinstance(body, dict) or "__parse_error__" in body:
+                    yield _sse({"type": "error", "payload": {"message": "无效 JSON"}})
+                    return
+                use_diff = bool(body.get("diff"))
+                staged = bool(body.get("staged"))
+                path = (body.get("path") or "").strip() or None
+                only = {p for p in (body.get("passes") or "") .split(",") if p} or None
+
+                diff_text: str | None = None
+                if use_diff:
+                    diff_text = _git_diff_text(session.sandbox, staged=staged, path=path)
+                    if not diff_text.strip():
+                        yield _sse(
+                            {"type": "error", "payload": {"message": "没有检测到 git 改动"}}
+                        )
+                        return
+                    scope = "已暂存改动" if staged else "工作区改动"
+                    target_desc = f"git {scope}" + (f"（{path}）" if path else "")
+                elif path:
+                    target_desc = path
+                else:
+                    yield _sse(
+                        {"type": "error", "payload": {"message": "请提供审查路径或选择 git 改动"}}
+                    )
+                    return
+
+                passes = [p for p in REVIEW_PASSES if only is None or p.id in only]
+                if not passes:
+                    yield _sse({"type": "error", "payload": {"message": "无匹配的审查维度"}})
+                    return
+
+                yield _sse(
+                    {
+                        "type": "review_start",
+                        "payload": {
+                            "target": target_desc,
+                            "passes": [{"id": p.id, "label": p.label} for p in passes],
+                        },
+                    }
+                )
+
+                result = ReviewResult(target=target_desc)
+                session.active_run_id = "review"
+                try:
+                    for i, p in enumerate(passes):
+                        meta: dict[str, Any] = {
+                            "readonly_tools": True,
+                            "role_id": "reviewer",
+                        }
+                        prompt = build_pass_prompt(p, target_desc, diff_text=diff_text)
+                        run_result = await session.agent.run(
+                            RunRequest(input=prompt, metadata=meta)
+                        )
+                        findings = parse_review_findings(run_result.output, p)
+                        result.findings.extend(findings)
+                        result.passes_run.append(p.label)
+                        yield _sse(
+                            {
+                                "type": "review_pass",
+                                "payload": {
+                                    "id": p.id,
+                                    "label": p.label,
+                                    "index": i + 1,
+                                    "total": len(passes),
+                                    "count": len(findings),
+                                },
+                            }
+                        )
+                finally:
+                    session.active_run_id = None
+
+                report = render_review_report(result)
+                yield _sse(
+                    {
+                        "type": "review_report",
+                        "payload": {
+                            "markdown": report,
+                            "findings": [f.to_dict() for f in result.findings],
+                            "todos": findings_to_todos(result.findings),
+                        },
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                session.active_run_id = None
+                yield _sse({"type": "error", "payload": {"message": str(exc)}})
+            finally:
+                yield _sse({"type": "done", "payload": {"status": "completed"}})
 
         return StreamingResponse(
             _gen(),
@@ -1124,6 +1337,7 @@ def init_web_state(
     store = ConversationStore(root)
     conv_id, history = store.get_or_create_active()
     _state["agent"] = agent
+    _state["sandbox"] = root
     _state["evolve"] = evolve
     _state["session"] = WebSession(
         agent=agent,
@@ -1187,7 +1401,15 @@ def main(argv: list[str] | None = None) -> int:
     if web_token:
         print(f"AuC Web API token: {web_token}", flush=True)
     print_update_notice()
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    from auc.web.log_config import uvicorn_log_config
+
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        log_level="info",
+        log_config=uvicorn_log_config(),
+    )
     return 0
 
 

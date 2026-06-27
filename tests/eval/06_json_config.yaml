@@ -1,0 +1,20 @@
+id: json-config
+name: 生成并校验 JSON 配置
+instruction: 生成 config.json 并保证可被解析
+autonomy: full-auto
+tags: [files, shell]
+script:
+  - tool: write_file
+    args:
+      path: config.json
+      content: "{\n  \"name\": \"auc\",\n  \"version\": 1\n}\n"
+  - tool: run_command
+    args:
+      command: 'python3 -c "import json; d=json.load(open(''config.json'')); assert d[''name'']==''auc''"'
+  - say: 配置已生成
+checks:
+  - status: completed
+  - file: config.json
+    contains: "\"name\": \"auc\""
+  - run: 'python3 -c "import json; d=json.load(open(''config.json'')); assert d[''version'']==1"'
+    exit: 0

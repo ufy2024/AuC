@@ -218,11 +218,13 @@ class EvolutionMemoryPort:
         nuggets_path: Path | None = None,
         evolution_path: Path | None = None,
         default_role_id: str = DEFAULT_ROLE_ID,
+        skill_store: Any = None,
     ) -> None:
         self._sandbox = sandbox_root
         self._default_role_id = default_role_id
         self._fixed_nuggets = nuggets_path
         self._fixed_evolution = evolution_path
+        self._skill_store = skill_store
 
     def _active_role_id(self, agent_id: AgentId | None) -> str:
         return parse_role_from_agent_id(agent_id) or self._default_role_id
@@ -250,6 +252,10 @@ class EvolutionMemoryPort:
     def evolution_store(self) -> EvolutionStore:
         return self._storage(f"chat:{self._default_role_id}").evolution
 
+    def snapshot_episodes(self, agent_id: AgentId | None = None) -> list[Episode]:
+        """R23：返回当前角色已沉淀的经验条目（供进化度量做采纳判定）。"""
+        return list(self._storage(agent_id).evolution.episodes)
+
     @property
     def nuggets_store(self) -> NuggetsStore:
         return self._storage(f"chat:{self._default_role_id}").nuggets
@@ -266,6 +272,14 @@ class EvolutionMemoryPort:
         store = self._storage(agent_id)
         role_id = store.role_id
         msgs: list[ChatMessage] = []
+        # R21/R15：按触发词注入命中技能（≤2，置于召回最前）
+        if self._skill_store is not None:
+            try:
+                from auc.skills import matched_skill_messages
+
+                msgs.extend(matched_skill_messages(self._skill_store, query, limit=2))
+            except Exception:  # noqa: BLE001 技能注入失败不影响召回
+                pass
         for n in store.nuggets.recall_by_query(query, limit=12):
             if store.legacy and not matches_role(
                 role_id=role_id, tags=n.tags, metadata=n.metadata

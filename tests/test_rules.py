@@ -1,7 +1,7 @@
 import asyncio
 
 from auc.ports.memory import DefaultComposer
-from auc.ports.rules import parse_aurules_markdown
+from auc.ports.rules import FileRulesPort, parse_aurules_markdown
 from auc.context import ListContextWindow
 from auc.messages import ChatMessage
 from auc.ports.package import CodeSnippet, ContextPackage
@@ -27,6 +27,34 @@ def test_parse_aurules() -> None:
     assert rules.version == 1
     assert any("npm" in c for c in rules.build_commands)
     assert any("pytest" in c for c in rules.test_commands)
+
+
+def test_file_rules_reads_agents_md(tmp_path) -> None:
+    (tmp_path / "AGENTS.md").write_text(SAMPLE, encoding="utf-8")
+    rules = asyncio.run(FileRulesPort().load_rules(str(tmp_path)))
+    assert any("npm" in c for c in rules.build_commands)
+
+
+def test_file_rules_priority_aurules_over_agents(tmp_path) -> None:
+    (tmp_path / "AGENTS.md").write_text(
+        "## Build Commands\n- `from-agents`\n", encoding="utf-8"
+    )
+    (tmp_path / ".aurules").write_text(
+        "## Build Commands\n- `from-aurules`\n", encoding="utf-8"
+    )
+    rules = asyncio.run(FileRulesPort().load_rules(str(tmp_path)))
+    assert rules.build_commands == ["`from-aurules`"]
+
+
+def test_file_rules_agents_over_claude(tmp_path) -> None:
+    (tmp_path / "CLAUDE.md").write_text(
+        "## Build Commands\n- `from-claude`\n", encoding="utf-8"
+    )
+    (tmp_path / "AGENTS.md").write_text(
+        "## Build Commands\n- `from-agents`\n", encoding="utf-8"
+    )
+    rules = asyncio.run(FileRulesPort().load_rules(str(tmp_path)))
+    assert rules.build_commands == ["`from-agents`"]
 
 
 def test_compose_with_rules_and_package() -> None:

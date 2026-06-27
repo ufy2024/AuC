@@ -1,4 +1,4 @@
-from auc.terminal import display_width, draw_panel, pad_to, strip_ansi, truncate_to
+from auc.terminal import display_width, draw_panel, log_time_prefix, pad_to, strip_ansi, truncate_to
 
 
 def test_display_width_cjk() -> None:
@@ -21,3 +21,10 @@ def test_draw_panel_runs(capsys) -> None:
     out = capsys.readouterr().out
     assert "╭" in out
     assert "╰" in out
+
+
+def test_log_time_prefix_format() -> None:
+    plain = strip_ansi(log_time_prefix(1704067200.123))
+    assert plain.startswith("[") and "] " in plain
+    assert "." in plain  # 毫秒分隔
+    assert ":" in plain

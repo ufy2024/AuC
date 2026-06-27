@@ -96,6 +96,32 @@ class ToolPrivilegeGate:
         except KeyError:
             pass
 
+        # 0) pre_tool_use hook（R14）：可拒绝/改写入参
+        hooks = getattr(ctx, "hooks", None)
+        if hooks is not None and hooks.has("pre_tool_use"):
+            decision = await hooks.run_tool_hooks(
+                "pre_tool_use",
+                tool_name=tool.name,
+                privilege=policy.privilege,
+                context={
+                    "event": "pre_tool_use",
+                    "tool": tool.name,
+                    "arguments": arguments,
+                    "privilege": policy.privilege,
+                    "run_id": ctx.run_id,
+                    "agent_id": ctx.agent_id,
+                },
+            )
+            if not decision.allow:
+                return ToolResult(
+                    tool_call_id="",
+                    name=tool.name,
+                    content=f"hook 拒绝（pre_tool_use）：{decision.reason}",
+                    is_error=True,
+                )
+            if isinstance(decision.arguments, dict):
+                arguments = decision.arguments
+
         # 1) escalation：危险命令本次调用按 L3 走审批
         effective_privilege = policy.privilege
         risk_override: str | None = None
@@ -187,6 +213,37 @@ class ToolPrivilegeGate:
         # 6) invoke
         result = await tool.invoke(arguments)
         result.tool_call_id = result.tool_call_id or ""
+        return await self._post_tool_use(ctx, tool.name, policy.privilege, arguments, result)
+
+    @staticmethod
+    async def _post_tool_use(
+        ctx: LoopContext,
+        tool_name: str,
+        privilege: str,
+        arguments: dict[str, Any],
+        result: ToolResult,
+    ) -> ToolResult:
+        """R14 post_tool_use：可改写结果内容。"""
+        hooks = getattr(ctx, "hooks", None)
+        if hooks is None or not hooks.has("post_tool_use"):
+            return result
+        decision = await hooks.run_tool_hooks(
+            "post_tool_use",
+            tool_name=tool_name,
+            privilege=privilege,
+            context={
+                "event": "post_tool_use",
+                "tool": tool_name,
+                "arguments": arguments,
+                "privilege": privilege,
+                "result": result.content,
+                "is_error": result.is_error,
+                "run_id": ctx.run_id,
+                "agent_id": ctx.agent_id,
+            },
+        )
+        if decision.content is not None:
+            result.content = decision.content
         return result
 
     @staticmethod
@@ -254,7 +311,9 @@ class ToolPrivilegeGate:
             )
             result = await tool.invoke(pending.tool_call.arguments)
             result.tool_call_id = pending.tool_call.id
-            return result
+            return await self._post_tool_use(
+                ctx, tool.name, policy.privilege, pending.tool_call.arguments, result
+            )
         ctx.events.emit_typed(
             "approval_denied",
             ctx.run_id,

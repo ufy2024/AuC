@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import unicodedata
+from datetime import datetime
 
 _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 
@@ -54,6 +55,14 @@ def blue(text: str) -> str:
 
 def white(text: str) -> str:
     return _wrap("97", text)
+
+
+def log_time_prefix(ts: float | None = None) -> str:
+    """运行日志时间前缀，如 ``[14:32:05.123] ``（已 dim）。"""
+    when = datetime.fromtimestamp(ts) if ts is not None else datetime.now()
+    ms = when.microsecond // 1000
+    stamp = when.strftime("[%H:%M:%S.") + f"{ms:03d}] "
+    return dim(stamp)
 
 
 def strip_ansi(text: str) -> str:

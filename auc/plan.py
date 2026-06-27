@@ -7,7 +7,20 @@ import re
 from typing import Any
 
 READONLY_TOOL_NAMES = frozenset(
-    {"read_file", "list_dir", "grep_search", "glob_files", "fetch_url"}
+    {
+        "read_file",
+        "list_dir",
+        "grep_search",
+        "glob_files",
+        "fetch_url",
+        "update_todos",
+        "git_status",
+        "git_diff",
+        "git_log",
+        "find_symbol",
+        "find_references",
+        "outline",
+    }
 )
 
 _PLAN_FENCE_RE = re.compile(

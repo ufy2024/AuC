@@ -16,6 +16,11 @@ CHAT_SHARED_TOOLS = """\
 - run_command(command, cwd?, timeout?): 沙盒内执行 shell 命令；危险命令需用户授权
 - grep_search(pattern, glob?): 按正则搜索文件内容
 - glob_files(pattern): 按名称模式找文件
+- find_symbol(name): 按名称定位符号定义（函数/类/方法）位置；find_references(symbol): 查名称被引用处；outline(path): 列某 Python 文件结构
+- spawn_subagent(task, kind?): 派生一层子智能体完成相对独立子任务（独立上下文/预算），返回精简回执（改动/命令/验证）
+- update_todos(todos, merge?): 维护结构化任务清单，规划并展示多步任务进度（复杂任务建议先建清单）
+- git_status() / git_diff(path?, staged?) / git_log(max_count?): 查看仓库状态/改动/历史（只读）
+- git_add(paths?) / git_commit(message, add_all?): 暂存与提交改动；git_push(remote?, branch?): 推送（需授权）
 - save_lesson(tags, lesson): 固化可复用经验到**当前角色**目录下的进化库
 - promote_nugget(nugget_id, tags, content): 将成功经验提升为金块技能
 - define_role(role_id, label, persona, ...): 根据对话在沙盒创建自定义角色并初始化进化目录

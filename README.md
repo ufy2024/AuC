@@ -4,7 +4,7 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
-**v0.2.14** — 安全与健壮性加固：HTTP 重试/超时细分、token 用量校准、DeepSeek 按 base_url 选型、硬链接逃逸防护、预览页 CSP、QQ/Telegram 签名与响应校验、工具参数校验与错误泛化。v0.2.13 修复国内镜像未同步时 Web 一键升级失败。
+**v0.3.0** — 竞品对标优化计划全面落地（O1–O4 / R1–R28 主干）：符号代码索引（R26，含可选 tree-sitter 多语言与向量语义层）、多轮专项审查（R27）、任务回执/Replay（R28）、MCP 客户端（R16）、生命周期 Hooks（R14）、会话内子智能体工具（R13）、后台作业 + 定时 Routines + 容器隔离（R17）、并行 worktree（R18）、确定性评测基线（R19），以及自进化全闭环「执行→复盘→度量→固化→优化」（R20/R21/R22/R23）。修复 OpenAI/DeepSeek 兼容客户端 400 错误体透传、终端 URL 链接对齐、测试环境变量隔离。v0.2.14 安全与健壮性加固。
 
 [![CI](https://github.com/ufy2024/AuC/actions/workflows/ci.yml/badge.svg)](https://github.com/ufy2024/AuC/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/ufy-auc)](https://pypi.org/project/ufy-auc/)
@@ -147,7 +147,7 @@ asyncio.run(main())
 
 ```bash
 pip install -e ".[dev]"
-pytest -q                                    # 347 项用例
+pytest -q                                    # 357 项用例
 pytest -q --cov=auc --cov-fail-under=75    # CI 同款（当前约 80%）
 ruff check auc tests
 ```
@@ -160,8 +160,13 @@ CI：GitHub Actions，Python 3.11 / 3.12，覆盖率门槛 ≥75%。
 
 | 文档 | 说明 |
 |------|------|
+| `docs/需求.md` | 需求清单（R1–R28）、对标分析与实现状态 |
+| `docs/竞品分析与优化计划.md` | Cursor/Codex/Claude Code 对比、缺陷清单与 O1–O4 优化排程 |
+| `docs/架构设计.md` | 目标架构（落地 R1–R28） |
+| `docs/方案设计.md` | 关键技术选型与决策（D-Rx） |
+| `docs/详细设计.md` | 接口、数据格式、时序与测试计划 |
 | `docs/design-philosophy.md` | 设计哲学与生态蓝图 |
-| `docs/architecture.md` | 总体架构 |
+| `docs/architecture.md` | 总体架构（现状 As-Is） |
 | `docs/model-config.md` | OpenAI / Anthropic / DeepSeek 配置 |
 | `docs/tool-privilege.md` | L1/L2/L3 工具权限 |
 | `docs/aum-compatibility.md` | AuM 联调与版本 |

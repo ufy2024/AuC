@@ -1,0 +1,14 @@
+id: shell-create
+name: 通过 shell 生成文件
+instruction: 用命令把数据写入 out.txt
+autonomy: full-auto
+tags: [shell]
+script:
+  - tool: run_command
+    args:
+      command: 'printf "data-ok" > out.txt'
+  - say: 已写入
+checks:
+  - status: completed
+  - file: out.txt
+    contains: data-ok

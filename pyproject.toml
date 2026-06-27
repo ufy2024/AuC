@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ufy-auc"
-version = "0.2.14"
+version = "0.3.0"
 description = "Agents-ufy-Core (AuC): asyncio single-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,11 +29,19 @@ dependencies = [
 # web     网页 UI（FastAPI + SSE + 工作区 + 多模态）
 # telegram  Telegram L3 二次授权
 # qq        QQ L3 二次授权（OneBot 11 / 官方机器人）
+# mcp     MCP 客户端（接入外部 stdio/HTTP MCP server）
+# index   多语言符号索引（tree-sitter）+ 向量语义层（sentence-transformers）
 # chat    终端对话推荐组合 = llm + cli
 # all     上述全部可选组件
 # dev     pytest + all（CI / 本地开发）
 llm = ["httpx>=0.27.0"]
 cli = ["prompt-toolkit>=3.0"]
+mcp = ["mcp>=1.2.0"]
+index = [
+    "tree-sitter>=0.21",
+    "tree-sitter-language-pack>=0.2",
+    "sentence-transformers>=2.2",
+]
 web = [
     "httpx>=0.27.0",
     "fastapi>=0.115.0",
@@ -53,6 +61,10 @@ all = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "websockets>=12.0",
+    "mcp>=1.2.0",
+    "tree-sitter>=0.21",
+    "tree-sitter-language-pack>=0.2",
+    "sentence-transformers>=2.2",
 ]
 # qq 与 telegram 共用 httpx，已包含在 all 中
 dev = [

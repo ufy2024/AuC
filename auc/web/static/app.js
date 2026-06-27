@@ -1714,6 +1714,27 @@ function formatConvTime(iso) {
   }
 }
 
+function formatEventTime(ts) {
+  if (ts == null || ts === "") return "";
+  try {
+    const ms = typeof ts === "number" ? (ts < 1e12 ? ts * 1000 : ts) : Date.parse(ts);
+    if (!Number.isFinite(ms)) return "";
+    const d = new Date(ms);
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    const f = String(d.getMilliseconds()).padStart(3, "0");
+    return `${h}:${m}:${s}.${f}`;
+  } catch {
+    return "";
+  }
+}
+
+function logTimeHtml(ts) {
+  const s = formatEventTime(ts);
+  return s ? `<span class="log-time">[${escapeHtml(s)}]</span>` : "";
+}
+
 async function renderChatHistory(messages) {
   const panels = ["#chat-messages", "#agent-messages"];
   for (const sel of panels) {
@@ -1844,10 +1865,114 @@ function messageTheme() {
 
 function beginAssistant() {
   streamText = "";
+  state._todoCardEl = null;
   streamEl = document.createElement("div");
   streamEl.className = "msg msg-assistant";
   streamEl.innerHTML = '<span class="marker">◆</span><span class="msg-stream"></span>';
   targetMessages().appendChild(streamEl);
+}
+
+function renderUsage(usage) {
+  if (!usage || !usage.total_tokens) return;
+  const el = document.createElement("div");
+  el.className = "msg msg-usage";
+  const cost = usage.cost_usd
+    ? ` · $${Number(usage.cost_usd).toFixed(4)}`
+    : "";
+  const over = usage.budget_exceeded
+    ? ` · ${escapeHtml(t("usage.budgetExceeded"))}`
+    : "";
+  el.innerHTML =
+    `<span>⛁ ↑${usage.prompt_tokens || 0} ↓${usage.completion_tokens || 0} ` +
+    `Σ${usage.total_tokens} tok${cost}${over}</span>`;
+  targetMessages().appendChild(el);
+  scrollMessages();
+}
+
+const TODO_STATUS_ICON = {
+  completed: "✓",
+  in_progress: "◐",
+  pending: "○",
+  cancelled: "✗",
+};
+
+function renderTodos(todos, timestamp) {
+  const list = Array.isArray(todos) ? todos : [];
+  const done = list.filter((t) => t.status === "completed").length;
+  const card =
+    state._todoCardEl && state._todoCardEl.isConnected
+      ? state._todoCardEl
+      : (() => {
+          const el = document.createElement("div");
+          el.className = "msg msg-todos";
+          targetMessages().appendChild(el);
+          state._todoCardEl = el;
+          return el;
+        })();
+  const time = logTimeHtml(timestamp ?? Date.now() / 1000);
+  const rows = list
+    .map((todo) => {
+      const status = TODO_STATUS_ICON[todo.status] ? todo.status : "pending";
+      const icon = TODO_STATUS_ICON[status];
+      return `<li class="todo-item todo-${status}"><span class="todo-icon">${icon}</span><span class="todo-text">${escapeHtml(
+        todo.content || "",
+      )}</span></li>`;
+    })
+    .join("");
+  card.innerHTML =
+    `<div class="todos-head">${time}<span>${escapeHtml(
+      t("todos.title"),
+    )}</span><span class="todos-progress">${done}/${list.length}</span></div>` +
+    `<ul class="todos-list">${rows}</ul>`;
+  scrollMessages();
+}
+
+function renderSubagent(payload, done, timestamp) {
+  const p = payload || {};
+  const el = document.createElement("div");
+  el.className = "msg msg-subagent";
+  const time = logTimeHtml(timestamp ?? Date.now() / 1000);
+  const kind = escapeHtml(p.kind || "");
+  if (done) {
+    const files = Array.isArray(p.changed_files) ? p.changed_files.length : 0;
+    const extra = files ? ` · ${files} ${t("subagent.files")}` : "";
+    el.innerHTML = `<span>${time}⎿ ${t("subagent.done")} [${kind}] · ${escapeHtml(
+      p.status || "",
+    )}${extra}</span>`;
+  } else {
+    const task = escapeHtml((p.task || "").slice(0, 80));
+    el.innerHTML = `<span>${time}⌥ ${t("subagent.start")} [${kind}] ${task}</span>`;
+  }
+  targetMessages().appendChild(el);
+  scrollMessages();
+}
+
+function renderReceipt(path, timestamp) {
+  const card = document.createElement("div");
+  card.className = "msg msg-receipt";
+  const time = logTimeHtml(timestamp ?? Date.now() / 1000);
+  const details = document.createElement("details");
+  const summary = document.createElement("summary");
+  summary.innerHTML = `${time}<span>📄 ${escapeHtml(t("receipt.title"))}</span>`;
+  details.appendChild(summary);
+  const body = document.createElement("div");
+  body.className = "receipt-body";
+  body.textContent = t("receipt.loading");
+  details.appendChild(body);
+  card.appendChild(details);
+  targetMessages().appendChild(card);
+  scrollMessages();
+
+  fetch("/api/receipt")
+    .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+    .then((data) => {
+      body.replaceChildren(
+        buildMessageContent(data.markdown || "", { theme: messageTheme() }),
+      );
+    })
+    .catch(() => {
+      body.textContent = t("receipt.error");
+    });
 }
 
 function paintAssistantMessage(msgEl, text) {
@@ -1929,11 +2054,12 @@ function appendDelta(delta) {
   scheduleMessageRender();
 }
 
-function appendTool(name, args, summary, isError) {
+function appendTool(name, args, summary, isError, timestamp) {
   const el = document.createElement("div");
   el.className = "msg msg-tool";
   const label = formatTool(name, args);
-  el.innerHTML = `<div>● ${label}</div>`;
+  const time = logTimeHtml(timestamp ?? Date.now() / 1000);
+  el.innerHTML = `<div>${time}● ${escapeHtml(label)}</div>`;
   if (summary) {
     const r = document.createElement("div");
     r.className = "result";
@@ -1999,7 +2125,47 @@ function showNextApproval() {
     const save = args.save_path || "";
     urlEl.textContent = url + (save ? `\n${t("approval.saveTo", { path: save })}` : "");
   }
+  renderApprovalDiff(payload);
   overlay.classList.remove("hidden");
+}
+
+function renderApprovalDiff(payload) {
+  const wrap = $("#approval-diff");
+  const body = $("#approval-diff-body");
+  const stat = $("#approval-diff-stat");
+  if (!wrap || !body) return;
+  const diff = payload.diff_text || "";
+  const isWrite = payload.tool === "write_file";
+  // 仅对 write_file 的 unified diff 渲染逐行高亮；命令/路径已在 url 区展示。
+  if (!diff || !isWrite || !/^(---|\+\+\+|@@|[+\- ])/m.test(diff)) {
+    wrap.classList.add("hidden");
+    body.innerHTML = "";
+    if (stat) stat.textContent = "";
+    return;
+  }
+  let added = 0;
+  let removed = 0;
+  const html = diff
+    .split("\n")
+    .map((line) => {
+      let cls = "diff-ctx";
+      if (line.startsWith("+++") || line.startsWith("---")) {
+        cls = "diff-meta";
+      } else if (line.startsWith("@@")) {
+        cls = "diff-hunk";
+      } else if (line.startsWith("+")) {
+        cls = "diff-add";
+        added += 1;
+      } else if (line.startsWith("-")) {
+        cls = "diff-del";
+        removed += 1;
+      }
+      return `<span class="${cls}">${escapeHtml(line)}</span>`;
+    })
+    .join("\n");
+  body.innerHTML = html;
+  if (stat) stat.textContent = `+${added} −${removed}`;
+  wrap.classList.remove("hidden");
 }
 
 async function submitApproval(approved) {
@@ -2039,6 +2205,37 @@ function appendNotes(notes) {
     el.className = "msg msg-note";
     el.textContent = "› " + n;
     targetMessages().appendChild(el);
+  }
+}
+
+function appendLogNote(text, ts) {
+  const el = document.createElement("div");
+  el.className = "msg msg-note";
+  const time = logTimeHtml(ts);
+  el.innerHTML = `${time}<span>✗ ${escapeHtml(text)}</span>`;
+  targetMessages().appendChild(el);
+}
+
+function insertTerminalToPrompt(text, { kind = "error", auto = false } = {}) {
+  const input = $("#prompt");
+  if (!input) return;
+  const block = text.trim();
+  if (!block) return;
+  const wrapped = `\n\n--- 终端输出 ---\n${block}\n--- end ---\n`;
+  const prefix =
+    kind === "error"
+      ? "请帮我分析以下终端报错："
+      : "请根据以下终端输出协助我：";
+  if (input.value.trim()) {
+    input.value = `${input.value.trim()}${wrapped}`;
+  } else {
+    input.value = `${prefix}\n${wrapped.trim()}`;
+  }
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.focus();
+  if (state.mode !== "code") setMode("code");
+  if (!auto) {
+    $("#agent-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 }
 
@@ -2173,7 +2370,8 @@ function handleEvent(ev, streamConversationId = null) {
     }
     const el = document.createElement("div");
     el.className = "msg msg-note";
-    el.textContent = "✗ " + (ev.payload?.message || t("chat.unknownError"));
+    const time = logTimeHtml(ev.timestamp);
+    el.innerHTML = `${time}<span>✗ ${escapeHtml(ev.payload?.message || t("chat.unknownError"))}</span>`;
     targetMessages().appendChild(el);
     return;
   }
@@ -2197,14 +2395,33 @@ function handleEvent(ev, streamConversationId = null) {
     clearTimeout(renderTimer);
     if (streamEl && streamText) flushMessageRender();
     if (ev.payload?.status !== "completed" && ev.payload?.error) {
-      const el = document.createElement("div");
-      el.className = "msg msg-note";
-      el.textContent = "✗ " + ev.payload.error;
-      targetMessages().appendChild(el);
+      appendLogNote(ev.payload.error, ev.timestamp);
     } else if (ev.payload?.status === "completed" && !streamText && !streamEl) {
       const out = ev.payload?.output;
       if (out) appendDelta(out);
     }
+    renderUsage(state._lastUsage);
+    state._lastUsage = null;
+    return;
+  }
+  if (ev.type === "todos_updated") {
+    renderTodos(ev.payload?.todos || [], ev.timestamp);
+    return;
+  }
+  if (ev.type === "usage_updated") {
+    state._lastUsage = ev.payload || null;
+    return;
+  }
+  if (ev.type === "receipt_ready") {
+    renderReceipt(ev.payload?.path, ev.timestamp);
+    return;
+  }
+  if (ev.type === "subagent_start") {
+    renderSubagent(ev.payload, false, ev.timestamp);
+    return;
+  }
+  if (ev.type === "subagent_end") {
+    renderSubagent(ev.payload, true, ev.timestamp);
     return;
   }
   if (ev.type === "tool_start") {
@@ -2225,6 +2442,7 @@ function handleEvent(ev, streamConversationId = null) {
       pending.args || {},
       ev.payload?.summary,
       ev.payload?.is_error,
+      ev.timestamp,
     );
     state._pendingTool = null;
     if (
@@ -2244,7 +2462,8 @@ function handleEvent(ev, streamConversationId = null) {
   if (ev.type === "run_end" && ev.payload?.status === "cancelled") {
     const el = document.createElement("div");
     el.className = "msg msg-note";
-    el.textContent = t("chat.cancelled");
+    const time = logTimeHtml(ev.timestamp);
+    el.innerHTML = `${time}<span>${escapeHtml(t("chat.cancelled"))}</span>`;
     targetMessages().appendChild(el);
   }
 }
@@ -2368,6 +2587,134 @@ $("#btn-insert-sel")?.addEventListener("click", () => {
   input.focus();
 });
 
+function openReviewDialog() {
+  const overlay = $("#review-overlay");
+  if (!overlay) return;
+  const fileRadio = overlay.querySelector('input[value="file"]');
+  if (fileRadio) fileRadio.disabled = !state.activeTab;
+  if (fileRadio && !state.activeTab) {
+    const diff = overlay.querySelector('input[value="diff"]');
+    if (diff) diff.checked = true;
+  }
+  overlay.classList.remove("hidden");
+}
+
+function hideReviewDialog() {
+  $("#review-overlay")?.classList.add("hidden");
+}
+
+async function runReview() {
+  if (state.streaming) return;
+  const scope =
+    document.querySelector('input[name="review-scope"]:checked')?.value || "file";
+  const body = {};
+  let label = "";
+  if (scope === "file") {
+    if (!state.activeTab) {
+      appendNotes([t("review.noFile")]);
+      return;
+    }
+    body.path = state.activeTab;
+    label = state.activeTab;
+  } else if (scope === "staged") {
+    body.diff = true;
+    body.staged = true;
+    label = t("review.scopeStaged");
+  } else {
+    body.diff = true;
+    label = t("review.scopeDiff");
+  }
+  hideReviewDialog();
+
+  state.streaming = true;
+  setButtons(true);
+  const note = document.createElement("div");
+  note.className = "msg msg-note";
+  note.textContent = `🔎 ${t("review.running", { target: label })}`;
+  targetMessages().appendChild(note);
+  scrollMessages();
+
+  const controller = new AbortController();
+  state.abort = controller;
+  try {
+    const res = await fetch("/api/chat/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const parts = buf.split("\n\n");
+      buf = parts.pop() || "";
+      for (const chunk of parts) {
+        const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+        if (!line) continue;
+        handleReviewEvent(JSON.parse(line.slice(6)));
+      }
+    }
+  } catch (e) {
+    if (e.name !== "AbortError") appendNotes([`✗ ${e.message}`]);
+  } finally {
+    state.streaming = false;
+    state.abort = null;
+    setButtons(false);
+  }
+}
+
+function handleReviewEvent(ev) {
+  if (ev.type === "error") {
+    appendNotes([`✗ ${ev.payload?.message || "review error"}`]);
+    return;
+  }
+  if (ev.type === "review_pass") {
+    const p = ev.payload || {};
+    const el = document.createElement("div");
+    el.className = "msg msg-tool";
+    el.innerHTML = `<div>${logTimeHtml(Date.now() / 1000)}● ${escapeHtml(
+      t("review.passDone", {
+        index: p.index,
+        total: p.total,
+        label: p.label,
+        count: p.count,
+      }),
+    )}</div>`;
+    targetMessages().appendChild(el);
+    scrollMessages();
+    return;
+  }
+  if (ev.type === "review_report") {
+    const md = ev.payload?.markdown || "";
+    const el = document.createElement("div");
+    el.className = "msg msg-assistant";
+    const stream = document.createElement("span");
+    stream.className = "msg-stream";
+    stream.replaceChildren(buildMessageContent(md, { theme: messageTheme() }));
+    el.appendChild(stream);
+    targetMessages().appendChild(el);
+    const todos = ev.payload?.todos || [];
+    if (todos.length) {
+      state._todoCardEl = null;
+      renderTodos(todos, Date.now() / 1000);
+    }
+    scrollMessages();
+    return;
+  }
+}
+
+$("#btn-review")?.addEventListener("click", openReviewDialog);
+$("#review-cancel")?.addEventListener("click", hideReviewDialog);
+$("#review-run")?.addEventListener("click", () => void runReview());
+$("#review-overlay")?.addEventListener("click", (ev) => {
+  if (ev.target.id === "review-overlay") hideReviewDialog();
+});
+
 async function clearChat() {
   await newConversation();
 }
@@ -2402,6 +2749,13 @@ async function boot() {
   initThemes();
   initSidebarChrome();
   initTerminalPanel();
+  window.addEventListener("auc-terminal-to-agent", (ev) => {
+    const detail = ev.detail || {};
+    insertTerminalToPrompt(detail.text, {
+      kind: detail.kind || "error",
+      auto: Boolean(detail.auto),
+    });
+  });
   bindUpdateBanner();
   bindModelSettings();
   window.addEventListener("auc-terminal-resize", layoutEditor);

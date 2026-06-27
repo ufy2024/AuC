@@ -156,7 +156,18 @@
                 <button type="button" class="icon-btn" id="terminal-close" data-i18n-title="terminal.hide"></button>
               </div>
             </header>
-            <div class="terminal-hosts" id="terminal-hosts"></div>
+            <div class="terminal-hosts" id="terminal-hosts" data-i18n-title="terminal.linkHint">
+              <div class="terminal-action-bar hidden" id="terminal-action-bar" role="toolbar">
+                <span class="terminal-action-hint" id="terminal-action-hint"></span>
+                <button type="button" class="btn ghost sm" id="terminal-action-copy" data-i18n="terminal.copy"></button>
+                <button type="button" class="btn primary sm" id="terminal-action-agent" data-i18n="terminal.toAgent"></button>
+                <label class="terminal-action-auto" title="">
+                  <input type="checkbox" id="terminal-auto-agent" />
+                  <span data-i18n="terminal.autoAgent"></span>
+                </label>
+                <button type="button" class="terminal-action-dismiss" id="terminal-action-dismiss" aria-label="×">×</button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -216,6 +227,7 @@
             </label>
             <button type="button" class="btn ghost sm" id="btn-insert-file" data-i18n-title="agent.insertFile" data-i18n="agent.insertFile"></button>
             <button type="button" class="btn ghost sm" id="btn-insert-sel" data-i18n-title="agent.insertSel" data-i18n="agent.insertSel"></button>
+            <button type="button" class="btn ghost sm" id="btn-review" data-i18n-title="review.title" data-i18n="review.button"></button>
           </div>
           <div class="attach-strip" id="attach-strip-agent"></div>
           <textarea id="prompt" rows="3" data-i18n-placeholder="agent.promptCode"></textarea>
@@ -314,6 +326,13 @@
       <h3 class="approval-title" data-i18n="approval.title"></h3>
       <p class="approval-summary" id="approval-summary"></p>
       <pre class="approval-url" id="approval-url"></pre>
+      <div class="approval-diff hidden" id="approval-diff">
+        <div class="approval-diff-head">
+          <span data-i18n="approval.diffTitle"></span>
+          <span class="approval-diff-stat" id="approval-diff-stat"></span>
+        </div>
+        <pre class="approval-diff-body" id="approval-diff-body"></pre>
+      </div>
       <p class="approval-hint" data-i18n="approval.hint"></p>
       <div class="approval-actions">
         <button type="button" class="btn ghost" id="approval-deny" data-i18n="approval.deny"></button>
@@ -322,7 +341,32 @@
     </div>
   </div>
 
+  <div id="review-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card">
+      <h3 class="approval-title" data-i18n="review.title"></h3>
+      <p class="approval-summary" data-i18n="review.hint"></p>
+      <div class="review-options">
+        <label class="review-radio">
+          <input type="radio" name="review-scope" value="file" checked />
+          <span data-i18n="review.scopeFile"></span>
+        </label>
+        <label class="review-radio">
+          <input type="radio" name="review-scope" value="diff" />
+          <span data-i18n="review.scopeDiff"></span>
+        </label>
+        <label class="review-radio">
+          <input type="radio" name="review-scope" value="staged" />
+          <span data-i18n="review.scopeStaged"></span>
+        </label>
+      </div>
+      <div class="approval-actions">
+        <button type="button" class="btn ghost" id="review-cancel" data-i18n="common.cancel"></button>
+        <button type="button" class="btn primary" id="review-run" data-i18n="review.run"></button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=35" type="module"></script>
+  <script src="/static/app.js?v=46" type="module"></script>
 </body>
 </html>

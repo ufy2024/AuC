@@ -9,7 +9,7 @@ from auc.messages import ChatMessage, ToolCall
 from auc.multimodal import openai_message_content
 from auc.model.client import AssistantMessage, StreamChunk, TokenUsage
 from auc.model.json_util import PARSE_ERROR_KEY, safe_parse_tool_input
-from auc.model.retry import make_timeout, with_retry
+from auc.model.retry import _RETRY_STATUS, make_timeout, with_retry
 from auc.tools.base import ToolSchema
 
 try:
@@ -65,6 +65,27 @@ def _tools_to_api(tools: list[ToolSchema] | None) -> list[dict[str, Any]] | None
         }
         for t in tools
     ]
+
+
+def _format_api_error(status_code: int, body_text: str) -> str:
+    """从 API 错误响应体提取可读原因（OpenAI 兼容多为 {"error":{"message":...}}）。"""
+    detail = (body_text or "").strip()
+    try:
+        data = json.loads(body_text)
+        if isinstance(data, dict):
+            err = data.get("error")
+            if isinstance(err, dict) and err.get("message"):
+                detail = str(err["message"])
+            elif isinstance(err, str) and err:
+                detail = err
+            elif data.get("message"):
+                detail = str(data["message"])
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    msg = f"OpenAI API {status_code} error"
+    if detail:
+        msg = f"{msg}: {detail[:1000]}"
+    return msg
 
 
 def _parse_tool_calls(raw: list[dict[str, Any]] | None) -> list[ToolCall] | None:
@@ -130,7 +151,12 @@ class OpenAICompatibleClient:
 
         async def _do() -> Any:
             resp = await client.post("/chat/completions", json=body)
-            resp.raise_for_status()
+            if resp.is_error:
+                # 5xx/429 等瞬时错误仍抛 HTTPStatusError 走重试；其余客户端错误
+                # （400/401/403/404/422…）透出响应体里的具体原因，便于定位。
+                if resp.status_code in _RETRY_STATUS:
+                    resp.raise_for_status()
+                raise RuntimeError(_format_api_error(resp.status_code, resp.text))
             return resp.json()
 
         data = await with_retry(_do, label="openai")
@@ -179,7 +205,14 @@ class OpenAICompatibleClient:
         async with client.stream(
             "POST", "/chat/completions", json=body
         ) as resp:
-            resp.raise_for_status()
+            if resp.is_error:
+                try:
+                    body_text = (await resp.aread()).decode("utf-8", errors="replace")
+                except Exception:  # noqa: BLE001
+                    body_text = ""
+                if resp.status_code in _RETRY_STATUS:
+                    resp.raise_for_status()
+                raise RuntimeError(_format_api_error(resp.status_code, body_text))
             async for line in resp.aiter_lines():
                 if not line or not line.startswith("data:"):
                     continue

@@ -12,6 +12,8 @@ docs/
 .coverage
 coverage.json
 ./*.txt
+# 符号索引缓存（R26）
+.auc/
 # 本地工作区与敏感凭据，禁止提交
 hfy/
 PyPI-Recovery-Codes-*.txt
