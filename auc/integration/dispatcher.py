@@ -56,7 +56,7 @@ class SpecialistRegistry:
 
 @dataclass
 class MetaDispatcher:
-    """AuM-style task dispatch: slice → rules → run Specialist (OpenClaw pattern)."""
+    """AuM 风格任务分发：切片 → 规则 → 运行 Specialist（OpenClaw 模式）。"""
 
     registry: SpecialistRegistry
     slicer: SemanticSlicer | None = None

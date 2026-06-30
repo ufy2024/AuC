@@ -26,7 +26,7 @@ def _is_anthropic_style_base(base_url: str) -> bool:
 
 
 def create_model_client(cfg: ModelConfig) -> ModelClient:
-    """Build ModelClient from merged ModelConfig.
+    """从合并后的 ModelConfig 构建 ModelClient。
 
     选型规则（修复 DeepSeek 同名两套不兼容路径）：
     1. provider=anthropic → Anthropic 协议
@@ -43,17 +43,21 @@ def create_model_client(cfg: ModelConfig) -> ModelClient:
         )
 
     from auc.config import _default_base_url
+    from auc.model.routing import canonical_auto_model, is_auto_model
 
     base_url = cfg.base_url or _default_base_url(cfg.provider)
     use_anthropic = cfg.provider == "anthropic" or (
         cfg.provider != "openai" and _is_anthropic_style_base(base_url)
     )
 
+    # 智能路由：把 `auto` 规范化为 `auto:<策略>` 透传给网关由其按请求内容选型。
+    model_id = canonical_auto_model(cfg.model) if is_auto_model(cfg.model) else cfg.model
+
     if use_anthropic:
         from auc.model.anthropic import AnthropicClient
 
         return AnthropicClient(
-            model=cfg.model,
+            model=model_id,
             api_key=cfg.api_key,
             base_url=cfg.base_url or "https://api.anthropic.com",
             max_tokens=cfg.max_tokens,
@@ -63,7 +67,7 @@ def create_model_client(cfg: ModelConfig) -> ModelClient:
     from auc.model.openai import OpenAICompatibleClient
 
     return OpenAICompatibleClient(
-        model=cfg.model,
+        model=model_id,
         api_key=cfg.api_key,
         base_url=base_url,
         timeout=cfg.timeout,

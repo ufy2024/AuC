@@ -9,7 +9,7 @@ from auc.tools.base import ToolPolicy, tool_from_function
 
 
 async def echo(**kwargs: Any) -> str:
-    """Echo tool arguments as JSON."""
+    """将工具参数原样以 JSON 回显。"""
     return json.dumps(kwargs, ensure_ascii=False)
 
 

@@ -1466,7 +1466,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    # chat — primary LLM entry
+    # chat — 主 LLM 入口
     p_chat = sub.add_parser("chat", help="Run agent with configured LLM")
     p_chat.add_argument(
         "message",
@@ -1725,7 +1725,7 @@ def main(argv: list[str] | None = None) -> int:
     p_receipt.add_argument("--run", default=None, help="run_id（默认最近一次）")
     p_receipt.add_argument("--list", action="store_true", help="仅列出回执 run_id")
 
-    # config
+    # config — 配置管理
     p_cfg = sub.add_parser("config", help="Manage model configuration file")
     cfg_sub = p_cfg.add_subparsers(dest="config_cmd", required=True)
 
@@ -1772,7 +1772,7 @@ def main(argv: list[str] | None = None) -> int:
     p_set.add_argument("--config-id")
     p_set.add_argument("--description")
 
-    # backward compatible openai subcommand
+    # 向后兼容的 openai 子命令
     p_oai = sub.add_parser("openai", help="Alias for: auc chat --provider openai")
     p_oai.add_argument("message")
     p_oai.add_argument("--system", default=None)

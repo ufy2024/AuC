@@ -61,6 +61,28 @@ class WebSession:
             set_active=True,
         )
 
+    def truncate_to_user_turn(self, user_index: int) -> list[dict[str, Any]]:
+        """截断历史到第 ``user_index`` 个用户消息之前（不含），用于重试 / 编辑重答。
+
+        随后由 stream 接口重新追加用户消息并运行，从而在同一对话里
+        「就地重试」或「改完再答」，无需新开对话或重复提问。
+        """
+        if self.active_run_id:
+            raise RuntimeError("对话生成中，请等待完成或取消后再操作")
+        seen = -1
+        cut: int | None = None
+        for i, msg in enumerate(self.history):
+            if msg.role == "user":
+                seen += 1
+                if seen == user_index:
+                    cut = i
+                    break
+        if cut is None:
+            raise ValueError("指定的消息不存在或已变更，请刷新后重试")
+        self.history = self.history[:cut]
+        self.persist()
+        return messages_for_ui(self.history)
+
     async def prepare_request(
         self,
         message: str,

@@ -18,7 +18,7 @@ _MAX_WRITE_BYTES = 5_000_000
 def make_file_tools(
     sandbox_root: str,
 ) -> list[tuple[Any, ToolPolicy]]:
-    """Sandbox filesystem tools (read / write / list / delete under sandbox_root)."""
+    """沙盒文件系统工具（在 sandbox_root 下读/写/列目录/删除）。"""
     root = Path(sandbox_root).resolve()
 
     def _read(path: str) -> str:

@@ -31,6 +31,31 @@ def test_model_delta_and_finish(capsys: pytest.CaptureFixture[str]) -> None:
     assert "你好，世界" in out
 
 
+def test_run_model_shown_and_switch_highlighted(capsys: pytest.CaptureFixture[str]) -> None:
+    printer = ChatStreamPrinter()
+    printer.feed(_ev("run_start", {"model": "deepseek-chat"}))
+    printer.finish_reply()
+    out1 = capsys.readouterr().out
+    assert "⬡" in out1
+    assert "deepseek-chat" in out1
+
+    # 第二次 Run 切换到另一模型 → 高亮「切换」
+    printer.feed(_ev("run_start", {"model": "gpt-4o-mini"}))
+    printer.finish_reply()
+    out2 = capsys.readouterr().out
+    assert "⇄" in out2
+    assert "deepseek-chat" in out2
+    assert "gpt-4o-mini" in out2
+
+
+def test_run_start_without_model_prints_no_model_line(capsys: pytest.CaptureFixture[str]) -> None:
+    printer = ChatStreamPrinter()
+    printer.feed(_ev("run_start", {}))
+    out = capsys.readouterr().out
+    assert "⬡" not in out
+    assert "⇄" not in out
+
+
 def test_tool_lifecycle_rendering(capsys: pytest.CaptureFixture[str]) -> None:
     printer = ChatStreamPrinter()
     printer.feed(_ev("tool_start", {"tool": "read_file", "arguments": {"path": "a.py"}}))

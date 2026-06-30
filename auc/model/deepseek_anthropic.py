@@ -6,7 +6,7 @@ def is_deepseek_anthropic_base(base_url: str) -> bool:
 
 
 def deepseek_request_extra() -> dict:
-    """Thinking mode defaults on for DeepSeek V4; must round-trip thinking on tool turns."""
+    """DeepSeek V4 默认开启 thinking 模式；工具轮次须原样回传 thinking。"""
     return {"thinking": {"type": "enabled"}}
 
 

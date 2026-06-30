@@ -36,6 +36,24 @@ def test_with_retry_propagates_non_retryable() -> None:
     assert calls["n"] == 1  # 非可重试错误不重试
 
 
+def test_format_model_http_error_shortens_httpx_message() -> None:
+    httpx = pytest.importorskip("httpx")
+    from auc.model.retry import format_model_http_error
+
+    req = httpx.Request("POST", "https://cooper-api.com/v1/chat/completions")
+    resp = httpx.Response(503, request=req, text="upstream busy")
+    exc = httpx.HTTPStatusError(
+        "Server error '503 Service Unavailable' for url 'https://cooper-api.com/v1/chat/completions'",
+        request=req,
+        response=resp,
+    )
+    msg = format_model_http_error(exc)
+    assert "503" in msg
+    assert "服务不可用" in msg
+    assert "/v1/chat/completions" in msg
+    assert "developer.mozilla.org" not in msg
+
+
 def test_with_retry_retries_then_raises_status() -> None:
     httpx = pytest.importorskip("httpx")
     calls = {"n": 0}

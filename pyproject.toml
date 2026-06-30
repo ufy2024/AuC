@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ufy-auc"
-version = "0.3.0"
+version = "0.3.1"
 description = "Agents-ufy-Core (AuC): asyncio single-agent framework"
 readme = "README.md"
 requires-python = ">=3.11"

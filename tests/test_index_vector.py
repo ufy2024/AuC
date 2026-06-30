@@ -30,6 +30,31 @@ def test_available_with_injected_fn():
     assert available(_fake_embed) is True
 
 
+def test_available_does_not_load_model(monkeypatch):
+    """能力探测绝不构造模型（修复启动时急加载 + 重复 Loading weights）。"""
+    import auc.index_vector as iv
+
+    def _boom():
+        raise AssertionError("default_embedder must not be called by available()")
+
+    monkeypatch.setattr(iv, "default_embedder", _boom)
+    # 不应触发模型加载，只看 sentence-transformers 是否可导入
+    assert available() is iv.sentence_transformers_installed()
+
+
+def test_vector_index_construction_is_lazy(monkeypatch, tmp_path):
+    """构造 VectorIndex（embed_fn=None）不应加载模型；enabled 也不触发加载。"""
+    import auc.index_vector as iv
+
+    def _boom():
+        raise AssertionError("model must not load at construction / enabled check")
+
+    monkeypatch.setattr(iv, "default_embedder", _boom)
+    v = VectorIndex(str(tmp_path), embed_fn=None)
+    # 仅探测能力，不解析嵌入器
+    _ = v.enabled
+
+
 def test_disabled_without_embedder(tmp_path):
     v = VectorIndex(str(tmp_path), embed_fn=None)
     # 注意：环境无 sentence-transformers 时 default_embedder()=None → 禁用

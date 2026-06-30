@@ -36,7 +36,7 @@ class ApprovalPort(Protocol):
 
 
 class AutoApprovePort:
-    """Test/dev port that immediately approves L3 actions."""
+    """测试/开发用端口：立即批准 L3 操作。"""
 
     def __init__(self, *, approved: bool = True, decided_by: str = "auto") -> None:
         self._approved = approved

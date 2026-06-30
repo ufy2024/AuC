@@ -19,15 +19,21 @@ async def stream_to_assistant(
     *,
     on_delta: OnDelta | None = None,
 ) -> AssistantMessage:
-    """Consume complete_stream; optionally invoke on_delta per text chunk."""
+    """消费 complete_stream；可选地对每个文本块调用 on_delta。"""
     content_parts: list[str] = []
     thinking_parts: list[str] = []
     tool_acc: dict[int, dict[str, Any]] = {}
     usage: TokenUsage | None = None
+    resolved_model: str | None = None
+    route_source: str | None = None
 
     async for chunk in model.complete_stream(messages, tools=tools):
         if chunk.usage is not None:
             usage = chunk.usage
+        if chunk.resolved_model:
+            resolved_model = chunk.resolved_model
+        if chunk.route_source:
+            route_source = chunk.route_source
         if chunk.delta_thinking:
             thinking_parts.append(chunk.delta_thinking)
         if chunk.delta_content:
@@ -50,11 +56,13 @@ async def stream_to_assistant(
         tool_calls=tool_calls,
         thinking=thinking,
         usage=usage,
+        resolved_model=resolved_model,
+        route_source=route_source,
     )
 
 
 def _merge_tool_call_delta(acc: dict[int, dict[str, Any]], tc: ToolCall) -> None:
-    """OpenAI streaming may send partial tool calls; merge by index when present in raw."""
+    """OpenAI 流式可能分片发送 tool call；按 index 合并 raw 中的片段。"""
     idx = 0
     if tc.id and not any(acc.get(i, {}).get("id") == tc.id for i in acc):
         idx = len(acc)

@@ -24,7 +24,7 @@ SCHEMA_URL = "https://github.com/ufy2024/AuC/blob/main/docs/schema/settings.sche
 
 @dataclass
 class ModelConfig:
-    """LLM provider configuration (file + env + CLI)."""
+    """大模型提供商配置（文件 + 环境变量 + CLI）。"""
 
     provider: Provider = "openai"
     model: str = "gpt-4o-mini"
@@ -110,7 +110,7 @@ def user_config_dir() -> Path:
 
 
 def default_config_path() -> Path:
-    """Default: ~/.Au/AuC/settings.json (Claude: ~/.claude/settings.json)."""
+    """默认路径：~/.Au/AuC/settings.json（Claude 对应 ~/.claude/settings.json）。"""
     return user_config_dir() / DEFAULT_SETTINGS_FILENAME
 
 
@@ -246,7 +246,7 @@ def describe_config_layers(
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Shallow-deep merge like Claude settings layers."""
+    """浅层-深层合并，类似 Claude 配置分层。"""
     out = dict(base)
     for k, v in override.items():
         if k in out and isinstance(out[k], dict) and isinstance(v, dict):
@@ -260,7 +260,7 @@ def discover_config_layers(
     explicit: str | None = None,
     repo_root: Path | None = None,
 ) -> list[Path]:
-    """Return config files low → high priority (later overrides earlier)."""
+    """返回配置文件列表，低 → 高优先级（后者覆盖前者）。"""
     if explicit:
         p = Path(explicit).expanduser()
         return [p] if p.is_file() else []
@@ -349,7 +349,7 @@ def _infer_provider_from_env(env: dict[str, str]) -> Provider | None:
 
 
 def _extract_model_fields(data: dict[str, Any]) -> dict[str, Any]:
-    """Claude settings.json: top-level env + optional legacy model block."""
+    """Claude settings.json：顶层 env + 可选的旧版 model 块。"""
     env = _settings_env_dict(data)
     block = data.get("model")
     from_model: dict[str, Any] = {}
@@ -418,7 +418,7 @@ def _extract_model_fields(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _model_config_to_env(cfg: ModelConfig) -> dict[str, str]:
-    """Map ModelConfig → Claude-style env block."""
+    """将 ModelConfig 映射为 Claude 风格的 env 块。"""
     if cfg.provider == "anthropic":
         base = cfg.base_url or _default_base_url("anthropic")
         env: dict[str, str] = {
@@ -515,7 +515,7 @@ def config_template_dict(provider: str) -> dict[str, Any]:
 
 
 def mask_settings_secrets(data: dict[str, Any]) -> dict[str, Any]:
-    """Return copy with sensitive env values masked."""
+    """返回副本，敏感 env 值已脱敏。"""
     out = json.loads(json.dumps(data, ensure_ascii=False))
 
     def _mask_key(key: str, val: str) -> str:
@@ -535,7 +535,7 @@ def mask_settings_secrets(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def config_template_for_provider(provider: str) -> str:
-    """JSON string for CLI init (pretty-printed)."""
+    """供 CLI init 使用的 JSON 字符串（格式化输出）。"""
     return json.dumps(config_template_dict(provider), indent=2, ensure_ascii=False) + "\n"
 
 
@@ -554,7 +554,7 @@ def load_model_config(
     max_tokens: int | None = None,
     repo_root: str | None = None,
 ) -> ModelConfig:
-    """Merge: user settings < project settings < project local < env < CLI."""
+    """合并顺序：用户 settings < 项目 settings < 项目 local < 环境变量 < CLI。"""
     root = Path(repo_root) if repo_root else None
     merged, path = load_merged_settings(config_path, root)
     file_data = _extract_model_fields(merged)
@@ -654,7 +654,7 @@ def save_config_file(
 
 
 def migrate_yaml_to_json(*, remove_yaml: bool = False) -> Path | None:
-    """Migrate ~/.Au/AuC/config.yaml → settings.json. Returns path only when yaml existed."""
+    """将 ~/.Au/AuC/config.yaml 迁移为 settings.json；仅当 yaml 存在时返回路径。"""
     udir = user_config_dir()
     yaml_path = udir / LEGACY_CONFIG_YAML
     json_path = udir / DEFAULT_SETTINGS_FILENAME

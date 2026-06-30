@@ -31,6 +31,7 @@ from auc.web.projects import discover_projects, project_to_dict
 from auc.web.runner import ProjectRunner
 from auc.version_check import print_update_notice, release_info
 from auc.web.model_settings import (
+    discover_models_payload,
     model_settings_payload,
     save_model_settings,
 )
@@ -306,6 +307,27 @@ def create_app():  # noqa: ANN201
         await _reload_session_model(cfg)
         payload = model_settings_payload(session.cfg, sandbox_root=session.sandbox, save_path=path)
         payload["ok"] = True
+        return JSONResponse(payload)
+
+    @app.post("/api/settings/model/models")
+    async def api_discover_models(request: Request) -> JSONResponse:
+        """按 base_url + API Key 检索可用模型；失败返回 ok=False 供前端回退手动填写。"""
+        try:
+            body = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"invalid JSON: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(400, "body must be object")
+        session = _get_session()
+        provider = str(body.get("provider") or session.cfg.provider)
+        base_url = str(body.get("base_url") or session.cfg.base_url or "").strip()
+        api_key = str(body.get("api_key") or "").strip() or (session.cfg.api_key or "")
+        payload = await discover_models_payload(
+            provider=provider,
+            base_url=base_url,
+            api_key=api_key,
+            current_model=session.cfg.model,
+        )
         return JSONResponse(payload)
 
     def _runner() -> ProjectRunner:
@@ -752,6 +774,37 @@ def create_app():  # noqa: ANN201
             )
         return JSONResponse({"ok": True})
 
+    @app.post("/api/chat/conversations/{conv_id}/truncate")
+    async def api_truncate_conversation(conv_id: str, request: Request) -> JSONResponse:
+        """截断对话到指定用户消息之前，供前端「重试 / 编辑重答」使用。"""
+        session = _get_session()
+        if session.active_run_id:
+            raise HTTPException(409, "对话生成中，请等待完成或取消后再操作")
+        if conv_id != session.active_conversation_id:
+            raise HTTPException(409, "对话已切换，请刷新后重试")
+        try:
+            body: Any = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"无效 JSON: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(400, "请求体必须是 JSON 对象")
+        user_index = body.get("user_index")
+        if not isinstance(user_index, int) or isinstance(user_index, bool) or user_index < 0:
+            raise HTTPException(400, "user_index 必须是非负整数")
+        try:
+            ui_messages = session.truncate_to_user_turn(user_index)
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        return JSONResponse(
+            {
+                "ok": True,
+                "conversation_id": conv_id,
+                "messages": ui_messages,
+            }
+        )
+
     @app.post("/api/chat/clear")
     async def api_clear() -> JSONResponse:
         session = _get_session()
@@ -937,6 +990,7 @@ def create_app():  # noqa: ANN201
             err: str | None = None
             run_conversation_id: str | None = None
             saved_conv_id: str | None = None
+            prev_model_client: Any = None
             try:
                 if isinstance(body, dict) and "__parse_error__" in body:
                     yield _sse(
@@ -1017,6 +1071,17 @@ def create_app():  # noqa: ANN201
                 if notes:
                     yield _sse({"type": "note", "payload": {"notes": notes}})
 
+                # 单次 Run 临时换模（重试弹窗）：不写配置，Run 结束后还原。
+                model_override = (body.get("model") or "").strip() or None
+                if model_override and model_override != session.cfg.model:
+                    from dataclasses import replace
+
+                    from auc.model.factory import create_model_client
+
+                    prev_model_client = session.agent._config.model  # noqa: SLF001
+                    temp_cfg = replace(session.cfg, model=model_override)
+                    session.agent._config.model = create_model_client(temp_cfg)  # noqa: SLF001
+
                 session.active_run_id = None
                 # 注意：不要在 run_end 上提前 break——生成器收到 run_end 后会自行结束，
                 # 其 finally 块负责设置 last_run_result；提前 break 会让结果丢失。
@@ -1070,6 +1135,11 @@ def create_app():  # noqa: ANN201
                     status = result.status
                     err = result.error
             finally:
+                if prev_model_client is not None:
+                    from auc.model.factory import aclose_model_client
+
+                    await aclose_model_client(session.agent._config.model)  # noqa: SLF001
+                    session.agent._config.model = prev_model_client  # noqa: SLF001
                 session.active_run_id = None
                 yield _sse(
                     {
@@ -1082,8 +1152,6 @@ def create_app():  # noqa: ANN201
                         },
                     }
                 )
-                if status != "completed" and err:
-                    yield _sse({"type": "error", "payload": {"message": err}})
 
         return StreamingResponse(
             _gen(),

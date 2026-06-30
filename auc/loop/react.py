@@ -23,6 +23,36 @@ from auc.run_context import current_agent_id, current_loop_context
 logger = logging.getLogger("auc.loop.react")
 
 
+def _maybe_emit_resolved_model(ctx: LoopContext, assistant: AssistantMessage) -> None:
+    """配置为智能路由（auto）且网关回报了实际模型时，emit ``model_resolved``。
+
+    仅在实际模型相对本 Run 上次变化时上报，避免多步重复刷屏。
+    """
+    resolved = getattr(assistant, "resolved_model", None)
+    if not resolved:
+        return
+    configured = getattr(ctx.model, "model", None)
+    from auc.model.routing import is_auto_model, parse_auto_model
+
+    if not is_auto_model(configured):
+        return
+    if resolved == ctx.last_resolved_model:
+        return
+    ctx.last_resolved_model = resolved
+    _, strategy = parse_auto_model(configured)
+    ctx.events.emit_typed(
+        "model_resolved",
+        ctx.run_id,
+        ctx.agent_id,
+        {
+            "configured": configured,
+            "resolved": resolved,
+            "strategy": strategy,
+            "source": getattr(assistant, "route_source", None) or "gateway",
+        },
+    )
+
+
 class ReActLoop:
     async def step(self, ctx: LoopContext) -> LoopStepResult:
         if ctx.compactor is not None:
@@ -58,6 +88,10 @@ class ReActLoop:
             schemas or None,
             on_delta=_on_delta,
         )
+
+        # 智能路由：仅当配置为 auto 时，把网关实际选用的模型上报给 UI；
+        # 多步内模型变化也会再次上报，体现「按请求内容选型」。
+        _maybe_emit_resolved_model(ctx, assistant)
 
         if assistant.usage is not None and ctx.compactor is not None:
             calibrate = getattr(ctx.compactor, "calibrate", None)

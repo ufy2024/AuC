@@ -2,13 +2,72 @@
  * 助手消息渲染：Mermaid 全类型图表 / Markdown / 代码块
  */
 
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-import { marked } from "https://cdn.jsdelivr.net/npm/marked@15/+esm";
-import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3/+esm";
+// 富渲染依赖（mermaid / marked / dompurify）按需从 CDN 动态加载。
+// 关键：绝不能用顶层静态 import，否则 CDN 不可达（离线/内网）时整个模块图加载失败，
+// 进而 app.js 无法启动、页面空白。改为后台动态加载，失败则降级为纯文本/源码展示。
+let mermaid = null;
+let marked = null;
+let DOMPurify = null;
 
 let mermaidReady = false;
 let markdownReady = false;
 let renderCounter = 0;
+
+// 每个依赖按顺序尝试多个 CDN 镜像（jsdelivr 在部分网络/中国大陆常不稳定，
+// 故附带 fastly / esm.sh / unpkg 等备选），任一成功即用。
+const CDN_SOURCES = {
+  mermaid: [
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs",
+    "https://fastly.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs",
+    "https://esm.sh/mermaid@11",
+    "https://unpkg.com/mermaid@11/dist/mermaid.esm.min.mjs",
+  ],
+  marked: [
+    "https://cdn.jsdelivr.net/npm/marked@15/+esm",
+    "https://fastly.jsdelivr.net/npm/marked@15/+esm",
+    "https://esm.sh/marked@15",
+  ],
+  dompurify: [
+    "https://cdn.jsdelivr.net/npm/dompurify@3/+esm",
+    "https://fastly.jsdelivr.net/npm/dompurify@3/+esm",
+    "https://esm.sh/dompurify@3",
+  ],
+};
+
+async function loadFromMirrors(urls) {
+  for (const url of urls) {
+    try {
+      return await import(/* @vite-ignore */ url);
+    } catch {
+      // 试下一个镜像
+    }
+  }
+  return null;
+}
+
+/** 后台加载富渲染依赖；任一失败都不影响 UI 启动，只降级渲染。 */
+export const richRenderersReady = (async () => {
+  const [mmd, mk, dp] = await Promise.all([
+    loadFromMirrors(CDN_SOURCES.mermaid),
+    loadFromMirrors(CDN_SOURCES.marked),
+    loadFromMirrors(CDN_SOURCES.dompurify),
+  ]);
+  if (mmd) mermaid = mmd.default || mmd;
+  if (mk) marked = mk.marked || mk.default || mk;
+  if (dp) DOMPurify = dp.default || dp;
+  const failed = [
+    !mermaid && "mermaid",
+    !marked && "marked",
+    !DOMPurify && "dompurify",
+  ].filter(Boolean);
+  if (failed.length) {
+    console.warn(
+      `[AuC] 富渲染依赖加载失败（${failed.join(", ")}）：Markdown/图表将降级显示。` +
+        `如处于离线/内网环境，请配置可达的 CDN 或本地静态资源。`,
+    );
+  }
+  return { mermaid: !!mermaid, marked: !!marked, dompurify: !!DOMPurify };
+})();
 
 /** fence 语言标记 → 图表类型 ID */
 const FENCE_LANG_TO_TYPE = {
@@ -286,7 +345,7 @@ export function replaceMermaidInText(text, oldCode, newCode) {
 }
 
 function initMarkdown() {
-  if (markdownReady) return;
+  if (markdownReady || !marked) return;
   marked.setOptions({
     gfm: true,
     breaks: true,
@@ -296,11 +355,18 @@ function initMarkdown() {
   markdownReady = true;
 }
 
+/** CDN 不可达时的纯文本降级：转义 + 换行保留，保证内容可读。 */
+function renderMarkdownFallback(src) {
+  return `<div class="msg-md-plain">${escapeHtml(src).replace(/\n/g, "<br>")}</div>`;
+}
+
 export function renderMarkdown(text) {
-  initMarkdown();
   const src = String(text || "");
   if (!src.trim()) return "";
+  if (!marked) return renderMarkdownFallback(src);
+  initMarkdown();
   const html = marked.parse(src, { async: false });
+  if (!DOMPurify) return renderMarkdownFallback(src);
   return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
     ADD_ATTR: ["target", "rel"],
@@ -308,7 +374,7 @@ export function renderMarkdown(text) {
 }
 
 export function initDiagrams(theme = "dark") {
-  if (mermaidReady) return;
+  if (mermaidReady || !mermaid) return;
   mermaid.initialize({
     startOnLoad: false,
     theme: theme === "light" ? "default" : "dark",
@@ -406,6 +472,16 @@ export function buildMessageContent(text, { theme = "dark" } = {}) {
   return root;
 }
 
+/** mermaid 不可用时，把图表源码以纯文本展示，避免空白。 */
+function showDiagramSourceFallback(el, code) {
+  el.classList.remove("diagram-pending");
+  el.classList.add("diagram-fallback-only");
+  const pre = document.createElement("pre");
+  pre.className = "diagram-fallback";
+  pre.textContent = code;
+  el.replaceChildren(pre);
+}
+
 async function renderOneMermaid(el, code) {
   const attempts = [code];
   const local = tryLocalMermaidFix(code);
@@ -451,6 +527,11 @@ export async function renderMermaidIn(container) {
     const code = (el.getAttribute("data-mermaid") || "").trim();
     el.removeAttribute("data-mermaid");
     if (!code) continue;
+    if (!mermaid) {
+      // CDN 不可达：降级显示源码，不计入「需修复」失败列表。
+      showDiagramSourceFallback(el, code);
+      continue;
+    }
     const result = await renderOneMermaid(el, code);
     if (!result.ok) {
       showDiagramError(el, result.code, result.error);

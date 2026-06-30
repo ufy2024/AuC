@@ -26,7 +26,7 @@ def _require_httpx(*modes: str) -> Any:
 
 @dataclass
 class ConsoleApprovalPort:
-    """Dev fallback: print approval card and read y/n from stdin via executor."""
+    """开发回退：打印授权卡片并通过 executor 从 stdin 读取 y/n。"""
 
     async def request_approval(self, req: ApprovalRequest) -> str:
         print(format_approval_card(req))
@@ -53,7 +53,7 @@ class ConsoleApprovalPort:
 
 @dataclass
 class InMemoryCallbackApprovalPort:
-    """Tests / automation: pre-register decisions by request_id."""
+    """测试 / 自动化：按 request_id 预注册决策。"""
 
     _decisions: dict[str, ApprovalDecision] = field(default_factory=dict)
     _pending: dict[str, ApprovalRequest] = field(default_factory=dict)
@@ -80,7 +80,7 @@ class InMemoryCallbackApprovalPort:
 
 @dataclass
 class TelegramApprovalPort(HttpImApprovalPort):
-    """Send L3 approval card to Telegram; poll callback_query updates."""
+    """向 Telegram 发送 L3 授权卡片；轮询 callback_query 更新。"""
 
     bot_token: str | None = None
     chat_id: str | None = None

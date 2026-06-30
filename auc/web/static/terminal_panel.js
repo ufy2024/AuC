@@ -58,6 +58,9 @@ const ERROR_MARKERS = [
  *   socket: WebSocket | null,
  *   pendingInput: string | null,
  *   reconnectNotice: boolean,
+ *   reconnectAttempts: number,
+ *   reconnectTimer: number | null,
+ *   manualClose: boolean,
  *   outputBuffer: string,
  *   lastErrorText: string | null,
  * }} TerminalSession */
@@ -391,21 +394,64 @@ function flushPendingInput(session) {
 function sendInput(session, data) {
   if (!session.socket || session.socket.readyState !== WebSocket.OPEN) {
     session.pendingInput = data;
+    // 用户主动输入 → 重置退避，立即尝试重连
+    clearReconnectTimer(session);
+    session.reconnectAttempts = 0;
     connectSession(session);
     return;
   }
   session.socket.send(data);
 }
 
+const MAX_RECONNECT_ATTEMPTS = 6;
+
+function clearReconnectTimer(session) {
+  if (session.reconnectTimer != null) {
+    clearTimeout(session.reconnectTimer);
+    session.reconnectTimer = null;
+  }
+}
+
+function scheduleReconnect(session) {
+  if (session.manualClose) return;
+  if (session.reconnectTimer != null) return;
+  // 面板收起时不在后台重连，等下次打开/激活再连
+  if (!isTerminalOpen()) return;
+  if (session.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    if (session.id === activeSessionId && !session.reconnectNotice) {
+      session.reconnectNotice = true;
+      session.term.write(`\r\n\x1b[33m[${t("terminal.disconnected")}]\x1b[0m\r\n`);
+    }
+    return;
+  }
+  const attempt = session.reconnectAttempts++;
+  if (attempt === 0 && session.id === activeSessionId) {
+    session.term.write(`\r\n\x1b[2m[${t("terminal.reconnecting")}]\x1b[0m\r\n`);
+  }
+  const delay = Math.min(8000, 400 * 2 ** attempt) + Math.floor(Math.random() * 200);
+  session.reconnectTimer = setTimeout(() => {
+    session.reconnectTimer = null;
+    connectSession(session);
+  }, delay);
+}
+
 function connectSession(session) {
   if (session.socket && (session.socket.readyState === WebSocket.OPEN || session.socket.readyState === WebSocket.CONNECTING)) {
     return;
   }
+  session.manualClose = false;
+  clearReconnectTimer(session);
   const socket = new WebSocket(wsUrl());
   session.socket = socket;
   socket.binaryType = "arraybuffer";
   socket.addEventListener("open", () => {
+    clearReconnectTimer(session);
+    const wasDown = session.reconnectAttempts > 0 || session.reconnectNotice;
+    session.reconnectAttempts = 0;
     session.reconnectNotice = false;
+    if (wasDown && session.id === activeSessionId) {
+      session.term.write(`\x1b[2m[${t("terminal.reconnected")}]\x1b[0m\r\n`);
+    }
     if (session.id === activeSessionId) sendResize(session);
     flushPendingInput(session);
     if (session.id === activeSessionId) session.term.focus();
@@ -431,20 +477,19 @@ function connectSession(session) {
     appendOutputBuffer(session, new TextDecoder().decode(chunk));
   });
   socket.addEventListener("close", () => {
-    session.socket = null;
-    if (session.id === activeSessionId && isTerminalOpen() && !session.reconnectNotice) {
-      session.reconnectNotice = true;
-      session.term.write(`\r\n\x1b[33m[${t("terminal.disconnected")}]\x1b[0m\r\n`);
-    }
+    if (session.socket === socket) session.socket = null;
+    scheduleReconnect(session);
   });
   socket.addEventListener("error", () => {
-    session.term.write(`\r\n\x1b[31m[${t("terminal.connectFail")}]\x1b[0m\r\n`);
+    // error 后浏览器会紧跟 close 事件，重连交由 close 处理，这里不再打印，避免噪音
   });
 }
 
 function disconnectSession(session) {
   session.pendingInput = null;
   session.reconnectNotice = false;
+  session.manualClose = true;
+  clearReconnectTimer(session);
   if (session.socket) {
     session.socket.close();
     session.socket = null;
@@ -510,6 +555,9 @@ async function createSession({ activate = true } = {}) {
     socket: null,
     pendingInput: null,
     reconnectNotice: false,
+    reconnectAttempts: 0,
+    reconnectTimer: null,
+    manualClose: false,
     outputBuffer: "",
     lastErrorText: null,
   };
@@ -538,6 +586,12 @@ function activateSession(id) {
   }
   renderTabs();
   hidePickerMenu();
+  // 切回/打开一个已掉线的会话时，重置退避并立即重连
+  if (!session.socket) {
+    clearReconnectTimer(session);
+    session.reconnectAttempts = 0;
+    connectSession(session);
+  }
   requestAnimationFrame(() => {
     sendResize(session);
     session.term.focus();

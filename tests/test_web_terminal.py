@@ -43,6 +43,26 @@ def test_terminal_websocket_connects(client: TestClient) -> None:
 
 
 @pytest.mark.skipif(not terminal_available(), reason="PTY not available")
+def test_terminal_closes_when_shell_exits(client: TestClient) -> None:
+    """shell 退出后，服务端应主动关闭 WS（而非一直挂起）。"""
+    from starlette.websockets import WebSocketDisconnect
+
+    with client.websocket_connect("/api/terminal/ws") as ws:
+        ws.send_text("exit\n")
+        disconnected = False
+        for _ in range(200):
+            try:
+                ws.receive_bytes()
+            except WebSocketDisconnect:
+                disconnected = True
+                break
+            except Exception:
+                disconnected = True
+                break
+        assert disconnected
+
+
+@pytest.mark.skipif(not terminal_available(), reason="PTY not available")
 def test_terminal_accepts_text_input(client: TestClient) -> None:
     with client.websocket_connect("/api/terminal/ws") as ws:
         ws.send_text('{"type":"resize","cols":80,"rows":24}')

@@ -16,7 +16,7 @@ _WRITE_FILE_TRUNCATED_HINT = (
 
 
 def safe_parse_tool_input(raw: str, *, tool_name: str | None = None) -> dict[str, Any]:
-    """Parse streamed tool JSON; tolerate truncated / reordered keys from LLM streams."""
+    """解析流式工具 JSON；容忍 LLM 流中截断或键序错乱。"""
     text = (raw or "").strip()
     if not text:
         return {}
@@ -50,7 +50,7 @@ def _looks_like_write_file(text: str) -> bool:
 
 
 def _json_repair_candidates(text: str) -> list[str]:
-    """Try closing truncated streaming JSON objects with independent suffixes."""
+    """尝试用独立后缀闭合截断的流式 JSON 对象。"""
     t = text.rstrip()
     if t.endswith("\\"):
         t = t[:-1]
@@ -92,7 +92,7 @@ def _extract_json_string_field(
 
 
 def _decode_json_string(s: str, start: int) -> tuple[str, int]:
-    """Decode JSON string at s[start]=='\"'; unterminated strings read to EOF."""
+    """在 s[start]=='\"' 处解码 JSON 字符串；未闭合字符串读到 EOF。"""
     if start >= len(s) or s[start] != '"':
         return "", start
     i = start + 1

@@ -119,7 +119,7 @@ class PromptOptimizer:
     def _draft_md(self, draft_id: str) -> Path:
         return self.drafts_dir / f"{draft_id}.md"
 
-    # ── propose ──
+    # ── 提议阶段 ──
     def collect_avoidances(self, memory: Any, agent_id: str | None = None) -> list[str]:
         """从复盘库提取失败归因/规避建议。"""
         out: list[str] = []

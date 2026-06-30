@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
   <link rel="stylesheet" href="/static/themes.css?v=30" />
-  <link rel="stylesheet" href="/static/styles.css?v=30" />
+  <link rel="stylesheet" href="/static/styles.css?v=31" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="/static/vendor/xterm.css?v=25" />
 </head>
@@ -207,7 +207,10 @@
 
       <aside class="agent-panel" id="agent-panel">
         <div class="panel-head">
-          <span class="panel-title" data-i18n="nav.agent"></span>
+          <div class="panel-head-lead">
+            <span class="panel-title" data-i18n="nav.agent"></span>
+            <span class="agent-status" id="agent-status-code"></span>
+          </div>
           <button type="button" class="icon-btn" id="chat-clear" data-i18n-title="agent.clear"></button>
         </div>
         <div class="agent-messages" id="agent-messages"></div>
@@ -294,11 +297,6 @@
         </select>
       </label>
       <label class="model-field">
-        <span class="model-field-label" data-i18n="model.modelId"></span>
-        <input type="text" class="ws-create-input" id="model-settings-model" autocomplete="off" spellcheck="false" placeholder="deepseek-chat" />
-        <span class="model-field-hint" id="model-settings-model-hint" data-i18n="model.modelHint"></span>
-      </label>
-      <label class="model-field">
         <span class="model-field-label" data-i18n="model.baseUrl"></span>
         <div class="model-preset-row">
           <input type="text" class="ws-create-input" id="model-settings-base-url" autocomplete="off" spellcheck="false" placeholder="http://ailab.hcrdi.com/api" />
@@ -312,6 +310,32 @@
           <button type="button" class="icon-btn model-secret-toggle" id="model-settings-key-toggle" data-i18n-title="model.showKey" data-i18n-aria="model.showKey" aria-pressed="false"></button>
         </div>
         <span class="model-field-hint" id="model-settings-key-hint"></span>
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="model.modelId"></span>
+        <div class="model-preset-row">
+          <input type="text" class="ws-create-input" id="model-settings-model" autocomplete="off" spellcheck="false" placeholder="deepseek-chat" />
+          <button type="button" class="btn ghost sm" id="model-settings-discover" data-i18n="model.discover" data-i18n-title="model.discoverTip"></button>
+        </div>
+        <div class="model-list-panel hidden" id="model-settings-model-list">
+          <div class="model-list-bar">
+            <span class="model-list-search-icon" aria-hidden="true">🔍</span>
+            <input type="text" class="model-list-search" id="model-settings-model-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="model.filterPlaceholder" />
+            <span class="model-list-count" id="model-settings-model-count"></span>
+          </div>
+          <div class="model-facets" id="model-settings-facets"></div>
+          <div class="model-list-body" id="model-settings-model-chips" role="listbox"></div>
+          <div class="model-list-empty hidden" id="model-settings-model-empty" data-i18n="model.filterEmpty"></div>
+        </div>
+        <div class="model-auto-row" id="model-settings-auto-row">
+          <span class="model-auto-label" data-i18n="model.smartRouting"></span>
+          <button type="button" class="model-chip auto" data-model="auto:cost_optimized" data-i18n="model.autoStrategy.cost_optimized"></button>
+          <button type="button" class="model-chip auto" data-model="auto:balanced" data-i18n="model.autoStrategy.balanced"></button>
+          <button type="button" class="model-chip auto" data-model="auto:quality_first" data-i18n="model.autoStrategy.quality_first"></button>
+          <button type="button" class="model-chip auto" data-model="auto:latency_critical" data-i18n="model.autoStrategy.latency_critical"></button>
+        </div>
+        <span class="model-field-hint" id="model-settings-model-hint" data-i18n="model.modelHint"></span>
+        <span class="model-field-hint" data-i18n="model.autoHint"></span>
       </label>
       <p class="ws-create-error hidden" id="model-settings-error"></p>
       <div class="approval-actions">
@@ -366,7 +390,31 @@
     </div>
   </div>
 
+  <div id="retry-options-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card retry-options-card">
+      <h3 class="approval-title" data-i18n="chat.retryOptionsTitle"></h3>
+      <p class="approval-summary" data-i18n="chat.retryOptionsHint"></p>
+      <label class="retry-opt-field">
+        <span class="retry-opt-label" data-i18n="agent.mode"></span>
+        <select id="retry-opt-work-mode" class="work-mode-select"></select>
+      </label>
+      <label class="retry-opt-field">
+        <span class="retry-opt-label" data-i18n="agent.role"></span>
+        <select id="retry-opt-role" class="work-mode-select"></select>
+      </label>
+      <label class="retry-opt-field">
+        <span class="retry-opt-label" data-i18n="chat.retryModel"></span>
+        <input type="text" class="ws-create-input" id="retry-opt-model" autocomplete="off" spellcheck="false" />
+        <span class="model-field-hint" data-i18n="chat.retryModelHint"></span>
+      </label>
+      <div class="approval-actions">
+        <button type="button" class="btn ghost" id="retry-opt-cancel" data-i18n="common.cancel"></button>
+        <button type="button" class="btn primary" id="retry-opt-confirm" data-i18n="chat.retryConfirm"></button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=46" type="module"></script>
+  <script src="/static/app.js?v=52" type="module"></script>
 </body>
 </html>

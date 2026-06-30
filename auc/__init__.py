@@ -1,4 +1,4 @@
-"""Agents-ufy-Core (AuC): asyncio single-agent framework."""
+"""Agents-ufy-Core (AuC)：基于 asyncio 的单智能体框架。"""
 
 from auc.agent import AgentConfig, DefaultAgent
 from auc.checkpoint import CheckpointStore
@@ -30,7 +30,7 @@ from auc.policy.autonomy import AutonomyPolicy
 from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 from auc.tools import DefaultToolRegistry, make_echo_tool, register_function_tools, tool
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "__version__",

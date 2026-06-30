@@ -40,7 +40,7 @@ def assert_within_size_limit(path: Path, max_bytes: int = DEFAULT_MAX_READ_BYTES
 
 
 def resolve_under_sandbox(sandbox_root: str, user_path: str) -> Path:
-    """Resolve user_path to an absolute path that must stay under sandbox_root."""
+    """将 user_path 解析为必须位于 sandbox_root 下的绝对路径。"""
     root = Path(sandbox_root).resolve()
     target = (root / user_path).resolve() if not Path(user_path).is_absolute() else Path(user_path).resolve()
     try:

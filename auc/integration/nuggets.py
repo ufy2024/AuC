@@ -75,7 +75,7 @@ class NuggetsStore:
 
 
 class NuggetsMemoryPort:
-    """MemoryPort that injects Au-Nuggets on recall (AuM evolution layer)."""
+    """MemoryPort：召回时注入 Au-Nuggets（AuM 进化层）。"""
 
     def __init__(
         self,

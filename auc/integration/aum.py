@@ -13,7 +13,7 @@ from auc.ports.rules import FileRulesPort, ProjectRulesPort
 
 @dataclass
 class AuMStack:
-    """Wire AuC reference implementations matching AuM integration docs."""
+    """接入与 AuM 集成文档一致的 AuC 参考实现。"""
 
     slicer: SemanticSlicer
     rules: ProjectRulesPort

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
 
@@ -9,8 +12,20 @@ from auc.messages import ChatMessage, ToolCall
 from auc.multimodal import openai_message_content
 from auc.model.client import AssistantMessage, StreamChunk, TokenUsage
 from auc.model.json_util import PARSE_ERROR_KEY, safe_parse_tool_input
-from auc.model.retry import _RETRY_STATUS, make_timeout, with_retry
+from auc.model.retry import (
+    DEFAULT_MAX_ATTEMPTS,
+    _RETRY_STATUS,
+    _backoff_delay,
+    _is_retryable_exception,
+    _retry_after_of,
+    _status_of,
+    format_model_http_error,
+    make_timeout,
+    with_retry,
+)
 from auc.tools.base import ToolSchema
+
+logger = logging.getLogger("auc.model.openai")
 
 try:
     import httpx
@@ -67,6 +82,29 @@ def _tools_to_api(tools: list[ToolSchema] | None) -> list[dict[str, Any]] | None
     ]
 
 
+_MODEL_UNAVAILABLE_RE = re.compile(
+    r"(model[^\n]{0,40}(not found|not exist|does not exist|doesn't exist|"
+    r"unknown|unsupported|invalid|no such|disabled)|"
+    r"no such model|unknown model|invalid model|unsupported model|"
+    r"模型.{0,8}(不存在|无效|不支持|未找到|不可用)|不支持.{0,8}模型)",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_model_unavailable(exc: BaseException) -> bool:
+    """错误是否意味着「网关不认识该模型名」（典型：填 auto 但网关无智能路由）。
+
+    依据：HTTP 400/404/422，或错误文本明确指向模型不存在/无效/不支持。
+    """
+    msg = str(exc)
+    status = _status_of(exc)
+    if status in (400, 404, 422):
+        return True
+    if re.search(r"\b(400|404|422)\b", msg):
+        return True
+    return bool(_MODEL_UNAVAILABLE_RE.search(msg))
+
+
 def _format_api_error(status_code: int, body_text: str) -> str:
     """从 API 错误响应体提取可读原因（OpenAI 兼容多为 {"error":{"message":...}}）。"""
     detail = (body_text or "").strip()
@@ -111,7 +149,7 @@ def _parse_tool_calls(raw: list[dict[str, Any]] | None) -> list[ToolCall] | None
 
 @dataclass
 class OpenAICompatibleClient:
-    """Chat Completions client for OpenAI and compatible APIs."""
+    """OpenAI 及兼容 API 的 Chat Completions 客户端。"""
 
     model: str = "gpt-4o-mini"
     api_key: str | None = None
@@ -122,12 +160,53 @@ class OpenAICompatibleClient:
     def __post_init__(self) -> None:
         _require_httpx()
         from auc.config import normalize_openai_compatible_base_url
+        from auc.model.routing import is_auto_model, parse_auto_model
 
         self.base_url = normalize_openai_compatible_base_url(self.base_url)
         if self.api_key is None:
             self.api_key = os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY required for OpenAICompatibleClient")
+        # 智能路由状态：配置为 auto 时，网关若不支持则本地选定真实模型并缓存。
+        self._auto = is_auto_model(self.model)
+        self._auto_strategy = parse_auto_model(self.model)[1] if self._auto else ""
+        self._routed_model: str | None = None
+
+    def _effective_model(self) -> str:
+        """当前实际发往网关的模型：本地已选则用之，否则用配置（含 auto）。"""
+        return self._routed_model or self.model
+
+    def _route_source(self) -> str | None:
+        if self._routed_model:
+            return "local"
+        return "gateway" if self._auto else None
+
+    async def _maybe_local_route(self, exc: BaseException) -> bool:
+        """网关不支持 auto（报模型无效）时，本地按策略选一个真实模型；成功返回 True。"""
+        if not self._auto or self._routed_model is not None:
+            return False
+        if not _looks_like_model_unavailable(exc):
+            return False
+        try:
+            from auc.model.discovery import discover_models
+            from auc.model.local_routing import select_model
+
+            models = await discover_models(
+                base_url=self.base_url, api_key=self.api_key, provider="openai"
+            )
+        except Exception:  # noqa: BLE001 检索失败则无法本地路由，维持原错误
+            return False
+        chosen = select_model(models, self._auto_strategy)
+        if not chosen:
+            return False
+        self._routed_model = chosen
+        logger.warning(
+            "gateway has no 'auto' routing; locally selected %s (strategy=%s, %d candidates)",
+            chosen,
+            self._auto_strategy,
+            len(models),
+        )
+        return True
 
     def _get_client(self) -> Any:
         if self._client is None:
@@ -146,8 +225,21 @@ class OpenAICompatibleClient:
         messages: list[ChatMessage],
         tools: list[ToolSchema] | None = None,
     ) -> AssistantMessage:
+        try:
+            return await self._complete_once(messages, tools)
+        except RuntimeError as exc:
+            # 网关不支持 auto → 本地选定真实模型后重试一次。
+            if await self._maybe_local_route(exc):
+                return await self._complete_once(messages, tools)
+            raise
+
+    async def _complete_once(
+        self,
+        messages: list[ChatMessage],
+        tools: list[ToolSchema] | None,
+    ) -> AssistantMessage:
         client = self._get_client()
-        body = self._build_body(messages, tools, stream=False)
+        body = self._build_body(messages, tools, stream=False, model=self._effective_model())
 
         async def _do() -> Any:
             resp = await client.post("/chat/completions", json=body)
@@ -173,6 +265,8 @@ class OpenAICompatibleClient:
             tool_calls=_parse_tool_calls(choice.get("tool_calls")),
             raw=data,
             usage=TokenUsage.from_api(data.get("usage")),
+            resolved_model=data.get("model") or self._routed_model or None,
+            route_source=self._route_source(),
         )
 
     def _build_body(
@@ -181,9 +275,10 @@ class OpenAICompatibleClient:
         tools: list[ToolSchema] | None,
         *,
         stream: bool,
+        model: str | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": _messages_to_api(messages),
             "stream": stream,
         }
@@ -193,14 +288,13 @@ class OpenAICompatibleClient:
             body["tool_choice"] = "auto"
         return body
 
-    async def complete_stream(
+    async def _iter_completion_stream(
         self,
-        messages: list[ChatMessage],
-        tools: list[ToolSchema] | None = None,
+        client: Any,
+        body: dict[str, Any],
     ) -> AsyncIterator[StreamChunk]:
-        client = self._get_client()
-        body = self._build_body(messages, tools, stream=True)
         tool_acc: dict[int, dict[str, str]] = {}
+        resolved_emitted = False
 
         async with client.stream(
             "POST", "/chat/completions", json=body
@@ -227,6 +321,12 @@ class OpenAICompatibleClient:
                     err = data["error"]
                     msg = err.get("message") if isinstance(err, dict) else str(err)
                     raise RuntimeError(f"OpenAI API error: {msg}")
+                if not resolved_emitted and data.get("model"):
+                    resolved_emitted = True
+                    yield StreamChunk(
+                        resolved_model=str(data["model"]),
+                        route_source=self._route_source(),
+                    )
                 usage = TokenUsage.from_api(data.get("usage"))
                 if usage is not None:
                     yield StreamChunk(usage=usage)
@@ -258,7 +358,6 @@ class OpenAICompatibleClient:
                 try:
                     args = safe_parse_tool_input(raw, tool_name=entry.get("name") or "")
                 except ValueError as exc:
-                    # 解析失败转为工具错误反馈给模型自纠，而非终止整个 run
                     args = {PARSE_ERROR_KEY: str(exc)}
                 calls.append(
                     ToolCall(
@@ -268,6 +367,50 @@ class OpenAICompatibleClient:
                     )
                 )
             yield StreamChunk(delta_tool_calls=calls, finish_reason="tool_calls")
+
+    async def complete_stream(
+        self,
+        messages: list[ChatMessage],
+        tools: list[ToolSchema] | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        client = self._get_client()
+        local_routed = False
+        while True:
+            body = self._build_body(
+                messages, tools, stream=True, model=self._effective_model()
+            )
+            emitted = False
+            last_exc: BaseException | None = None
+            succeeded = False
+            for attempt in range(1, DEFAULT_MAX_ATTEMPTS + 1):
+                try:
+                    async for chunk in self._iter_completion_stream(client, body):
+                        emitted = True
+                        yield chunk
+                    succeeded = True
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    status = _status_of(exc)
+                    retryable = _is_retryable_exception(exc) or (
+                        status is not None and status in _RETRY_STATUS
+                    )
+                    # 已产出过 chunk 则不重试/不回退，避免重复输出。
+                    if emitted or not retryable or attempt >= DEFAULT_MAX_ATTEMPTS:
+                        last_exc = exc
+                        break
+                    await asyncio.sleep(_backoff_delay(attempt, _retry_after_of(exc)))
+            if succeeded:
+                return
+            # 未产出任何 chunk、配置为 auto 且网关不识别该模型 → 本地路由后重开流。
+            if (
+                not emitted
+                and not local_routed
+                and last_exc is not None
+                and await self._maybe_local_route(last_exc)
+            ):
+                local_routed = True
+                continue
+            raise RuntimeError(format_model_http_error(last_exc)) from last_exc
 
     async def aclose(self) -> None:
         if self._client is not None:

@@ -32,11 +32,10 @@ def _require_httpx() -> Any:
 
 
 def _sanitize_tool_pairing(messages: list[ChatMessage]) -> list[ChatMessage]:
-    """Drop tool_result rows that lack a preceding assistant tool_use in the window.
+    """丢弃窗口中缺少前序 assistant tool_use 的 tool_result 行。
 
-    Anthropic / DeepSeek reject requests when tool_result blocks reference ids that
-    do not appear in the immediately previous assistant message (common after
-    context compaction or corrupted history).
+    当 tool_result 引用的 id 未出现在紧邻的上一条 assistant 消息中时，
+    Anthropic / DeepSeek 会拒绝请求（常见于上下文压缩或历史损坏后）。
     """
     out: list[ChatMessage] = []
     pending_ids: set[str] = set()
@@ -196,6 +195,7 @@ def _parse_anthropic_response(data: dict[str, Any]) -> AssistantMessage:
         raw=data,
         thinking=thinking if thinking or tool_calls else None,
         usage=TokenUsage.from_api(data.get("usage")),
+        resolved_model=data.get("model") or None,
     )
 
 
@@ -205,7 +205,7 @@ async def _wrap_anthropic(func: Any) -> Any:
 
 @dataclass
 class AnthropicClient:
-    """Anthropic Messages API client."""
+    """Anthropic Messages API 客户端。"""
 
     model: str = "claude-sonnet-4-20250514"
     api_key: str | None = None
@@ -378,8 +378,11 @@ class AnthropicClient:
                         except ValueError:
                             pass
                 elif event_type == "message_start":
-                    msg_usage = (data.get("message") or {}).get("usage")
-                    usage = TokenUsage.from_api(msg_usage)
+                    message = data.get("message") or {}
+                    resolved = message.get("model")
+                    if resolved:
+                        yield StreamChunk(resolved_model=str(resolved))
+                    usage = TokenUsage.from_api(message.get("usage"))
                     if usage is not None:
                         yield StreamChunk(usage=usage)
                 elif event_type == "message_delta":

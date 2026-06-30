@@ -4,7 +4,8 @@ import {
   buildMessageContent,
   renderMermaidIn,
   replaceMermaidInText,
-} from "./message_render.js";
+  richRenderersReady,
+} from "./message_render.js?v=48";
 import {
   COLOR_THEMES,
   ICON_THEMES,
@@ -56,6 +57,7 @@ const state = {
   roles: [],
   activeConversationId: null,
   conversations: [],
+  turns: [],
   fileCache: {},
   mdViewMode: localStorage.getItem("auc-md-view") || "preview",
   sidebarHidden: localStorage.getItem("auc-sidebar-hidden") === "1",
@@ -315,7 +317,7 @@ document.querySelectorAll(".mode-btn").forEach((btn) => {
   btn.addEventListener("click", () => setMode(btn.dataset.mode));
 });
 
-// ── API ──
+// ── API 接口 ──
 async function api(path, opts = {}) {
   const res = await fetch(path, opts);
   if (!res.ok) {
@@ -334,13 +336,31 @@ function roleLabel(id) {
   return r ? r.label : id;
 }
 
+// 智能体运行状态：Code（agent-panel 头）与 Chat（chat-header）两个界面同步显示。
+function updateAgentStatus(info = state.info) {
+  const els = document.querySelectorAll(".agent-status");
+  if (!els.length) return;
+  let text;
+  let cls;
+  if (state.streaming) {
+    text = t("agent.thinking");
+    cls = "agent-status busy";
+  } else {
+    text = (info?.turns || 0) > 0 ? t("agent.online") : t("agent.ready");
+    cls = "agent-status";
+  }
+  for (const el of els) {
+    el.textContent = text;
+    el.className = cls;
+  }
+}
+
 function renderAgentProfile(info = state.info) {
   if (!info) return;
   const agent = info.agent || {};
   const role = currentRoleSpec();
   const title = $("#agent-title");
   const desc = $("#agent-desc");
-  const status = $("#agent-status");
   const meta = $("#agent-meta");
   const tags = $("#agent-tags");
   if (!title) return;
@@ -350,15 +370,7 @@ function renderAgentProfile(info = state.info) {
     desc.textContent =
       role?.description || agent.description || agent.title || t("agent.defaultDesc");
   }
-  if (status) {
-    if (state.streaming) {
-      status.textContent = t("agent.thinking");
-      status.className = "agent-status busy";
-    } else {
-      status.textContent = (info.turns || 0) > 0 ? t("agent.online") : t("agent.ready");
-      status.className = "agent-status";
-    }
-  }
+  updateAgentStatus(info);
   if (meta) {
     const items = [
       { k: t("meta.model"), v: `${info.model?.provider || "?"} / ${info.model?.model || "?"}` },
@@ -707,6 +719,230 @@ function hideModelSettings() {
   setModelKeyVisible(false);
   const input = $("#model-settings-api-key");
   if (input) input.value = "";
+  clearModelChips();
+}
+
+let discoveredModels = [];
+let modelFilter = { q: "", series: "all", type: "all" };
+
+// 从模型 ID 推断「系列/厂商」（顺序敏感：先匹配先命中）。
+const MODEL_SERIES_RULES = [
+  ["OpenAI", /(^|[-/])(gpt|chatgpt|o1|o3|o4|davinci|babbage)|whisper|dall-?e|gpt-image|text-embedding|tts-|\bsora\b/],
+  ["Anthropic", /claude/],
+  ["Google", /gemini|gemma|palm|imagen|\bveo\b/],
+  ["DeepSeek", /deepseek/],
+  ["Qwen", /qwen|qwq|qvq/],
+  ["Grok", /grok/],
+  ["Llama", /llama|codellama/],
+  ["Mistral", /mistral|mixtral|codestral|pixtral|ministral/],
+  ["Cohere", /cohere|(^|[-/])command|rerank-(english|multilingual|v)/],
+  ["Moonshot", /moonshot|kimi/],
+  ["Zhipu", /\bglm|chatglm|zhipu|cogview|cogvideo/],
+  ["MiniMax", /minimax|abab|hailuo/],
+  ["Baichuan", /baichuan/],
+  ["Yi", /(^|[-/])yi-|01-ai/],
+  ["StepFun", /(^|[-/])step-/],
+  ["ByteDance", /doubao|seedance|seedream|jimeng|(^|[-/])seed-/],
+  ["Baidu", /ernie|wenxin/],
+  ["Tencent", /hunyuan/],
+  ["Nvidia", /nvidia|nemotron/],
+  ["Microsoft", /(^|[-/])phi-/],
+  ["Stability", /stable-?diffusion|sdxl|(^|[-/])sd3|(^|[-/])sd-/],
+  ["BAAI", /(^|[-/])bge-|baai/],
+];
+
+// 从模型 ID 推断「能力类型」（顺序敏感）。
+const MODEL_TYPE_RULES = [
+  ["embedding", /embed|(^|[-/])bge-|(^|[-/])gte-|(^|[-/])m3e/],
+  ["reranking", /rerank/],
+  ["ocr", /ocr/],
+  ["speech", /whisper|(^|[-/])tts|audio|speech|voice|realtime/],
+  ["video", /video|\bsora\b|\bveo\b|kling|cogvideo|hailuo|seedance|runway/],
+  ["image", /dall-?e|gpt-image|(^|[-/])image|flux|midjourney|stable-?diffusion|sdxl|(^|[-/])sd3|(^|[-/])sd-|seedream|jimeng|cogview|kolors|imagen|recraft|ideogram/],
+];
+
+function modelSeries(id) {
+  const s = String(id || "").toLowerCase();
+  for (const [name, re] of MODEL_SERIES_RULES) if (re.test(s)) return name;
+  return "__other__";
+}
+
+function modelType(id) {
+  const s = String(id || "").toLowerCase();
+  for (const [name, re] of MODEL_TYPE_RULES) if (re.test(s)) return name;
+  return "text";
+}
+
+function seriesLabel(v) {
+  return v === "__other__" ? t("model.series.other") : v;
+}
+
+function clearModelChips() {
+  discoveredModels = [];
+  modelFilter = { q: "", series: "all", type: "all" };
+  const panel = $("#model-settings-model-list");
+  const body = $("#model-settings-model-chips");
+  const facets = $("#model-settings-facets");
+  const search = $("#model-settings-model-search");
+  if (body) body.innerHTML = "";
+  if (facets) facets.innerHTML = "";
+  if (search) search.value = "";
+  if (panel) panel.classList.add("hidden");
+}
+
+function selectModelChip(model) {
+  const input = $("#model-settings-model");
+  if (input) input.value = model;
+  $("#model-settings-model-chips")
+    ?.querySelectorAll(".model-chip")
+    .forEach((c) => c.classList.toggle("active", c.dataset.model === model));
+  $("#model-settings-auto-row")
+    ?.querySelectorAll(".model-chip.auto")
+    .forEach((c) => c.classList.remove("active"));
+}
+
+function renderFacetRow(facetKey, labelText, values, labelOf) {
+  const row = document.createElement("div");
+  row.className = "model-facet";
+  const lab = document.createElement("span");
+  lab.className = "model-facet-label";
+  lab.textContent = labelText;
+  row.appendChild(lab);
+  const chips = document.createElement("div");
+  chips.className = "model-facet-chips";
+  for (const v of ["all", ...values]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "facet-chip" + (modelFilter[facetKey] === v ? " active" : "");
+    b.dataset.value = v;
+    b.textContent = v === "all" ? t("model.facet.all") : labelOf(v);
+    b.addEventListener("click", () => {
+      modelFilter[facetKey] = v;
+      chips.querySelectorAll(".facet-chip").forEach((c) =>
+        c.classList.toggle("active", c.dataset.value === v));
+      applyModelFilter();
+    });
+    chips.appendChild(b);
+  }
+  row.appendChild(chips);
+  return row;
+}
+
+function buildModelFacets(models) {
+  const facets = $("#model-settings-facets");
+  if (!facets) return;
+  facets.innerHTML = "";
+  const presentSeries = new Set(models.map(modelSeries));
+  const seriesOrder = MODEL_SERIES_RULES.map(([n]) => n).filter((n) => presentSeries.has(n));
+  if (presentSeries.has("__other__")) seriesOrder.push("__other__");
+  const presentTypes = new Set(models.map(modelType));
+  const typeOrder = ["text", "image", "speech", "video", "embedding", "reranking", "ocr"]
+    .filter((tp) => presentTypes.has(tp));
+  if (seriesOrder.length > 1) {
+    facets.appendChild(renderFacetRow("series", t("model.facet.series"), seriesOrder, seriesLabel));
+  }
+  if (typeOrder.length > 1) {
+    facets.appendChild(renderFacetRow("type", t("model.facet.type"), typeOrder, (v) => t("model.type." + v)));
+  }
+}
+
+function applyModelFilter() {
+  const body = $("#model-settings-model-chips");
+  const emptyEl = $("#model-settings-model-empty");
+  const countEl = $("#model-settings-model-count");
+  if (!body) return;
+  const q = modelFilter.q.trim().toLowerCase();
+  let shown = 0;
+  body.querySelectorAll(".model-chip").forEach((c) => {
+    const id = c.dataset.model || "";
+    const hit =
+      (!q || id.toLowerCase().includes(q)) &&
+      (modelFilter.series === "all" || modelSeries(id) === modelFilter.series) &&
+      (modelFilter.type === "all" || modelType(id) === modelFilter.type);
+    c.classList.toggle("hidden", !hit);
+    if (hit) shown += 1;
+  });
+  if (emptyEl) emptyEl.classList.toggle("hidden", shown !== 0);
+  const filtered = q || modelFilter.series !== "all" || modelFilter.type !== "all";
+  if (countEl) {
+    countEl.textContent = filtered
+      ? t("model.filterCount", { shown, total: discoveredModels.length })
+      : t("model.modelCount", { n: discoveredModels.length });
+  }
+}
+
+function renderModelChips(models, { autoSelect = true } = {}) {
+  const panel = $("#model-settings-model-list");
+  const body = $("#model-settings-model-chips");
+  if (!panel || !body) return;
+  discoveredModels = models.slice();
+  modelFilter = { q: "", series: "all", type: "all" };
+  body.innerHTML = "";
+  const current = $("#model-settings-model")?.value?.trim();
+  for (const m of models) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "model-chip" + (m === current ? " active" : "");
+    chip.dataset.model = m;
+    chip.textContent = m;
+    chip.title = m;
+    chip.addEventListener("click", () => selectModelChip(m));
+    body.appendChild(chip);
+  }
+  const search = $("#model-settings-model-search");
+  if (search) search.value = "";
+  buildModelFacets(models);
+  panel.classList.remove("hidden");
+  applyModelFilter();
+  // 自动选择：仅在手动检索且当前模型不在列表中时，默认选中首个，避免空值保存。
+  if (autoSelect && (!current || !models.includes(current))) {
+    selectModelChip(models[0]);
+  }
+}
+
+// auto=true：打开设置时静默自动加载，不覆盖已配置模型，失败也不打扰。
+async function discoverModels({ auto = false } = {}) {
+  const btn = $("#model-settings-discover");
+  const hintEl = $("#model-settings-model-hint");
+  const provider = $("#model-settings-provider")?.value || "openai";
+  const base_url = $("#model-settings-base-url")?.value?.trim() || "";
+  const key = $("#model-settings-api-key")?.value?.trim() || "";
+  if (!base_url) {
+    if (!auto && hintEl) hintEl.textContent = t("model.discoverNeedBase");
+    return;
+  }
+  const original = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.textContent = t("model.discovering"); }
+  if (auto && hintEl) hintEl.textContent = t("model.discovering");
+  try {
+    const data = await api("/api/settings/model/models", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, base_url, api_key: key || undefined }),
+    });
+    if (data.ok && Array.isArray(data.models) && data.models.length) {
+      renderModelChips(data.models, { autoSelect: !auto });
+      if (hintEl) hintEl.textContent = t("model.discoverOk", { n: data.models.length });
+    } else {
+      clearModelChips();
+      if (hintEl) {
+        hintEl.textContent = auto
+          ? t("model.modelHint")
+          : data.error
+          ? t("model.discoverFailManual", { msg: data.error })
+          : t("model.discoverEmpty");
+      }
+    }
+  } catch (err) {
+    clearModelChips();
+    if (hintEl) {
+      hintEl.textContent = auto
+        ? t("model.modelHint")
+        : t("model.discoverFailManual", { msg: err.message || String(err) });
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = original || t("model.discover"); }
+  }
 }
 
 function renderModelLayers(s) {
@@ -769,6 +1005,7 @@ async function openModelSettings() {
   $("#model-settings-base-url").value = s.base_url || "";
   $("#model-settings-api-key").value = s.api_key || "";
   setModelKeyVisible(false);
+  clearModelChips();
   renderModelLayers(s);
   const hint = $("#model-settings-key-hint");
   if (hint) {
@@ -778,6 +1015,10 @@ async function openModelSettings() {
   }
   overlay.classList.remove("hidden");
   $("#model-settings-model")?.focus();
+  // 打开即自动加载模型（无需点 Discover）：仅当 Base URL + API Key 均就绪时。
+  if ((s.base_url || "").trim() && ((s.api_key || "").trim() || s.api_key_set)) {
+    void discoverModels({ auto: true });
+  }
 }
 
 async function saveModelSettings() {
@@ -822,6 +1063,7 @@ function applyAilabPreset() {
   $("#model-settings-provider").value = "openai";
   $("#model-settings-model").value = "DeepSeek";
   $("#model-settings-base-url").value = "http://ailab.hcrdi.com/api";
+  clearModelChips();
 }
 
 function bindModelSettings() {
@@ -830,6 +1072,22 @@ function bindModelSettings() {
   $("#model-settings-cancel")?.addEventListener("click", hideModelSettings);
   $("#model-settings-save")?.addEventListener("click", () => void saveModelSettings());
   $("#model-settings-ailab-preset")?.addEventListener("click", applyAilabPreset);
+  $("#model-settings-discover")?.addEventListener("click", () => void discoverModels());
+  $("#model-settings-model-search")?.addEventListener("input", (ev) => {
+    modelFilter.q = ev.target.value || "";
+    applyModelFilter();
+  });
+  const autoChips = $("#model-settings-auto-row")?.querySelectorAll(".model-chip.auto");
+  autoChips?.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = $("#model-settings-model");
+      if (input) input.value = btn.dataset.model || "auto";
+      $("#model-settings-model-chips")
+        ?.querySelectorAll(".model-chip")
+        .forEach((c) => c.classList.remove("active"));
+      autoChips.forEach((c) => c.classList.toggle("active", c === btn));
+    });
+  });
   $("#model-settings-scope")?.addEventListener("change", (ev) => {
     const scopes = modelSettingsCache?.layers?.save_scopes;
     updateModelScopeHint(scopes, ev.target.value);
@@ -1672,6 +1930,215 @@ function targetMessages() {
   return state.mode === "chat" ? $("#chat-messages") : $("#agent-messages");
 }
 
+// ── 消息操作：重试 / 编辑重答（避免重复提问，可在原文基础上修改再答）──
+function makeMsgActBtn(act, userIndex, iconName, titleKey) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "msg-act-btn";
+  btn.dataset.act = act;
+  btn.dataset.userIndex = String(userIndex);
+  const label = t(titleKey);
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+  setButtonIcon(btn, iconName, { size: 14 });
+  return btn;
+}
+
+function appendUserActions(el, userIndex) {
+  const acts = document.createElement("div");
+  acts.className = "msg-actions";
+  acts.append(
+    makeMsgActBtn("edit", userIndex, "pencil", "chat.edit"),
+    makeMsgActBtn("retry", userIndex, "refresh", "chat.retry"),
+  );
+  el.appendChild(acts);
+}
+
+function appendAssistantActions(el, userIndex) {
+  if (!Number.isInteger(userIndex) || userIndex < 0) return;
+  const acts = document.createElement("div");
+  acts.className = "msg-actions";
+  acts.append(makeMsgActBtn("retry", userIndex, "refresh", "chat.regenerate"));
+  el.appendChild(acts);
+}
+
+let _retryPending = null;
+
+function populateRetryOptionSelects() {
+  const modeSel = $("#retry-opt-work-mode");
+  const roleSel = $("#retry-opt-role");
+  if (modeSel) {
+    const modes = state.workModes.length
+      ? state.workModes
+      : [{ id: "auto", label: "Auto" }];
+    modeSel.innerHTML = modes
+      .map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label || m.id)}</option>`)
+      .join("");
+    modeSel.value = state.workMode || "auto";
+  }
+  if (roleSel) {
+    const roles = state.roles.length ? state.roles : [{ id: "coder", label: "Coder" }];
+    roleSel.innerHTML = roles
+      .map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.label || r.id)}</option>`)
+      .join("");
+    roleSel.value = state.roleId || "coder";
+  }
+  const modelInput = $("#retry-opt-model");
+  if (modelInput) {
+    modelInput.value = state.info?.model?.model || "";
+    modelInput.placeholder = state.info?.model?.model || "";
+  }
+}
+
+function hideRetryOptions() {
+  $("#retry-options-overlay")?.classList.add("hidden");
+  _retryPending = null;
+}
+
+function showRetryOptions(pending) {
+  _retryPending = pending;
+  populateRetryOptionSelects();
+  applyI18n($("#retry-options-overlay"));
+  $("#retry-options-overlay")?.classList.remove("hidden");
+  $("#retry-opt-work-mode")?.focus();
+}
+
+function readRetryOverrides() {
+  const model = ($("#retry-opt-model")?.value || "").trim();
+  return {
+    workMode: $("#retry-opt-work-mode")?.value || state.workMode,
+    roleId: $("#retry-opt-role")?.value || state.roleId,
+    model: model || undefined,
+  };
+}
+
+// 截断到该用户回合之前，再以 text/images 重新发送，从而「就地重试 / 改后重答」。
+async function resendFromUserTurn(userIndex, text, images, overrides = {}) {
+  if (state.streaming) return;
+  const convId = state.activeConversationId;
+  if (!convId) return;
+  const channel = state.mode === "chat" ? "chat" : "agent";
+  try {
+    const data = await api(`/api/chat/conversations/${convId}/truncate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_index: userIndex }),
+    });
+    await renderChatHistory(data.messages || []);
+  } catch (e) {
+    appendNotes([t("chat.retryFail", { msg: e.message || String(e) })]);
+    return;
+  }
+  await sendMessage(text || "", channel, {
+    images: images || [],
+    workMode: overrides.workMode,
+    roleId: overrides.roleId,
+    model: overrides.model,
+  });
+}
+
+function confirmRetryOptions() {
+  const pending = _retryPending;
+  if (!pending) return;
+  const overrides = readRetryOverrides();
+  hideRetryOptions();
+  void resendFromUserTurn(
+    pending.userIndex,
+    pending.text,
+    pending.images,
+    overrides,
+  );
+}
+
+function bindRetryOptions() {
+  $("#retry-opt-cancel")?.addEventListener("click", hideRetryOptions);
+  $("#retry-opt-confirm")?.addEventListener("click", confirmRetryOptions);
+  $("#retry-options-overlay")?.addEventListener("click", (ev) => {
+    if (ev.target.id === "retry-options-overlay") hideRetryOptions();
+  });
+  window.addEventListener("auc-locale-change", () => {
+    if (!$("#retry-options-overlay")?.classList.contains("hidden")) {
+      populateRetryOptionSelects();
+    }
+  });
+}
+
+// 把用户气泡切换为内联编辑器，保存后基于新文本重答。
+function enterEditMode(userIndex, btn) {
+  if (state.streaming) return;
+  const bubble = btn.closest(".msg-user");
+  if (!bubble || bubble.classList.contains("editing")) return;
+  const turn = state.turns[userIndex] || { text: "", images: [] };
+  const original = turn.text || "";
+  bubble.classList.add("editing");
+  const editor = document.createElement("div");
+  editor.className = "msg-edit";
+  const ta = document.createElement("textarea");
+  ta.className = "msg-edit-input";
+  ta.value = original;
+  ta.rows = Math.min(10, Math.max(2, original.split("\n").length));
+  const bar = document.createElement("div");
+  bar.className = "msg-edit-bar";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "msg-edit-cancel";
+  cancel.textContent = t("chat.editCancel");
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "msg-edit-save";
+  save.textContent = t("chat.editSave");
+  bar.append(cancel, save);
+  editor.append(ta, bar);
+  bubble.replaceChildren(editor);
+  ta.focus();
+  ta.setSelectionRange(original.length, original.length);
+  const restore = () => {
+    void renderChatHistory(state._lastHistory || []);
+  };
+  cancel.addEventListener("click", restore);
+  save.addEventListener("click", () => {
+    const next = ta.value.trim();
+    if (!next) {
+      restore();
+      return;
+    }
+    restore();
+    showRetryOptions({ userIndex, text: next, images: turn.images || [] });
+  });
+  ta.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
+      ev.preventDefault();
+      save.click();
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      restore();
+    }
+  });
+}
+
+function onMessageAction(ev) {
+  const btn = ev.target.closest(".msg-act-btn");
+  if (!btn) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  if (state.streaming) return;
+  const idx = Number(btn.dataset.userIndex);
+  if (!Number.isInteger(idx) || idx < 0) return;
+  const turn = state.turns[idx];
+  if (!turn) return;
+  if (btn.dataset.act === "edit") {
+    enterEditMode(idx, btn);
+  } else if (btn.dataset.act === "retry") {
+    showRetryOptions({ userIndex: idx, text: turn.text, images: turn.images });
+  }
+}
+
+function bindMessageActions() {
+  for (const sel of ["#chat-messages", "#agent-messages"]) {
+    $(sel)?.addEventListener("click", onMessageAction);
+  }
+}
+
 function buildUserMessageEl(text, images = []) {
   const el = document.createElement("div");
   el.className = "msg msg-user";
@@ -1695,7 +2162,12 @@ function buildUserMessageEl(text, images = []) {
 }
 
 function appendUser(text, images = []) {
-  targetMessages().appendChild(buildUserMessageEl(text, images));
+  const userIndex = state.turns.length;
+  state.turns[userIndex] = { text: text || "", images: images || [] };
+  const el = buildUserMessageEl(text, images);
+  appendUserActions(el, userIndex);
+  el.dataset.userIndex = String(userIndex);
+  targetMessages().appendChild(el);
   scrollMessages();
 }
 
@@ -1735,15 +2207,34 @@ function logTimeHtml(ts) {
   return s ? `<span class="log-time">[${escapeHtml(s)}]</span>` : "";
 }
 
+let _richUpgradeBound = false;
+
 async function renderChatHistory(messages) {
+  lastRunModel = null;
+  state._lastHistory = messages || [];
+  // 富渲染依赖（CDN）异步加载：若渲染历史时尚未就绪，加载完成后自动重渲一次升级。
+  if (!_richUpgradeBound && state._lastHistory.length) {
+    _richUpgradeBound = true;
+    richRenderersReady.then((ready) => {
+      if (ready && (ready.marked || ready.mermaid) && state._lastHistory?.length) {
+        void renderChatHistory(state._lastHistory);
+      }
+    });
+  }
   const panels = ["#chat-messages", "#agent-messages"];
   for (const sel of panels) {
     const root = $(sel);
     if (root) root.innerHTML = "";
   }
+  state.turns = [];
+  let userIdx = -1;
   for (const m of messages || []) {
     if (m.role === "user") {
+      userIdx += 1;
+      state.turns[userIdx] = { text: m.content || "", images: m.images || [] };
       const el = buildUserMessageEl(m.content, m.images);
+      appendUserActions(el, userIdx);
+      el.dataset.userIndex = String(userIdx);
       for (const sel of panels) $(sel)?.appendChild(el.cloneNode(true));
     } else if (m.role === "assistant" && m.content) {
       for (const sel of panels) {
@@ -1756,6 +2247,7 @@ async function renderChatHistory(messages) {
         stream.appendChild(buildMessageContent(m.content, { theme: messageTheme() }));
         el.innerHTML = '<span class="marker">◆</span>';
         el.appendChild(stream);
+        appendAssistantActions(el, userIdx);
         root.appendChild(el);
         await renderMermaidIn(stream);
       }
@@ -1857,6 +2349,7 @@ function scrollMessages() {
 let streamEl = null;
 let streamText = "";
 let renderTimer = null;
+let lastRunModel = null;
 const diagramRepairMeta = new WeakMap();
 
 function messageTheme() {
@@ -1872,6 +2365,94 @@ function beginAssistant() {
   targetMessages().appendChild(streamEl);
 }
 
+// 顶栏 model-pill 与本次 Run 使用的模型保持一致。
+function syncModelPill(model) {
+  if (!model) return;
+  const pill = $("#model-pill");
+  const provider = state.info?.model?.provider;
+  if (pill) pill.textContent = provider ? `${provider} / ${model}` : model;
+  if (state.info?.model) state.info.model.model = model;
+}
+
+// 智能路由策略 → 标签（与后端 auc/model/routing.py 对齐）。
+const ROUTING_STRATEGY_LABELS = {
+  cost_optimized: "成本优先",
+  balanced: "均衡",
+  quality_first: "质量优先",
+  latency_critical: "低延迟优先",
+};
+
+function parseAutoModel(model) {
+  const head = String(model || "").trim().toLowerCase();
+  if (head !== "auto" && !head.startsWith("auto:")) return null;
+  const parts = head.split(":");
+  const strategy = parts[1]?.trim() || "cost_optimized";
+  return ROUTING_STRATEGY_LABELS[strategy] ? strategy : "cost_optimized";
+}
+
+function modelDisplay(model) {
+  const strategy = parseAutoModel(model);
+  if (!strategy) return model;
+  const label = t(`model.autoStrategy.${strategy}`) || ROUTING_STRATEGY_LABELS[strategy];
+  return `${t("model.smartRouting")} · ${label}`;
+}
+
+// 把模型信息渲染成「按钮」样式的徽标；点击可打开模型设置。
+function appendModelNote({ variant, icon, label, timestamp, title }) {
+  const el = document.createElement("div");
+  el.className = "msg msg-model-note" + (variant ? ` ${variant}` : "");
+  el.innerHTML = logTimeHtml(timestamp ?? Date.now() / 1000);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "model-note-btn";
+  if (title) btn.title = title;
+  btn.innerHTML = `<span class="model-note-icon">${icon}</span><span class="model-note-text">${escapeHtml(label)}</span>`;
+  btn.addEventListener("click", () => void openModelSettings());
+  el.appendChild(btn);
+  targetMessages().appendChild(el);
+  return el;
+}
+
+// 运行时显示本次使用的大模型；模型相对上一次 Run 变化时高亮「切换」。
+function renderRunModel(model, timestamp) {
+  if (!model) return;
+  const switched = !!lastRunModel && lastRunModel !== model;
+  const label = switched
+    ? t("model.switched", { from: modelDisplay(lastRunModel), to: modelDisplay(model) })
+    : t("model.runningModel", { model: modelDisplay(model) });
+  appendModelNote({
+    variant: switched ? "switched" : "",
+    icon: switched ? "⇄" : "⬡",
+    label,
+    timestamp,
+    title: t("model.openSettingsTip"),
+  });
+  lastRunModel = model;
+  syncModelPill(model);
+}
+
+// 智能路由：网关实际选出的模型；source=local 表示网关无 auto、由本地选型。
+function renderResolvedModel(payload, timestamp) {
+  const resolved = payload?.resolved;
+  if (!resolved) return;
+  const local = payload?.source === "local";
+  appendModelNote({
+    variant: "resolved",
+    icon: local ? "⚙" : "⟿",
+    label: local
+      ? t("model.resolvedLocal", { model: resolved })
+      : t("model.resolvedAs", { model: resolved }),
+    timestamp,
+    title: local ? t("model.localRoutingTip") : t("model.openSettingsTip"),
+  });
+  scrollMessages();
+}
+
+// token 用量以 K（千）为单位、保留 1 位小数显示。
+function fmtTokK(n) {
+  return `${((Number(n) || 0) / 1000).toFixed(1)}K`;
+}
+
 function renderUsage(usage) {
   if (!usage || !usage.total_tokens) return;
   const el = document.createElement("div");
@@ -1883,8 +2464,8 @@ function renderUsage(usage) {
     ? ` · ${escapeHtml(t("usage.budgetExceeded"))}`
     : "";
   el.innerHTML =
-    `<span>⛁ ↑${usage.prompt_tokens || 0} ↓${usage.completion_tokens || 0} ` +
-    `Σ${usage.total_tokens} tok${cost}${over}</span>`;
+    `<span>⛁ ↑${fmtTokK(usage.prompt_tokens)} ↓${fmtTokK(usage.completion_tokens)} ` +
+    `Σ${fmtTokK(usage.total_tokens)} tok${cost}${over}</span>`;
   targetMessages().appendChild(el);
   scrollMessages();
 }
@@ -2248,9 +2829,11 @@ function chatHasInput(text, images, channel) {
   return false;
 }
 
-async function sendMessage(text, channel = "agent") {
-  const images = [...(state.attachments[channel] || [])];
-  if (!chatHasInput(text, images, channel)) return;
+async function sendMessage(text, channel = "agent", opts = {}) {
+  // opts.images：重试 / 编辑重答时显式传入历史图片，且不消费输入框附件。
+  const explicitImages = Array.isArray(opts.images) ? opts.images : null;
+  const images = explicitImages ? [...explicitImages] : [...(state.attachments[channel] || [])];
+  if (!explicitImages && !chatHasInput(text, images, channel)) return;
   if (state.streaming) return;
   const streamConversationId = state.activeConversationId;
   state.streaming = true;
@@ -2260,8 +2843,10 @@ async function sendMessage(text, channel = "agent") {
     mime_type, data_base64, name,
   }));
   appendUser(text, payloadImages);
-  state.attachments[channel] = [];
-  renderAttachStrip(channel);
+  if (!explicitImages) {
+    state.attachments[channel] = [];
+    renderAttachStrip(channel);
+  }
 
   const controller = new AbortController();
   state.abort = controller;
@@ -2275,6 +2860,9 @@ async function sendMessage(text, channel = "agent") {
       }
     }
     const context = channel === "agent" ? getEditorContext() : null;
+    const workMode = opts.workMode ?? state.workMode;
+    const roleId = opts.roleId ?? state.roleId;
+    const modelOverride = opts.model;
     const res = await fetch("/api/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2282,8 +2870,9 @@ async function sendMessage(text, channel = "agent") {
         message: text || "",
         images: payloadImages,
         context,
-        work_mode: state.workMode,
-        role_id: state.roleId,
+        work_mode: workMode,
+        role_id: roleId,
+        model: modelOverride,
         conversation_id: streamConversationId,
       }),
       signal: controller.signal,
@@ -2339,6 +2928,9 @@ async function sendMessage(text, channel = "agent") {
       const doneText = streamText;
       if (doneEl && doneText) {
         doneEl.dataset.msgText = doneText;
+        if (!doneEl.querySelector(".msg-actions")) {
+          appendAssistantActions(doneEl, state.turns.length - 1);
+        }
         paintAssistantMessage(doneEl, doneText)
           .then((failures) => {
             if (failures.length) return repairDiagramsInMessage(doneEl, doneText);
@@ -2384,11 +2976,16 @@ function handleEvent(ev, streamConversationId = null) {
     return;
   }
   if (ev.type === "run_start") {
+    renderRunModel(ev.payload?.model, ev.timestamp);
     beginAssistant();
     return;
   }
   if (ev.type === "model_delta") {
     if (ev.payload?.delta) appendDelta(ev.payload.delta);
+    return;
+  }
+  if (ev.type === "model_resolved") {
+    renderResolvedModel(ev.payload, ev.timestamp);
     return;
   }
   if (ev.type === "done") {
@@ -2477,6 +3074,7 @@ function setButtons(busy) {
     const b = $(s);
     if (b) b.disabled = !busy;
   });
+  updateAgentStatus();
 }
 
 function renderAttachStrip(channel) {
@@ -2758,6 +3356,8 @@ async function boot() {
   });
   bindUpdateBanner();
   bindModelSettings();
+  bindMessageActions();
+  bindRetryOptions();
   window.addEventListener("auc-terminal-resize", layoutEditor);
   setMode(state.mode);
   bindMdToolbar();

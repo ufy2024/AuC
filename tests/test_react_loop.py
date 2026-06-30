@@ -74,3 +74,41 @@ async def _test_run_stream_emits_run_end() -> None:
     assert "".join(deltas) == "ok"
     assert agent.last_run_result is not None
     assert agent.last_run_result.output == "ok"
+
+
+def test_run_start_carries_model_descriptor() -> None:
+    asyncio.run(_test_run_start_carries_model_descriptor())
+
+
+async def _test_run_start_carries_model_descriptor() -> None:
+    model = InMemoryModelClient(
+        responses=[AssistantMessage(content="ok", tool_calls=None)],
+    )
+    # 模拟真实客户端暴露的 .model / .base_url 标识
+    model.model = "deepseek-chat"  # type: ignore[attr-defined]
+    model.base_url = "http://relay/api"  # type: ignore[attr-defined]
+    agent = DefaultAgent(
+        AgentConfig(agent_id="s", model=model, tools=DefaultToolRegistry()),
+    )
+    start_payload: dict | None = None
+    async for ev in agent.run_stream("hi"):
+        if ev.type == "run_start":
+            start_payload = ev.payload
+    assert start_payload is not None
+    assert start_payload["model"] == "deepseek-chat"
+    assert start_payload["base_url"] == "http://relay/api"
+
+
+def test_run_start_model_descriptor_none_when_absent() -> None:
+    asyncio.run(_test_run_start_model_descriptor_none_when_absent())
+
+
+async def _test_run_start_model_descriptor_none_when_absent() -> None:
+    model = InMemoryModelClient(
+        responses=[AssistantMessage(content="ok", tool_calls=None)],
+    )
+    agent = DefaultAgent(
+        AgentConfig(agent_id="s", model=model, tools=DefaultToolRegistry()),
+    )
+    payloads = [ev.payload async for ev in agent.run_stream("hi") if ev.type == "run_start"]
+    assert payloads and payloads[0].get("model") is None

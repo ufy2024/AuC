@@ -120,10 +120,24 @@ class ClaudeCodeStreamPrinter:
         self._tool_count = 0
         self._cancelled = False
         self._last_usage: dict[str, Any] | None = None
+        self._last_model: str | None = None
 
     def feed(self, ev: RunEvent) -> None:
         if ev.type == "run_start":
+            self._print_run_model(ev.payload.get("model"), ts=ev.timestamp)
             self._begin_assistant()
+            return
+        if ev.type == "model_resolved":
+            resolved = ev.payload.get("resolved")
+            if resolved:
+                self.finish_reply()
+                local = ev.payload.get("source") == "local"
+                icon = "⚙" if local else "⟿"
+                label = "本地路由选定 " if local else "实际模型 "
+                print(
+                    f"  {log_time_prefix(ev.timestamp)}{cyan(icon)} "
+                    f"{dim(label)}{cyan(resolved)}"
+                )
             return
         if ev.type == "model_delta":
             delta = ev.payload.get("delta")
@@ -204,6 +218,19 @@ class ClaudeCodeStreamPrinter:
     def was_cancelled(self) -> bool:
         return self._cancelled
 
+    def _print_run_model(self, model: str | None, *, ts: float | None = None) -> None:
+        """运行时显示本次使用的大模型；相对上一次变化时高亮「切换」。"""
+        if not model:
+            return
+        if self._last_model and self._last_model != model:
+            print(
+                f"  {log_time_prefix(ts)}{cyan('⇄')} "
+                f"{dim('模型切换 ')}{dim(self._last_model)} {dim('→')} {bold(cyan(model))}"
+            )
+        else:
+            print(f"  {log_time_prefix(ts)}{dim('⬡ 模型 ')}{cyan(model)}")
+        self._last_model = model
+
     def _begin_assistant(self) -> None:
         if not self._marker_printed:
             sys.stdout.write(f"\n{magenta('◆')} {dim(' ')}")
@@ -218,10 +245,14 @@ class ClaudeCodeStreamPrinter:
         u = self._last_usage
         if not u or not u.get("total_tokens"):
             return
+
+        def _k(n: Any) -> str:  # token 以 K（千）为单位、保留 1 位小数
+            return f"{(int(n or 0)) / 1000:.1f}K"
+
         parts = [
-            f"↑{u.get('prompt_tokens', 0)}",
-            f"↓{u.get('completion_tokens', 0)}",
-            f"Σ{u.get('total_tokens', 0)} tok",
+            f"↑{_k(u.get('prompt_tokens'))}",
+            f"↓{_k(u.get('completion_tokens'))}",
+            f"Σ{_k(u.get('total_tokens'))} tok",
         ]
         cost = u.get("cost_usd") or 0
         if cost:
@@ -356,7 +387,7 @@ def print_welcome(
     sandbox: str,
     *,
     evolve: bool,
-    version: str = "0.3.0",
+    version: str = "0.3.1",
 ) -> None:
     model = cfg.model
     ws = _short_path(sandbox)

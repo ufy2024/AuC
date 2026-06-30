@@ -143,6 +143,28 @@ def test_chat_stream_l3_tool_denied_via_approve_port(app) -> None:
     assert done["payload"]["status"] == "cancelled"
 
 
+def test_chat_stream_run_error_not_duplicated_in_sse(app) -> None:
+    class _FailModel:
+        async def complete_stream(self, messages, tools=None):
+            raise RuntimeError("gateway down")
+            yield  # pragma: no cover
+
+    session = web_server._state["session"]
+    session.agent._config.model = _FailModel()  # noqa: SLF001
+    status, text = asyncio.run(_post_chat_stream(app, {"message": "hi", "context": {}}))
+    assert status == 200
+    events = _parse_sse(text)
+    done = next(e for e in events if e.get("type") == "done")
+    assert done["payload"]["status"] == "error"
+    assert done["payload"]["error"] == "gateway down"
+    dup = [
+        e
+        for e in events
+        if e.get("type") == "error" and (e.get("payload") or {}).get("message") == "gateway down"
+    ]
+    assert not dup
+
+
 def test_chat_stream_with_image_upload(app) -> None:
     """图片附件上传：base64 payload 进入用户消息并随对话持久化。"""
     import base64

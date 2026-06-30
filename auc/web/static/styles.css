@@ -257,6 +257,161 @@ button { cursor: pointer; border: none; background: none; }
   color: var(--muted);
   line-height: 1.45;
 }
+.model-list-panel {
+  margin-top: .15rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--input-bg, #fff);
+  overflow: hidden;
+}
+.model-list-panel.hidden { display: none; }
+.model-list-bar {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .3rem .55rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--hover) 55%, transparent);
+}
+.model-list-search-icon {
+  font-size: .72rem;
+  opacity: .55;
+  line-height: 1;
+}
+.model-list-search {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: .74rem;
+  padding: .1rem 0;
+  outline: none;
+}
+.model-list-search::placeholder { color: var(--muted); opacity: .8; }
+.model-list-count {
+  flex-shrink: 0;
+  font-size: .66rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  padding: .05rem .4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.model-facets {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  padding: .4rem .55rem;
+  border-bottom: 1px solid var(--border);
+}
+.model-facets:empty { display: none; }
+.model-facet {
+  display: flex;
+  align-items: flex-start;
+  gap: .4rem;
+}
+.model-facet-label {
+  flex-shrink: 0;
+  width: 2.4rem;
+  padding-top: .18rem;
+  font-size: .66rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.model-facet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .28rem;
+}
+.facet-chip {
+  padding: .12rem .5rem;
+  font-size: .68rem;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.facet-chip:hover { background: var(--hover); }
+.facet-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.model-list-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: .35rem;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: .5rem;
+  scrollbar-width: thin;
+}
+.model-list-body::-webkit-scrollbar { width: 8px; }
+.model-list-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 35%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.model-list-empty {
+  padding: .9rem .5rem 1rem;
+  text-align: center;
+  font-size: .72rem;
+  color: var(--muted);
+}
+.model-list-empty.hidden { display: none; }
+.model-chip {
+  max-width: 100%;
+  padding: .22rem .6rem;
+  font-size: .72rem;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--hover) 60%, var(--input-bg));
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.model-chip.hidden { display: none; }
+.model-chip:hover { background: var(--hover); border-color: var(--muted); }
+.model-chip.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.model-chip.active::before {
+  content: "✓ ";
+  font-weight: 700;
+}
+.model-auto-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem;
+  margin-top: .1rem;
+}
+.model-auto-label {
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: .15rem;
+}
+.model-auto-row .model-chip.auto {
+  border-style: dashed;
+  border-radius: 999px;
+  font-family: inherit;
+}
 
 /* ── 布局 ── */
 .layout {
@@ -285,6 +440,18 @@ button { cursor: pointer; border: none; background: none; }
   letter-spacing: .04em;
   color: var(--panel-head);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.panel-head-lead {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  min-width: 0;
+}
+.panel-head-lead .agent-status {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
   flex-shrink: 0;
 }
 .icon-btn {
@@ -878,6 +1045,145 @@ button { cursor: pointer; border: none; background: none; }
   font-variant-numeric: tabular-nums;
 }
 .msg-stream { white-space: pre-wrap; word-break: break-word; }
+
+/* ── 消息操作：重试 / 编辑重答 ── */
+.msg-user,
+.msg-assistant { position: relative; }
+.msg-actions {
+  display: flex;
+  gap: .25rem;
+  margin-top: .35rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+.msg-user .msg-actions { justify-content: flex-end; }
+.msg-user:hover .msg-actions,
+.msg-assistant:hover .msg-actions,
+.msg-actions:focus-within { opacity: 1; pointer-events: auto; }
+.msg-act-btn {
+  width: 24px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.msg-act-btn:hover {
+  color: var(--text);
+  border-color: var(--logo-color);
+  background: color-mix(in srgb, var(--logo-color) 18%, transparent);
+}
+.msg-act-btn .ui-icon { display: block; }
+.msg-user.editing { width: min(560px, 92%); max-width: 92%; }
+.msg-edit {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  min-width: 240px;
+}
+.msg-edit-input {
+  width: 100%;
+  resize: vertical;
+  background: var(--input-bg, #1e1e1e);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .5rem .6rem;
+  font: inherit;
+  line-height: 1.5;
+}
+.msg-edit-bar {
+  display: flex;
+  gap: .4rem;
+  justify-content: flex-end;
+}
+.msg-edit-bar button {
+  padding: .32rem .8rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: .78rem;
+  cursor: pointer;
+}
+.msg-edit-save {
+  background: var(--logo-color);
+  color: #10210a;
+  border-color: transparent;
+  font-weight: 600;
+}
+.msg-edit-cancel {
+  background: transparent;
+  color: var(--muted);
+}
+
+/* ── 重试选项弹窗 ── */
+.retry-options-card { width: min(420px, 100%); }
+.retry-opt-field {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  margin-bottom: .65rem;
+}
+.retry-opt-label {
+  font-size: .78rem;
+  color: var(--muted);
+}
+.retry-opt-field .work-mode-select,
+.retry-opt-field .ws-create-input { width: 100%; }
+
+/* ── 运行时模型标识 / 模型切换提示 ── */
+.msg-model-note {
+  font-size: .72rem;
+  color: var(--muted);
+}
+.msg-model-note .model-note-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .16rem .6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--hover) 60%, var(--input-bg));
+  color: var(--text);
+  font-size: .72rem;
+  line-height: 1.4;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .06);
+  transition: background .12s, border-color .12s, box-shadow .12s, transform .06s;
+}
+.msg-model-note .model-note-icon {
+  opacity: .8;
+  line-height: 1;
+}
+.msg-model-note .model-note-text {
+  font-family: ui-monospace, monospace;
+}
+.msg-model-note .model-note-btn:hover {
+  background: var(--hover);
+  border-color: var(--muted);
+}
+.msg-model-note .model-note-btn:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+.msg-model-note.switched .model-note-btn {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--active);
+  font-weight: 600;
+}
+.msg-model-note.resolved .model-note-btn {
+  color: var(--accent);
+  border-style: dashed;
+  border-color: var(--accent);
+}
 
 /* ── R10 任务清单卡片 ── */
 .msg-todos {

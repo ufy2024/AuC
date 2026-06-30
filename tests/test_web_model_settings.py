@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import tempfile
 
 from auc.config import load_model_config
-from auc.web.model_settings import save_model_settings, settings_local_path
+from auc.web.model_settings import (
+    discover_models_payload,
+    save_model_settings,
+    settings_local_path,
+)
 
 
 def test_save_model_settings_writes_local_file() -> None:
@@ -41,3 +46,35 @@ def test_save_model_settings_project_scope(tmp_path) -> None:
     )
     assert path == project_settings_path(sandbox)
     assert path.is_file()
+
+
+def test_discover_models_payload_handles_failure() -> None:
+    payload = asyncio.run(
+        discover_models_payload(
+            provider="openai",
+            base_url="",
+            api_key="sk-x",
+            current_model="m",
+        )
+    )
+    assert payload["ok"] is False
+    assert payload["models"] == []
+    assert payload["error"]
+
+
+def test_discover_models_payload_success(monkeypatch) -> None:
+    async def fake_discover(**kwargs):
+        return ["deepseek-chat", "deepseek-coder"]
+
+    monkeypatch.setattr("auc.model.discovery.discover_models", fake_discover)
+    payload = asyncio.run(
+        discover_models_payload(
+            provider="openai",
+            base_url="http://relay/api",
+            api_key="sk-x",
+            current_model="deepseek-chat",
+        )
+    )
+    assert payload["ok"] is True
+    assert payload["models"] == ["deepseek-chat", "deepseek-coder"]
+    assert payload["current"] == "deepseek-chat"

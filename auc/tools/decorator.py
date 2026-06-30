@@ -15,7 +15,7 @@ def tool(
     description: str | None = None,
     privilege: ToolPrivilege = "L2",
 ) -> Callable[[F], F]:
-    """Mark a function as an AuC tool (attach metadata for registry)."""
+    """将函数标记为 AuC 工具（附加元数据供注册表使用）。"""
 
     def decorator(fn: F) -> F:
         fn._auc_tool_meta = {  # type: ignore[attr-defined]

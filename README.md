@@ -4,6 +4,8 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
+**v0.3.1** — 大模型接入与对话体验增强：base_url + SK 配置、模型自动发现（多端点/多鉴权探测）与按系列/类型过滤、智能路由 `auto[:策略]`（成本/均衡/质量/低延迟）及网关不支持时的本地路由回退、运行时模型实时显示与切换提示、Token 用量按 K 显示；对话支持就地重试与「编辑后重答」（可临时切换模型/工作模式/角色）；Code 与 Chat 双界面均显示智能体状态；富渲染依赖（mermaid/marked）改为多 CDN 镜像懒加载并优雅降级，离线/内网不再白屏。
+
 **v0.3.0** — 竞品对标优化计划全面落地（O1–O4 / R1–R28 主干）：符号代码索引（R26，含可选 tree-sitter 多语言与向量语义层）、多轮专项审查（R27）、任务回执/Replay（R28）、MCP 客户端（R16）、生命周期 Hooks（R14）、会话内子智能体工具（R13）、后台作业 + 定时 Routines + 容器隔离（R17）、并行 worktree（R18）、确定性评测基线（R19），以及自进化全闭环「执行→复盘→度量→固化→优化」（R20/R21/R22/R23）。修复 OpenAI/DeepSeek 兼容客户端 400 错误体透传、终端 URL 链接对齐、测试环境变量隔离。v0.2.14 安全与健壮性加固。
 
 [![CI](https://github.com/ufy2024/AuC/actions/workflows/ci.yml/badge.svg)](https://github.com/ufy2024/AuC/actions/workflows/ci.yml)

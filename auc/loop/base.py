@@ -7,6 +7,7 @@ from auc.context.window import ContextWindow, TruncatePolicy
 from auc.events.bus import EventBus
 from auc.messages import ChatMessage, RunResult, ToolResult
 from auc.model.client import AssistantMessage, ModelClient
+from auc.model.retry import format_model_http_error
 from auc.policy.autonomy import AutonomyPolicy
 from auc.ports.approval import ApprovalPort
 from auc.ports.memory import ContextComposer, MemoryPort
@@ -59,6 +60,7 @@ class LoopContext:
     parent_run_id: RunId | None = None  # R13 子 Run 关联
     usage_tracker: Any = None  # R11 用量累计（auc.usage.UsageTracker）
     hooks: Any = None  # R14 生命周期钩子（auc.hooks.HookRunner）
+    last_resolved_model: str | None = None  # 智能路由：网关上一次实际选用的模型
 
 
 @dataclass
@@ -200,9 +202,18 @@ class AgentLoopRunner:
         except Exception:  # noqa: BLE001 钩子失败不影响 Run
             pass
 
+    @staticmethod
+    def _model_descriptor(ctx: LoopContext) -> dict[str, Any]:
+        """本次 Run 实际使用的模型标识（供 UI 实时显示与切换提示）。"""
+        return {
+            "model": getattr(ctx.model, "model", None),
+            "base_url": getattr(ctx.model, "base_url", None),
+        }
+
     async def run_until_done(self, loop: AgentLoop, ctx: LoopContext) -> RunResult:
-        ctx.events.emit_typed("run_start", ctx.run_id, ctx.agent_id, {})
-        await self._run_lifecycle_hook(ctx, "run_start", {})
+        start_payload = self._model_descriptor(ctx)
+        ctx.events.emit_typed("run_start", ctx.run_id, ctx.agent_id, start_payload)
+        await self._run_lifecycle_hook(ctx, "run_start", dict(start_payload))
         last: LoopStepResult | None = None
 
         while True:
@@ -222,7 +233,7 @@ class AgentLoopRunner:
             try:
                 last = await loop.step(ctx)
             except Exception as exc:  # noqa: BLE001
-                ctx.error = str(exc)
+                ctx.error = format_model_http_error(exc)
                 await self._end_run(ctx, "error", error=ctx.error)
                 return build_run_result(ctx, "error", last)
 

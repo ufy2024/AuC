@@ -34,3 +34,25 @@ def test_anthropic_parses_tool_use() -> None:
     assert result.tool_calls is not None
     assert result.tool_calls[0].name == "echo"
     assert result.tool_calls[0].arguments == {"x": 2}
+
+
+def test_anthropic_captures_resolved_model() -> None:
+    mock_response = {
+        "model": "claude-opus-4",
+        "content": [{"type": "text", "text": "hi"}],
+    }
+
+    async def _go():
+        client = AnthropicClient(api_key="key", model="auto:quality_first")
+        mock_http = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = mock_response
+        mock_http.post = AsyncMock(return_value=mock_resp)
+        client._client = mock_http
+        msg = await client.complete([ChatMessage(role="user", content="hi")])
+        await client.aclose()
+        return msg
+
+    result = asyncio.run(_go())
+    assert result.resolved_model == "claude-opus-4"

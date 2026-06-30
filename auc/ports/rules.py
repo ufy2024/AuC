@@ -73,7 +73,7 @@ def _split_sections(body: str) -> list[tuple[str, str]]:
 
 
 class FileRulesPort:
-    """Load project rules from a repository root.
+    """从仓库根目录加载项目规则。
 
     优先级（首个命中即采用）：`.aurules`（AuC 原生，可覆盖）→ `AUM.md`
     → `AGENTS.md`（2026 跨工具事实标准，Codex 主推）→ `CLAUDE.md`。

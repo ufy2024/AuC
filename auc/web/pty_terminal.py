@@ -73,11 +73,25 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
         closed.set()
 
     watch_task = asyncio.create_task(_watch_proc())
+    closed_task = asyncio.create_task(closed.wait())
 
     try:
         while not closed.is_set():
+            recv_task = asyncio.ensure_future(websocket.receive())
+            done, _pending = await asyncio.wait(
+                {recv_task, closed_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if recv_task not in done:
+                # PTY 进程已退出或读取出错：主动结束，让前端收到干净的关闭
+                recv_task.cancel()
+                try:
+                    await recv_task
+                except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                    pass
+                break
             try:
-                msg = await websocket.receive()
+                msg = recv_task.result()
             except Exception:  # noqa: BLE001
                 break
             if msg.get("type") == "websocket.disconnect":
@@ -108,6 +122,7 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
         closed.set()
         loop.remove_reader(master_fd)
         watch_task.cancel()
+        closed_task.cancel()
         try:
             os.close(master_fd)
         except OSError:

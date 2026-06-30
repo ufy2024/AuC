@@ -186,6 +186,33 @@ def save_model_settings(
     return cfg, path
 
 
+async def discover_models_payload(
+    *,
+    provider: str,
+    base_url: str,
+    api_key: str,
+    current_model: str | None = None,
+) -> dict[str, Any]:
+    """检索网关可用模型，返回 Web 接口友好结构。
+
+    成功：``{"ok": True, "models": [...], "current": <当前模型>}``；
+    失败：``{"ok": False, "models": [], "error": <可读原因>}`` —— 前端据此回退手动填写。
+    """
+    from auc.model.discovery import ModelDiscoveryError, discover_models
+
+    try:
+        models = await discover_models(
+            base_url=base_url,
+            api_key=api_key,
+            provider=normalize_provider(provider),
+        )
+    except ModelDiscoveryError as exc:
+        return {"ok": False, "models": [], "error": str(exc)}
+    except ImportError as exc:
+        return {"ok": False, "models": [], "error": str(exc)}
+    return {"ok": True, "models": models, "current": current_model}
+
+
 # 兼容旧引用
 def settings_local_path(sandbox_root: str) -> Path:
     return project_local_settings_path(sandbox_root)

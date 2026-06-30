@@ -40,6 +40,8 @@ class AssistantMessage:
     raw: dict[str, Any] | None = None
     thinking: str | None = None
     usage: TokenUsage | None = None
+    resolved_model: str | None = None  # 网关实际选用的模型（智能路由 auto 时尤为重要）
+    route_source: str | None = None  # 智能路由来源：'gateway'（网关选型）/'local'（本地选型）
 
 
 @dataclass
@@ -49,6 +51,8 @@ class StreamChunk:
     delta_tool_calls: list[ToolCall] | None = None
     finish_reason: str | None = None
     usage: TokenUsage | None = None
+    resolved_model: str | None = None
+    route_source: str | None = None
 
 
 class ModelClient(Protocol):
@@ -67,7 +71,7 @@ class ModelClient(Protocol):
 
 @dataclass
 class InMemoryModelClient:
-    """Scriptable model for tests: pop responses from a queue."""
+    """可脚本化的测试用模型：从队列中弹出预设响应。"""
 
     responses: list[AssistantMessage] = field(default_factory=list)
     _index: int = 0

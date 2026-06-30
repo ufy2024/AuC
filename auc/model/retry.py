@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 from typing import Any, Awaitable, Callable, TypeVar
@@ -27,6 +28,55 @@ def _parse_retry_after(value: str | None) -> float | None:
         return max(0.0, float(value))
     except ValueError:
         return None
+
+
+_HTTP_STATUS_HINTS: dict[int, str] = {
+    401: "鉴权失败，请检查 API Key",
+    403: "访问被拒绝",
+    404: "接口不存在，请检查 Base URL",
+    408: "请求超时",
+    429: "请求过于频繁，请稍后重试",
+    500: "服务端内部错误",
+    502: "网关错误",
+    503: "服务不可用，请稍后重试或更换网关",
+    504: "网关超时",
+}
+
+
+def format_model_http_error(exc: BaseException) -> str:
+    """把 httpx / HTTP 异常转为用户可读短句（避免整段 URL + MDN 链接）。"""
+    status = _status_of(exc)
+    if status is None:
+        return str(exc)
+    hint = _HTTP_STATUS_HINTS.get(status, "")
+    try:
+        import httpx
+    except ImportError:  # pragma: no cover
+        return f"HTTP {status}" + (f"（{hint}）" if hint else "")
+    if isinstance(exc, httpx.HTTPStatusError):
+        detail = ""
+        try:
+            detail = (exc.response.text or "").strip()
+            if detail:
+                data = json.loads(detail)
+                if isinstance(data, dict):
+                    err = data.get("error")
+                    if isinstance(err, dict) and err.get("message"):
+                        detail = str(err["message"])
+                    elif data.get("message"):
+                        detail = str(data["message"])
+        except Exception:  # noqa: BLE001
+            detail = detail[:200] if detail else ""
+        path = str(getattr(exc.request.url, "path", "") or exc.request.url)
+        msg = f"HTTP {status}"
+        if hint:
+            msg += f"（{hint}）"
+        if path:
+            msg += f"：{path}"
+        if detail and detail not in msg:
+            msg += f" — {detail[:300]}"
+        return msg
+    return f"HTTP {status}" + (f"（{hint}）" if hint else "")
 
 
 def _is_retryable_exception(exc: BaseException) -> bool:

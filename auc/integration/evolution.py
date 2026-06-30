@@ -23,7 +23,7 @@ from auc.types import AgentId, RunId
 
 
 def evolution_paths(sandbox_root: str) -> tuple[Path, Path]:
-    """Return legacy global (nuggets_yaml, evolution_yaml) under sandbox .auc/."""
+    """返回沙盒 .auc/ 下的旧版全局路径 (nuggets_yaml, evolution_yaml)。"""
     root = Path(sandbox_root).resolve()
     auc_dir = root / ".auc"
     nuggets = auc_dir / "au-nuggets.yaml"
@@ -38,7 +38,7 @@ def evolution_paths(sandbox_root: str) -> tuple[Path, Path]:
 def resolve_evolution_storage(
     sandbox_root: str, role_id: str
 ) -> tuple[Path, Path, bool]:
-    """(nuggets_path, evolution_path, legacy_global_with_tag_filter)."""
+    """(nuggets_path, evolution_path, legacy_global_with_tag_filter)。"""
     role_n, role_e = role_evolution_paths(sandbox_root, role_id)
     global_n, global_e = evolution_paths(sandbox_root)
     if role_e.is_file() or role_n.is_file():
@@ -59,7 +59,7 @@ class Episode:
 
 @dataclass
 class EvolutionStore:
-    """Persist episodic lessons and nuggets in the sandbox (agent evolution)."""
+    """在沙盒中持久化情节记忆与 nuggets（智能体进化）。"""
 
     path: Path
     episodes: list[Episode] = field(default_factory=list)
@@ -209,7 +209,7 @@ class _RoleStorage:
 
 
 class EvolutionMemoryPort:
-    """Recall nuggets + episodic lessons; per-role dirs under .auc/roles/<id>/."""
+    """召回 nuggets + 情节记忆；按角色目录 .auc/roles/<id>/ 存储。"""
 
     def __init__(
         self,

@@ -18,6 +18,7 @@ RunEventType = Literal[
     "run_start",
     "step_start",
     "model_delta",
+    "model_resolved",
     "tool_start",
     "tool_end",
     "approval_required",

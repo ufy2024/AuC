@@ -210,7 +210,7 @@ class ToolPrivilegeGate:
         # 5) 检查点快照（写类工具 / shell 命令记录）
         self._snapshot(ctx, policy, arguments, tool_name=tool.name)
 
-        # 6) invoke
+        # 6) 调用
         result = await tool.invoke(arguments)
         result.tool_call_id = result.tool_call_id or ""
         return await self._post_tool_use(ctx, tool.name, policy.privilege, arguments, result)

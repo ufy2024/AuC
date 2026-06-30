@@ -27,7 +27,7 @@ class SlicerConfig:
 
 
 class SemanticSlicer:
-    """Build ContextPackage via ripgrep-style search (AuM reference implementation)."""
+    """通过类 ripgrep 搜索构建 ContextPackage（AuM 参考实现）。"""
 
     def __init__(self, config: SlicerConfig | None = None) -> None:
         self._config = config or SlicerConfig()

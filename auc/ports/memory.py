@@ -118,7 +118,7 @@ class DefaultComposer:
 
 
 class InMemoryMemoryPort:
-    """Simple memory for tests and standalone use."""
+    """供测试与独立使用的简易记忆实现。"""
 
     def __init__(self) -> None:
         self._store: list[ChatMessage] = []
