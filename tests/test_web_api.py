@@ -29,7 +29,8 @@ def test_info_and_tree(client: TestClient) -> None:
     assert "roles" in data
     role_ids = {r["id"] for r in data["roles"]}
     assert "coder" in role_ids
-    assert "reviewer" in role_ids
+    assert "engineering-code-reviewer" in role_ids
+    assert len(role_ids) >= 200
     assert "work_modes" in data
     mode_ids = {m["id"] for m in data["work_modes"]}
     assert "auto" in mode_ids
@@ -41,6 +42,20 @@ def test_info_and_tree(client: TestClient) -> None:
     tree = client.get("/api/workspace/tree")
     assert tree.status_code == 200
     assert "entries" in tree.json()
+
+
+def test_info_role_catalog_locale(client: TestClient) -> None:
+    zh = client.get("/api/info?locale=zh").json()
+    en = client.get("/api/info?locale=en").json()
+    assert zh["role_catalog_locale"] == "zh"
+    assert en["role_catalog_locale"] == "en"
+    assert "jnMetaCode" in zh["role_catalog_source"]
+    assert "msitarzewski" in en["role_catalog_source"]
+    zh_roles = {r["id"]: r for r in zh["roles"]}
+    en_roles = {r["id"]: r for r in en["roles"]}
+    arch = "engineering-backend-architect"
+    assert arch in zh_roles and arch in en_roles
+    assert zh_roles[arch]["label"] != en_roles[arch]["label"]
 
 
 def test_api_release_endpoint(client: TestClient) -> None:

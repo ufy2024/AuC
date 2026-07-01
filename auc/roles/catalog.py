@@ -20,6 +20,12 @@ class RoleSpec:
     builtin: bool = False
     recommended: bool = False
     role_dir: Path | None = None
+    # agency-agents 风格扩展
+    division: str = "custom"
+    emoji: str = "◆"
+    color: str = ""
+    vibe: str = ""
+    when_to_use: str = ""
 
 
 @dataclass
@@ -44,7 +50,10 @@ class RoleCatalog:
         if not role_id or not str(role_id).strip():
             return None
         from auc.roles.loader import sanitize_role_id
+        from auc.roles.routing import AUTO_ROLE_ID, is_auto_role
 
+        if is_auto_role(role_id):
+            return AUTO_ROLE_ID
         try:
             rid = sanitize_role_id(str(role_id))
         except ValueError:
@@ -52,9 +61,15 @@ class RoleCatalog:
         return rid if rid in self.roles else None
 
     def get(self, role_id: str | None) -> RoleSpec:
+        from auc.roles.routing import AUTO_ROLE_ID, auto_role_spec, is_auto_role
+
+        if is_auto_role(role_id):
+            return auto_role_spec()
         return self.roles[self.resolve(role_id)]
 
     def list_roles(self) -> list[RoleSpec]:
+        from auc.roles.divisions import ROLE_DIVISIONS
+
         recommended = [
             r for r in self.roles.values() if r.recommended or r.builtin
         ]
@@ -63,9 +78,14 @@ class RoleCatalog:
             for r in self.roles.values()
             if not r.recommended and not r.builtin
         ]
+        order = {d["id"]: d.get("order", 50) for d in ROLE_DIVISIONS.values()}
+
+        def sort_key(r: RoleSpec) -> tuple[int, str, str]:
+            return (order.get(r.division, 99), r.division, r.id)
+
         return [
-            *sorted(recommended, key=lambda r: r.id),
-            *sorted(custom, key=lambda r: r.id),
+            *sorted(recommended, key=sort_key),
+            *sorted(custom, key=sort_key),
         ]
 
     def role_ids(self) -> list[str]:

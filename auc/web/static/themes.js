@@ -135,6 +135,7 @@ export function loadStoredIconTheme() {
 export function applyColorTheme(id) {
   const theme = getColorTheme(id);
   const app = document.getElementById("app");
+  document.documentElement.dataset.colorTheme = theme.id;
   if (app) app.dataset.colorTheme = theme.id;
   localStorage.setItem("auc-color-theme", theme.id);
   return theme.id;

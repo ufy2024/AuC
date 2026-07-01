@@ -1,0 +1,4 @@
+locale: zh
+source: https://github.com/jnMetaCode/agency-agents-zh
+branch: main
+import_script: scripts/import_agency_roles.py

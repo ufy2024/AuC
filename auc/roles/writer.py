@@ -43,6 +43,11 @@ def write_role_definition(
     description: str | None = None,
     capabilities: str | list[str] | None = None,
     default_work_mode: str = "auto",
+    division: str | None = None,
+    emoji: str | None = None,
+    vibe: str | None = None,
+    when_to_use: str | None = None,
+    color: str | None = None,
     activate: bool = True,
     overwrite: bool = False,
 ) -> dict[str, Any]:
@@ -61,6 +66,8 @@ def write_role_definition(
     if meta_path.is_file() and not overwrite:
         raise FileExistsError(f"role already exists: {rid}")
 
+    from auc.roles.divisions import normalize_division
+
     role_dir.mkdir(parents=True, exist_ok=True)
     meta = {
         "id": rid,
@@ -69,9 +76,18 @@ def write_role_definition(
         "description": (description or "").strip(),
         "capabilities": _parse_capabilities(capabilities),
         "default_work_mode": (default_work_mode or "auto").strip() or "auto",
+        "division": normalize_division(division),
         "builtin": False,
         "recommended": False,
     }
+    if emoji:
+        meta["emoji"] = emoji.strip()
+    if vibe:
+        meta["vibe"] = vibe.strip()
+    if when_to_use:
+        meta["when_to_use"] = when_to_use.strip()
+    if color:
+        meta["color"] = color.strip()
     meta_path.write_text(
         yaml.safe_dump(meta, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
@@ -100,6 +116,11 @@ def update_role_definition(
     description: str | None = None,
     capabilities: str | list[str] | None = None,
     default_work_mode: str | None = None,
+    division: str | None = None,
+    emoji: str | None = None,
+    vibe: str | None = None,
+    when_to_use: str | None = None,
+    color: str | None = None,
     activate: bool = False,
 ) -> dict[str, Any]:
     rid = sanitize_role_id(role_id)
@@ -121,6 +142,18 @@ def update_role_definition(
         meta["capabilities"] = _parse_capabilities(capabilities)
     if default_work_mode is not None:
         meta["default_work_mode"] = default_work_mode.strip() or "auto"
+    if division is not None:
+        from auc.roles.divisions import normalize_division
+
+        meta["division"] = normalize_division(division)
+    if emoji is not None:
+        meta["emoji"] = emoji.strip()
+    if vibe is not None:
+        meta["vibe"] = vibe.strip()
+    if when_to_use is not None:
+        meta["when_to_use"] = when_to_use.strip()
+    if color is not None:
+        meta["color"] = color.strip()
 
     meta_path.write_text(
         yaml.safe_dump(meta, allow_unicode=True, sort_keys=False),

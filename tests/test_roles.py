@@ -25,17 +25,16 @@ from auc.roles import (
 
 
 def test_builtin_roles_from_package_dirs() -> None:
-    assert set(BUILTIN_ROLES) == {"coder", "reviewer", "architect", "tutor", "ops"}
-    coder_dir = package_roles_root() / "coder"
+    assert "coder" in BUILTIN_ROLES
+    coder_dir = package_roles_root() / "core" / "coder"
     assert (coder_dir / "role.yaml").is_file()
     assert (coder_dir / "prompt.md").is_file()
     assert get_role("unknown").id == "coder"
 
 
 def test_build_role_system_prompt() -> None:
-    prompt = build_role_system_prompt("/tmp/ws", "reviewer")
+    prompt = build_role_system_prompt("/tmp/ws", "engineering-code-reviewer")
     assert "/tmp/ws" in prompt
-    assert "审查" in prompt
     assert "grep_search" in prompt
 
 
@@ -92,8 +91,12 @@ async def test_evolution_remember_in_role_dir() -> None:
 
 
 def test_normalize_role_id() -> None:
-    assert normalize_role_id("REVIEWER") == "reviewer"
-    assert normalize_role_id(None) == "coder"
+    catalog = load_role_catalog()
+    assert normalize_role_id("CODER", catalog=catalog) == "coder"
+    assert normalize_role_id("engineering-code-reviewer", catalog=catalog) == (
+        "engineering-code-reviewer"
+    )
+    assert normalize_role_id(None, catalog=catalog) == "coder"
 
 
 def test_custom_role_folder_in_sandbox() -> None:
@@ -126,13 +129,15 @@ def test_custom_role_folder_in_sandbox() -> None:
 
 def test_active_role_marker() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        set_active_role(tmp, "reviewer")
-        assert read_active_role(tmp) == "reviewer"
+        set_active_role(tmp, "engineering-code-reviewer")
+        assert read_active_role(tmp) == "engineering-code-reviewer"
         assert active_role_path(tmp).is_file()
         catalog = load_role_catalog(sandbox=tmp)
-        assert catalog.default_role_id == "reviewer"
-        payload_role = next(r for r in catalog.list_roles() if r.id == "reviewer")
-        assert payload_role.id == "reviewer"
+        assert catalog.default_role_id == "engineering-code-reviewer"
+        payload_role = next(
+            r for r in catalog.list_roles() if r.id == "engineering-code-reviewer"
+        )
+        assert payload_role.id == "engineering-code-reviewer"
 
 
 def test_role_from_folder() -> None:

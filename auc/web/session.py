@@ -92,6 +92,7 @@ class WebSession:
         autonomy: str | None = None,
         approved_plan: dict[str, Any] | None = None,
         role_id: str | None = None,
+        role_locale: str | None = None,
     ) -> tuple[RunRequest, list[str]]:
         if not self.active_conversation_id:
             self.active_conversation_id = self.store.create()
@@ -113,15 +114,22 @@ class WebSession:
             notes=[*prepared.notes, *vision_notes],
             images=images,
         )
-        catalog = load_role_catalog(sandbox=self.sandbox)
-        rid = catalog.resolve(role_id)
-        if role_id and catalog.try_resolve(role_id):
-            set_active_role(self.sandbox, rid)
-            catalog.active_role_id = rid
+        catalog = load_role_catalog(sandbox=self.sandbox, locale=role_locale)
+        from auc.roles.routing import format_auto_role_note, is_auto_role, route_role
+
+        if is_auto_role(role_id):
+            rid = route_role(message, catalog)
+            role_note = format_auto_role_note(rid, catalog=catalog)
+        else:
+            rid = catalog.resolve(role_id)
+            role_note = format_role_note(rid, catalog=catalog)
+            if role_id and catalog.try_resolve(role_id):
+                set_active_role(self.sandbox, rid)
+                catalog.active_role_id = rid
         notes = [
             *ctx_notes,
             format_mode_note(mode_id, mode_src),
-            format_role_note(rid, catalog=catalog),
+            role_note,
             *prepared.notes,
         ]
         user_msg = build_user_message(prepared)

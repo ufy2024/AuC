@@ -1,6 +1,6 @@
 /* 颜色主题（data-color-theme，类似 VS Code Color Theme） */
 
-#app[data-color-theme="monokai"] {
+html[data-color-theme="monokai"], #app[data-color-theme="monokai"] {
   --topbar-bg: #1e1f1c;
   --border: #3e3d32;
   --text: #f8f8f2;
@@ -30,7 +30,7 @@
   --section-icon-bg: rgba(166,226,46,.14);
 }
 
-#app[data-color-theme="dark-plus"] {
+html[data-color-theme="dark-plus"], #app[data-color-theme="dark-plus"] {
   --topbar-bg: #1a1d21;
   --border: #2d333b;
   --text: #e6edf3;
@@ -60,7 +60,7 @@
   --section-icon-bg: rgba(55,147,239,.14);
 }
 
-#app[data-color-theme="one-dark"] {
+html[data-color-theme="one-dark"], #app[data-color-theme="one-dark"] {
   --topbar-bg: #21252b;
   --border: #181a1f;
   --text: #abb2bf;
@@ -90,7 +90,7 @@
   --section-icon-bg: rgba(97,175,239,.14);
 }
 
-#app[data-color-theme="github-dark"] {
+html[data-color-theme="github-dark"], #app[data-color-theme="github-dark"] {
   --topbar-bg: #010409;
   --border: #30363d;
   --text: #e6edf3;
@@ -120,7 +120,7 @@
   --section-icon-bg: rgba(88,166,255,.14);
 }
 
-#app[data-color-theme="solarized-dark"] {
+html[data-color-theme="solarized-dark"], #app[data-color-theme="solarized-dark"] {
   --topbar-bg: #002b36;
   --border: #073642;
   --text: #93a1a1;
@@ -150,7 +150,7 @@
   --section-icon-bg: rgba(38,139,210,.16);
 }
 
-#app[data-color-theme="light-plus"] {
+html[data-color-theme="light-plus"], #app[data-color-theme="light-plus"] {
   --topbar-bg: #ffffff;
   --border: #e8ecf0;
   --text: #1a2332;
@@ -180,7 +180,7 @@
   --section-icon-bg: rgba(59,130,246,.12);
 }
 
-#app[data-color-theme="github-light"] {
+html[data-color-theme="github-light"], #app[data-color-theme="github-light"] {
   --topbar-bg: #f6f8fa;
   --border: #d0d7de;
   --text: #1f2328;
@@ -210,7 +210,7 @@
   --section-icon-bg: rgba(9,105,218,.1);
 }
 
-#app[data-color-theme="high-contrast"] {
+html[data-color-theme="high-contrast"], #app[data-color-theme="high-contrast"] {
   --topbar-bg: #000000;
   --border: #6fc3df;
   --text: #ffffff;
@@ -243,6 +243,34 @@
 #app {
   color: var(--text);
   background: var(--app-bg);
+}
+
+/* 对话框 / 遮罩 / 原生控件（随颜色主题） */
+html[data-color-theme="monokai"], #app[data-color-theme="monokai"],
+html[data-color-theme="dark-plus"], #app[data-color-theme="dark-plus"],
+html[data-color-theme="one-dark"], #app[data-color-theme="one-dark"],
+html[data-color-theme="github-dark"], #app[data-color-theme="github-dark"],
+html[data-color-theme="solarized-dark"], #app[data-color-theme="solarized-dark"],
+html[data-color-theme="high-contrast"], #app[data-color-theme="high-contrast"] {
+  color-scheme: dark;
+  --overlay-backdrop: rgba(0, 0, 0, 0.52);
+  --overlay-shadow: 0 20px 50px rgba(0, 0, 0, 0.48);
+  --dialog-bg: var(--sidebar-bg);
+  --on-accent: #ffffff;
+}
+
+html[data-color-theme="light-plus"], #app[data-color-theme="light-plus"],
+html[data-color-theme="github-light"], #app[data-color-theme="github-light"] {
+  color-scheme: light;
+  --overlay-backdrop: rgba(15, 23, 42, 0.36);
+  --overlay-shadow: 0 20px 50px rgba(15, 23, 42, 0.14);
+  --dialog-bg: var(--input-bg);
+  --on-accent: #ffffff;
+}
+
+html[data-color-theme="high-contrast"], #app[data-color-theme="high-contrast"] {
+  --overlay-backdrop: rgba(0, 0, 0, 0.72);
+  --on-accent: #000000;
 }
 
 #app[data-color-theme="light-plus"] .topbar,

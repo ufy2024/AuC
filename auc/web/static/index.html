@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-color-theme="monokai">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/themes.css?v=30" />
-  <link rel="stylesheet" href="/static/styles.css?v=31" />
+  <link rel="stylesheet" href="/static/themes.css?v=34" />
+  <link rel="stylesheet" href="/static/styles.css?v=50" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="/static/vendor/xterm.css?v=25" />
 </head>
@@ -36,7 +36,9 @@
             </div>
           </div>
         </div>
-        <span class="model-pill clickable" id="model-pill" data-i18n-title="model.pill"></span>
+        <span class="role-pill clickable" id="role-pill" data-i18n-title="plaza.roleOpen"></span>
+        <span class="model-pill clickable" id="model-pill" data-i18n-title="plaza.modelOpen"></span>
+        <button type="button" class="btn ghost sm plaza-link-btn" id="model-conn-btn" data-i18n="plaza.modelConn" data-i18n-title="plaza.modelConn"></button>
         <span class="ws-pill" id="ws-pill" data-i18n-title="ws.pill"></span>
       </div>
     </header>
@@ -188,8 +190,14 @@
               <div class="agent-meta" id="agent-meta"></div>
               <div class="agent-tags" id="agent-tags"></div>
               <div class="work-mode-bar" id="work-mode-bar">
-                <label class="work-mode-label" for="role-select" data-i18n="agent.role"></label>
-                <select id="role-select" class="work-mode-select" data-i18n-title="agent.roleTitle"></select>
+                <label class="work-mode-label" data-i18n="agent.role"></label>
+                <div class="role-tree-select" id="role-tree-chat">
+                  <button type="button" class="role-tree-trigger work-mode-select" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="role-tree-trigger-label"></span>
+                    <span class="role-tree-chevron" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="role-tree-menu hidden" role="listbox"></div>
+                </div>
                 <label class="work-mode-label" for="work-mode-select" data-i18n="agent.mode"></label>
                 <select id="work-mode-select" class="work-mode-select" data-i18n-title="agent.modeTitle"></select>
               </div>
@@ -218,7 +226,13 @@
           <div class="context-bar" id="context-bar">
             <label class="work-mode-inline" data-i18n-title="agent.role">
               <span class="work-mode-label" data-i18n="agent.role"></span>
-              <select id="role-agent" class="work-mode-select sm"></select>
+              <div class="role-tree-select sm" id="role-tree-agent">
+                <button type="button" class="role-tree-trigger work-mode-select sm" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="role-tree-trigger-label"></span>
+                  <span class="role-tree-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="role-tree-menu hidden" role="listbox"></div>
+              </div>
             </label>
             <label class="work-mode-inline" data-i18n-title="agent.mode">
               <span class="work-mode-label" data-i18n="agent.modeShort"></span>
@@ -274,11 +288,7 @@
 
   <div id="model-settings-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
     <div class="approval-card model-settings-card">
-      <h3 class="approval-title" data-i18n="model.title"></h3>
-      <p class="approval-summary" id="model-settings-scope-summary">
-        <span data-i18n="model.scopeSummary"></span><code id="model-settings-active-scope">—</code>
-      </p>
-      <p class="model-layer-note" id="model-settings-layers"></p>
+      <h3 class="approval-title" data-i18n="plaza.modelConn"></h3>
       <label class="model-field">
         <span class="model-field-label" data-i18n="model.saveTo"></span>
         <select id="model-settings-scope" class="work-mode-select">
@@ -311,36 +321,125 @@
         </div>
         <span class="model-field-hint" id="model-settings-key-hint"></span>
       </label>
+      <div class="model-conn-bar">
+        <span class="model-conn-current">
+          <span data-i18n="model.currentModel"></span>
+          <code id="model-settings-current-model">—</code>
+        </span>
+        <button type="button" class="btn ghost sm" id="model-settings-open-plaza" data-i18n="plaza.modelOpen"></button>
+      </div>
+      <span class="model-field-hint" id="model-settings-conn-status"></span>
+      <p class="ws-create-error hidden" id="model-settings-error"></p>
+      <div class="approval-actions">
+        <button type="button" class="btn ghost" id="model-settings-cancel" data-i18n="common.cancel"></button>
+        <button type="button" class="btn primary" id="model-settings-save" data-i18n="common.save"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="role-plaza-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card plaza-card">
+      <header class="plaza-head">
+        <h3 class="approval-title" data-i18n="plaza.roleTitle"></h3>
+        <div class="plaza-head-actions">
+          <input type="search" class="plaza-search" id="role-plaza-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plaza.searchRole" />
+          <button type="button" class="btn ghost sm" id="role-plaza-create" data-i18n="plaza.roleCreate"></button>
+          <button type="button" class="icon-btn" id="role-plaza-close" aria-label="×">×</button>
+        </div>
+      </header>
+      <div class="plaza-filters" id="role-plaza-filters"></div>
+      <div class="plaza-sections" id="role-plaza-sections"></div>
+      <div class="plaza-empty hidden" id="role-plaza-empty" data-i18n="plaza.roleEmpty"></div>
+    </div>
+  </div>
+
+  <div id="role-editor-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card plaza-editor-card">
+      <h3 class="approval-title" id="role-editor-title" data-i18n="plaza.roleCreate"></h3>
       <label class="model-field">
-        <span class="model-field-label" data-i18n="model.modelId"></span>
-        <div class="model-preset-row">
-          <input type="text" class="ws-create-input" id="model-settings-model" autocomplete="off" spellcheck="false" placeholder="deepseek-chat" />
-          <button type="button" class="btn ghost sm" id="model-settings-discover" data-i18n="model.discover" data-i18n-title="model.discoverTip"></button>
+        <span class="model-field-label" data-i18n="plaza.roleId"></span>
+        <input type="text" class="ws-create-input" id="role-editor-id" autocomplete="off" spellcheck="false" placeholder="my-analyst" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleDivision"></span>
+        <select id="role-editor-division" class="work-mode-select"></select>
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleEmoji"></span>
+        <input type="text" class="ws-create-input" id="role-editor-emoji" autocomplete="off" spellcheck="false" placeholder="🎭" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleVibe"></span>
+        <input type="text" class="ws-create-input" id="role-editor-vibe" autocomplete="off" spellcheck="false" data-i18n-placeholder="plaza.roleVibeHint" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleWhen"></span>
+        <input type="text" class="ws-create-input" id="role-editor-when" autocomplete="off" spellcheck="false" data-i18n-placeholder="plaza.roleWhenHint" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleLabel"></span>
+        <input type="text" class="ws-create-input" id="role-editor-label" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleTitleField"></span>
+        <input type="text" class="ws-create-input" id="role-editor-title-field" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleDesc"></span>
+        <input type="text" class="ws-create-input" id="role-editor-desc" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.roleCaps"></span>
+        <input type="text" class="ws-create-input" id="role-editor-caps" autocomplete="off" spellcheck="false" data-i18n-placeholder="plaza.roleCapsHint" />
+      </label>
+      <label class="model-field">
+        <span class="model-field-label" data-i18n="plaza.rolePersona"></span>
+        <textarea class="ws-create-input role-editor-persona" id="role-editor-persona" rows="8" spellcheck="false"></textarea>
+      </label>
+      <p class="ws-create-error hidden" id="role-editor-error"></p>
+      <div class="approval-actions">
+        <button type="button" class="btn ghost" id="role-editor-cancel" data-i18n="common.cancel"></button>
+        <button type="button" class="btn primary" id="role-editor-save" data-i18n="common.save"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="model-plaza-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card plaza-card model-plaza-card">
+      <header class="plaza-head">
+        <h3 class="approval-title" data-i18n="plaza.modelTitle"></h3>
+        <div class="plaza-head-actions">
+          <button type="button" class="btn ghost sm" id="model-plaza-conn" data-i18n="plaza.modelConn"></button>
+          <button type="button" class="icon-btn" id="model-plaza-close" aria-label="×">×</button>
         </div>
-        <div class="model-list-panel hidden" id="model-settings-model-list">
-          <div class="model-list-bar">
-            <span class="model-list-search-icon" aria-hidden="true">🔍</span>
-            <input type="text" class="model-list-search" id="model-settings-model-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="model.filterPlaceholder" />
-            <span class="model-list-count" id="model-settings-model-count"></span>
-          </div>
-          <div class="model-facets" id="model-settings-facets"></div>
-          <div class="model-list-body" id="model-settings-model-chips" role="listbox"></div>
-          <div class="model-list-empty hidden" id="model-settings-model-empty" data-i18n="model.filterEmpty"></div>
-        </div>
-        <div class="model-auto-row" id="model-settings-auto-row">
+      </header>
+      <div class="model-auto-row" id="model-plaza-auto-row">
+        <div class="model-auto-head">
           <span class="model-auto-label" data-i18n="model.smartRouting"></span>
+          <span class="model-auto-hint" data-i18n="model.smartRoutingHint"></span>
+        </div>
+        <div class="model-auto-chips">
           <button type="button" class="model-chip auto" data-model="auto:cost_optimized" data-i18n="model.autoStrategy.cost_optimized"></button>
           <button type="button" class="model-chip auto" data-model="auto:balanced" data-i18n="model.autoStrategy.balanced"></button>
           <button type="button" class="model-chip auto" data-model="auto:quality_first" data-i18n="model.autoStrategy.quality_first"></button>
           <button type="button" class="model-chip auto" data-model="auto:latency_critical" data-i18n="model.autoStrategy.latency_critical"></button>
         </div>
-        <span class="model-field-hint" id="model-settings-model-hint" data-i18n="model.modelHint"></span>
-        <span class="model-field-hint" data-i18n="model.autoHint"></span>
-      </label>
-      <p class="ws-create-error hidden" id="model-settings-error"></p>
+      </div>
+      <div class="model-list-panel" id="model-plaza-list">
+        <div class="model-list-bar">
+          <span class="model-list-search-icon" aria-hidden="true">🔍</span>
+          <input type="text" class="model-list-search" id="model-plaza-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="model.filterPlaceholder" />
+          <span class="model-list-count" id="model-plaza-count"></span>
+        </div>
+        <div class="model-facets" id="model-plaza-facets"></div>
+        <div class="model-list-body" id="model-plaza-chips" role="listbox"></div>
+        <div class="model-list-empty hidden" id="model-plaza-empty" data-i18n="model.filterEmpty"></div>
+      </div>
+      <p class="model-field-hint" id="model-plaza-hint" data-i18n="plaza.modelHint"></p>
+      <p class="ws-create-error hidden" id="model-plaza-error"></p>
       <div class="approval-actions">
-        <button type="button" class="btn ghost" id="model-settings-cancel" data-i18n="common.cancel"></button>
-        <button type="button" class="btn primary" id="model-settings-save" data-i18n="common.save"></button>
+        <button type="button" class="btn ghost" id="model-plaza-cancel" data-i18n="common.cancel"></button>
+        <button type="button" class="btn primary" id="model-plaza-save" data-i18n="common.save"></button>
       </div>
     </div>
   </div>
@@ -400,7 +499,13 @@
       </label>
       <label class="retry-opt-field">
         <span class="retry-opt-label" data-i18n="agent.role"></span>
-        <select id="retry-opt-role" class="work-mode-select"></select>
+        <div class="role-tree-select" id="role-tree-retry" data-role-tree-context="retry">
+          <button type="button" class="role-tree-trigger work-mode-select" aria-haspopup="listbox" aria-expanded="false">
+            <span class="role-tree-trigger-label"></span>
+            <span class="role-tree-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="role-tree-menu hidden" role="listbox"></div>
+        </div>
       </label>
       <label class="retry-opt-field">
         <span class="retry-opt-label" data-i18n="chat.retryModel"></span>
@@ -415,6 +520,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=52" type="module"></script>
+  <script src="/static/app.js?v=70" type="module"></script>
 </body>
 </html>

@@ -35,7 +35,7 @@ from auc.work_mode import WORK_MODE_OVERVIEW, build_full_system_prompt
 
 # 兼容：从包内目录加载的内置角色 id 集合
 BUILTIN_ROLES: dict[str, RoleSpec] = load_roles_from_directory(
-    package_roles_root(), builtin=True, recommended=True
+    package_roles_root() / "core", builtin=True, recommended=True
 )
 
 _default_catalog: RoleCatalog | None = None
@@ -84,27 +84,56 @@ def build_role_system_prompt(
 
 
 def format_role_note(role_id: str | None, *, catalog: RoleCatalog | None = None) -> str:
-    spec = get_role(role_id, catalog=catalog)
+    from auc.roles.routing import is_auto_role
+
+    cat = catalog or _builtin_catalog()
+    if is_auto_role(role_id):
+        return "› 角色：智能选择（按任务自动匹配）"
+    spec = get_role(role_id, catalog=cat)
     return f"› 角色：{spec.label}（{spec.title}）"
 
 
+def _role_item_payload(r: RoleSpec, *, active: bool = False, auto: bool = False) -> dict[str, object]:
+    return {
+        "id": r.id,
+        "label": r.label,
+        "title": r.title,
+        "description": r.description,
+        "capabilities": list(r.capabilities),
+        "default_work_mode": r.default_work_mode,
+        "builtin": r.builtin,
+        "recommended": r.recommended,
+        "active": active,
+        "auto": auto,
+        "division": r.division,
+        "emoji": r.emoji,
+        "color": r.color,
+        "vibe": r.vibe,
+        "when_to_use": r.when_to_use,
+    }
+
+
 def roles_payload(*, catalog: RoleCatalog | None = None) -> list[dict[str, object]]:
+    from auc.roles.routing import auto_role_spec
+
     cat = catalog or _builtin_catalog()
     active = cat.active_role_id or cat.default_role_id
-    return [
-        {
-            "id": r.id,
-            "label": r.label,
-            "title": r.title,
-            "description": r.description,
-            "capabilities": list(r.capabilities),
-            "default_work_mode": r.default_work_mode,
-            "builtin": r.builtin,
-            "recommended": r.recommended,
-            "active": r.id == active,
-        }
-        for r in cat.list_roles()
+    auto = auto_role_spec()
+    items: list[dict[str, object]] = [
+        _role_item_payload(auto, active=False, auto=True),
     ]
+    for r in cat.list_roles():
+        items.append(_role_item_payload(r, active=r.id == active, auto=False))
+    return items
+
+
+def divisions_payload(*, catalog: RoleCatalog | None = None) -> list[dict[str, object]]:
+    from auc.roles.divisions import divisions_payload as _divisions_payload
+
+    extra: list[str] = []
+    if catalog:
+        extra = sorted({r.division for r in catalog.roles.values() if r.division})
+    return _divisions_payload(extra_ids=extra)
 
 
 def role_evolution_paths(sandbox: str | Path, role_id: str) -> tuple[Path, Path]:
@@ -139,6 +168,7 @@ __all__ = [
     "role_from_folder",
     "role_tag",
     "roles_payload",
+    "divisions_payload",
     "roles_yaml_path",
     "sandbox_role_dir",
     "sandbox_roles_root",

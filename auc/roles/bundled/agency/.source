@@ -1,0 +1,3 @@
+source: https://github.com/msitarzewski/agency-agents
+branch: main
+import_script: scripts/import_agency_roles.py

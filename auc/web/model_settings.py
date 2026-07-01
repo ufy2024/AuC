@@ -145,7 +145,7 @@ def save_model_settings(
         raise ValueError("api_key 不能为空")
 
     prov = normalize_provider(provider)
-    model_id = (model or "").strip() or current.model or _default_model(prov)
+    model_id = (model or "").strip() or current.model or "auto:balanced"
     base = normalize_openai_compatible_base_url(
         (base_url or "").strip() or current.base_url or _default_base_url(prov)
     )

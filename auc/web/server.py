@@ -60,7 +60,13 @@ _STATIC = Path(__file__).parent / "static"
 _state: dict[str, Any] = {}
 
 
-def _roles_payload(sandbox: str) -> list[dict[str, object]]:
+def _parse_locale(raw: str | None) -> str:
+    from auc.roles.agency_sources import normalize_role_locale
+
+    return normalize_role_locale(raw)
+
+
+def _roles_payload(sandbox: str, *, locale: str | None = None) -> list[dict[str, object]]:
     from auc.config import load_merged_settings
     from auc.roles import load_role_catalog, roles_payload
 
@@ -69,8 +75,15 @@ def _roles_payload(sandbox: str) -> list[dict[str, object]]:
         settings, _ = load_merged_settings(None, None)
     except Exception:  # noqa: BLE001
         pass
-    catalog = load_role_catalog(sandbox=sandbox, settings=settings)
+    catalog = load_role_catalog(sandbox=sandbox, settings=settings, locale=locale)
     return roles_payload(catalog=catalog)
+
+
+def _role_divisions_payload(sandbox: str, *, locale: str | None = None) -> list[dict[str, object]]:
+    from auc.roles import divisions_payload, load_role_catalog
+
+    catalog = load_role_catalog(sandbox=sandbox, locale=locale)
+    return divisions_payload(catalog=catalog)
 
 
 def _work_modes_payload() -> list[dict[str, str]]:
@@ -179,11 +192,14 @@ def create_app():  # noqa: ANN201
         return FileResponse(_STATIC / "index.html")
 
     @app.get("/api/info")
-    async def api_info() -> JSONResponse:
+    async def api_info(request: Request) -> JSONResponse:
+        from auc.roles.agency_sources import role_catalog_source_url
+
         session = _get_session()
+        locale = _parse_locale(request.query_params.get("locale"))
         cfg = session.cfg
         evolve = _state.get("evolve", True)
-        role_catalog = load_role_catalog(sandbox=session.sandbox)
+        role_catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
         active_role = role_catalog.active_role_id or role_catalog.default_role_id
         from pathlib import Path as _Path
 
@@ -221,7 +237,10 @@ def create_app():  # noqa: ANN201
                 "role_default": role_catalog.default_role_id,
                 "active_role": active_role,
             },
-            "roles": _roles_payload(session.sandbox),
+            "roles": _roles_payload(session.sandbox, locale=locale),
+            "role_divisions": _role_divisions_payload(session.sandbox, locale=locale),
+            "role_catalog_locale": locale,
+            "role_catalog_source": role_catalog_source_url(locale),
             "work_modes": _work_modes_payload(),
             "terminal": {
                 "enabled": True,
@@ -329,6 +348,174 @@ def create_app():  # noqa: ANN201
             current_model=session.cfg.model,
         )
         return JSONResponse(payload)
+
+    @app.get("/api/roles/{role_id}")
+    async def api_get_role(role_id: str, request: Request) -> JSONResponse:
+        from auc.roles import load_role_catalog
+        from auc.roles.constants import ROLE_PROMPT_FILE
+        from auc.roles.routing import is_auto_role
+
+        session = _get_session()
+        locale = _parse_locale(request.query_params.get("locale"))
+        catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
+        if is_auto_role(role_id):
+            spec = catalog.get(role_id)
+            return JSONResponse(
+                {
+                    "id": spec.id,
+                    "label": spec.label,
+                    "title": spec.title,
+                    "description": spec.description,
+                    "capabilities": list(spec.capabilities),
+                    "default_work_mode": spec.default_work_mode,
+                    "builtin": True,
+                    "auto": True,
+                    "editable": False,
+                    "persona": "",
+                }
+            )
+        rid = catalog.try_resolve(role_id)
+        if not rid:
+            raise HTTPException(404, f"role not found: {role_id}")
+        spec = catalog.get(rid)
+        persona = spec.persona
+        if spec.role_dir:
+            prompt_path = spec.role_dir / ROLE_PROMPT_FILE
+            if prompt_path.is_file():
+                persona = prompt_path.read_text(encoding="utf-8")
+        return JSONResponse(
+            {
+                "id": spec.id,
+                "label": spec.label,
+                "title": spec.title,
+                "description": spec.description,
+                "capabilities": list(spec.capabilities),
+                "default_work_mode": spec.default_work_mode,
+                "builtin": spec.builtin,
+                "auto": False,
+                "editable": not spec.builtin,
+                "persona": persona,
+                "division": spec.division,
+                "emoji": spec.emoji,
+                "color": spec.color,
+                "vibe": spec.vibe,
+                "when_to_use": spec.when_to_use,
+            }
+        )
+
+    @app.post("/api/roles")
+    async def api_create_role(request: Request) -> JSONResponse:
+        from auc.roles import load_role_catalog, roles_payload
+        from auc.roles.writer import write_role_definition
+
+        try:
+            body = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"invalid JSON: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(400, "body must be object")
+        session = _get_session()
+        role_id = str(body.get("role_id") or body.get("id") or "").strip()
+        label = str(body.get("label") or "").strip()
+        persona = str(body.get("persona") or "").strip()
+        if not role_id or not label or not persona:
+            raise HTTPException(400, "role_id, label, persona 不能为空")
+        caps = body.get("capabilities")
+        if isinstance(caps, list):
+            caps = ",".join(str(c) for c in caps)
+        try:
+            result = write_role_definition(
+                session.sandbox,
+                role_id=role_id,
+                label=label,
+                persona=persona,
+                title=str(body.get("title") or "").strip() or None,
+                description=str(body.get("description") or "").strip() or None,
+                capabilities=str(caps or ""),
+                default_work_mode=str(body.get("default_work_mode") or "auto"),
+                division=str(body.get("division") or "custom"),
+                emoji=str(body.get("emoji") or "").strip() or None,
+                vibe=str(body.get("vibe") or "").strip() or None,
+                when_to_use=str(body.get("when_to_use") or "").strip() or None,
+                color=str(body.get("color") or "").strip() or None,
+                activate=bool(body.get("activate", True)),
+                overwrite=False,
+            )
+        except FileExistsError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        locale = _parse_locale(request.query_params.get("locale"))
+        catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
+        return JSONResponse({"ok": True, **result, "roles": roles_payload(catalog=catalog)})
+
+    @app.put("/api/roles/{role_id}")
+    async def api_update_role(role_id: str, request: Request) -> JSONResponse:
+        from auc.roles import load_role_catalog, roles_payload
+        from auc.roles.routing import is_auto_role
+        from auc.roles.writer import update_role_definition
+
+        if is_auto_role(role_id):
+            raise HTTPException(400, "auto 角色不可编辑")
+        try:
+            body = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"invalid JSON: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(400, "body must be object")
+        session = _get_session()
+        locale = _parse_locale(request.query_params.get("locale"))
+        catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
+        if not catalog.try_resolve(role_id):
+            raise HTTPException(404, f"role not found: {role_id}")
+        spec = catalog.get(role_id)
+        if spec.builtin:
+            raise HTTPException(400, "内置角色不可直接编辑，请复制为自定义角色")
+        caps = body.get("capabilities")
+        if isinstance(caps, list):
+            caps = ",".join(str(c) for c in caps)
+        try:
+            result = update_role_definition(
+                session.sandbox,
+                role_id,
+                label=str(body["label"]).strip() if body.get("label") else None,
+                persona=str(body["persona"]).strip() if body.get("persona") else None,
+                title=str(body["title"]).strip() if body.get("title") else None,
+                description=str(body["description"]).strip() if body.get("description") else None,
+                capabilities=str(caps) if caps is not None else None,
+                default_work_mode=str(body["default_work_mode"]).strip()
+                if body.get("default_work_mode")
+                else None,
+                division=str(body["division"]).strip() if body.get("division") else None,
+                emoji=str(body["emoji"]).strip() if body.get("emoji") else None,
+                vibe=str(body["vibe"]).strip() if body.get("vibe") else None,
+                when_to_use=str(body["when_to_use"]).strip() if body.get("when_to_use") else None,
+                color=str(body["color"]).strip() if body.get("color") else None,
+                activate=bool(body.get("activate", False)),
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
+        return JSONResponse({"ok": True, **result, "roles": roles_payload(catalog=catalog)})
+
+    @app.post("/api/roles/{role_id}/activate")
+    async def api_activate_role(role_id: str, request: Request) -> JSONResponse:
+        from auc.roles import load_role_catalog, roles_payload, set_active_role
+        from auc.roles.routing import is_auto_role
+
+        session = _get_session()
+        locale = _parse_locale(request.query_params.get("locale"))
+        catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
+        if is_auto_role(role_id):
+            return JSONResponse({"ok": True, "role_id": "auto", "roles": roles_payload(catalog=catalog)})
+        rid = catalog.try_resolve(role_id)
+        if not rid:
+            raise HTTPException(404, f"role not found: {role_id}")
+        set_active_role(session.sandbox, rid)
+        catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
+        return JSONResponse({"ok": True, "role_id": rid, "roles": roles_payload(catalog=catalog)})
 
     def _runner() -> ProjectRunner:
         runner = _state.get("runner")
@@ -1028,6 +1215,7 @@ def create_app():  # noqa: ANN201
 
                 work_mode = body.get("work_mode") or "auto"
                 role_id = body.get("role_id") or body.get("role") or "coder"
+                role_locale = body.get("role_locale") or body.get("locale")
                 autonomy = body.get("autonomy") or None
                 approved_plan = body.get("approved_plan")
                 if approved_plan is not None and not isinstance(approved_plan, dict):
@@ -1060,6 +1248,7 @@ def create_app():  # noqa: ANN201
                         autonomy=autonomy,
                         approved_plan=approved_plan,
                         role_id=role_id,
+                        role_locale=role_locale,
                     )
                 except ValueError as exc:
                     yield _sse({"type": "error", "payload": {"message": str(exc)}})

@@ -132,6 +132,7 @@ def role_from_folder(
     *,
     builtin: bool = False,
     recommended: bool = False,
+    division_hint: str | None = None,
 ) -> RoleSpec | None:
     if not role_dir.is_dir() or role_dir.name in _SKIP_DIR_NAMES:
         return None
@@ -151,10 +152,15 @@ def role_from_folder(
     caps = meta.get("capabilities") or []
     if isinstance(caps, str):
         caps = [c.strip() for c in caps.split(",") if c.strip()]
+    from auc.roles.divisions import normalize_division
+
+    division = normalize_division(
+        str(meta.get("division") or division_hint or "custom")
+    )
     return RoleSpec(
         id=rid,
-        label=str(meta.get("label") or rid),
-        title=str(meta.get("title") or meta.get("label") or rid),
+        label=str(meta.get("label") or meta.get("name") or rid),
+        title=str(meta.get("title") or meta.get("label") or meta.get("name") or rid),
         description=str(meta.get("description") or ""),
         capabilities=tuple(str(c) for c in caps),
         persona=persona,
@@ -162,6 +168,11 @@ def role_from_folder(
         builtin=builtin or bool(meta.get("builtin")),
         recommended=recommended or bool(meta.get("recommended")),
         role_dir=role_dir.resolve(),
+        division=division,
+        emoji=str(meta.get("emoji") or "◆"),
+        color=str(meta.get("color") or ""),
+        vibe=str(meta.get("vibe") or ""),
+        when_to_use=str(meta.get("when_to_use") or meta.get("whenToUse") or ""),
     )
 
 
@@ -170,6 +181,7 @@ def load_roles_from_directory(
     *,
     builtin: bool = False,
     recommended: bool = False,
+    division_hint: str | None = None,
 ) -> dict[str, RoleSpec]:
     if not base.is_dir():
         return {}
@@ -179,9 +191,26 @@ def load_roles_from_directory(
             continue
         if child.name in _SKIP_DIR_NAMES:
             continue
-        spec = role_from_folder(child, builtin=builtin, recommended=recommended)
-        if spec is not None:
-            out[spec.id] = spec
+        meta_path = child / ROLE_META_FILE
+        if meta_path.is_file():
+            spec = role_from_folder(
+                child,
+                builtin=builtin,
+                recommended=recommended,
+                division_hint=division_hint,
+            )
+            if spec is not None:
+                out[spec.id] = spec
+        else:
+            # 细分领域目录（如 engineering/）→ 递归加载其下角色
+            out.update(
+                load_roles_from_directory(
+                    child,
+                    builtin=builtin,
+                    recommended=recommended,
+                    division_hint=child.name,
+                )
+            )
     return out
 
 
@@ -196,10 +225,13 @@ def role_from_mapping(role_id: str, data: dict[str, Any], *, builtin: bool = Fal
     caps = data.get("capabilities") or []
     if isinstance(caps, str):
         caps = [c.strip() for c in caps.split(",") if c.strip()]
+    from auc.roles.divisions import normalize_division
+
+    division = normalize_division(str(data.get("division") or "custom"))
     return RoleSpec(
         id=rid,
-        label=str(data.get("label") or rid),
-        title=str(data.get("title") or data.get("label") or rid),
+        label=str(data.get("label") or data.get("name") or rid),
+        title=str(data.get("title") or data.get("label") or data.get("name") or rid),
         description=str(data.get("description") or ""),
         capabilities=tuple(str(c) for c in caps),
         persona=persona,
@@ -207,6 +239,11 @@ def role_from_mapping(role_id: str, data: dict[str, Any], *, builtin: bool = Fal
         builtin=builtin,
         recommended=bool(data.get("recommended")),
         role_dir=None,
+        division=division,
+        emoji=str(data.get("emoji") or "◆"),
+        color=str(data.get("color") or ""),
+        vibe=str(data.get("vibe") or ""),
+        when_to_use=str(data.get("when_to_use") or data.get("whenToUse") or ""),
     )
 
 
@@ -235,13 +272,25 @@ def load_legacy_roles_yaml(path: Path) -> dict[str, RoleSpec]:
     return parse_roles_mapping(data if isinstance(data, dict) else {})
 
 
+def core_roles_root() -> Path:
+    return package_roles_root() / "core"
+
+
 def load_role_catalog(
     *,
     sandbox: str | Path | None = None,
     settings: dict[str, Any] | None = None,
+    locale: str | None = None,
 ) -> RoleCatalog:
-    merged: dict[str, RoleSpec] = load_roles_from_directory(
-        package_roles_root(), builtin=True, recommended=True
+    from auc.roles.agency_loader import agency_bundled_root, load_agency_roles_from_directory
+
+    merged: dict[str, RoleSpec] = load_agency_roles_from_directory(
+        agency_bundled_root(locale), builtin=True, recommended=True
+    )
+    merged.update(
+        load_roles_from_directory(
+            core_roles_root(), builtin=True, recommended=True
+        )
     )
     if settings:
         merged.update(parse_roles_mapping(settings.get("roles")))  # type: ignore[arg-type]

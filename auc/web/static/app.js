@@ -53,8 +53,9 @@ const state = {
   autoAttach: localStorage.getItem("auc-auto-attach") !== "0",
   workMode: localStorage.getItem("auc-work-mode") || "auto",
   workModes: [],
-  roleId: localStorage.getItem("auc-role") || "coder",
+  roleId: localStorage.getItem("auc-role") || "auto",
   roles: [],
+  roleDivisions: [],
   activeConversationId: null,
   conversations: [],
   turns: [],
@@ -328,12 +329,264 @@ async function api(path, opts = {}) {
 }
 
 function currentRoleSpec() {
+  if (state.roleId === "auto") {
+    return state.roles.find((r) => r.auto || r.id === "auto") || {
+      id: "auto",
+      label: t("plaza.roleAuto"),
+      description: t("plaza.roleAutoDesc"),
+      capabilities: [t("plaza.roleAuto")],
+    };
+  }
   return state.roles.find((r) => r.id === state.roleId) || state.roles[0] || null;
 }
 
 function roleLabel(id) {
+  if (id === "auto") return t("plaza.roleAuto");
   const r = state.roles.find((x) => x.id === id);
   return r ? r.label : id;
+}
+
+function updateRoleTriggers() {
+  const spec = currentRoleSpec();
+  const label = roleLabel(state.roleId);
+  const div = state.roleId !== "auto" && spec?.division && spec.division !== "__auto__"
+    ? divisionLabel(spec.division)
+    : "";
+  const detail = spec?.vibe || spec?.title || spec?.description || "";
+  const pillText = div && state.roleId !== "auto" ? `${div} · ${label}` : label;
+  const tip = [detail, spec?.when_to_use].filter(Boolean).join(" — ") || label;
+  syncRoleTreeTriggers(label, tip);
+  const pill = $("#role-pill");
+  if (pill) {
+    pill.textContent = pillText;
+  }
+}
+
+function rolesForTree() {
+  return state.roles.length
+    ? state.roles
+    : [
+        { id: "auto", label: t("plaza.roleAuto"), auto: true },
+        { id: "coder", label: t("role.coder") },
+      ];
+}
+
+function groupRolesForTree() {
+  const roles = rolesForTree();
+  const groups = new Map();
+  let autoRole = null;
+  for (const r of roles) {
+    if (r.auto || r.id === "auto") {
+      autoRole = r;
+      continue;
+    }
+    const div = r.division || "custom";
+    if (!groups.has(div)) groups.set(div, []);
+    groups.get(div).push(r);
+  }
+  const order = state.roleDivisions.length
+    ? state.roleDivisions.map((d) => d.id)
+    : ["specialized", "engineering", "operations", "education", "custom"];
+  return { autoRole, groups, order };
+}
+
+function renderRoleTreeMenu(menuEl, activeRoleId = state.roleId) {
+  if (!menuEl) return;
+  const { autoRole, groups, order } = groupRolesForTree();
+  const parts = [];
+  if (autoRole) {
+    parts.push(
+      `<button type="button" class="role-tree-item auto${activeRoleId === "auto" ? " active" : ""}" data-role-id="auto">${escapeHtml(autoRole.label || t("plaza.roleAuto"))}</button>`
+    );
+  }
+  for (const divId of order) {
+    const items = groups.get(divId);
+    if (!items?.length) continue;
+    parts.push(
+      `<div class="role-tree-group is-open" data-division="${escapeHtml(divId)}">` +
+        `<button type="button" class="role-tree-group-head">` +
+        `<span class="role-tree-toggle" aria-hidden="true">▶</span>` +
+        `<span class="role-tree-group-label">${escapeHtml(divisionLabel(divId))}</span>` +
+        `<span class="facet-chip-badge">${items.length}</span>` +
+        `</button>` +
+        `<div class="role-tree-children">` +
+        items
+          .map(
+            (r) =>
+              `<button type="button" class="role-tree-item${r.id === activeRoleId ? " active" : ""}" data-role-id="${escapeHtml(r.id)}">${escapeHtml(r.label)}</button>`
+          )
+          .join("") +
+        `</div></div>`
+    );
+  }
+  menuEl.innerHTML = parts.join("");
+}
+
+const ROLE_TREE_IDS = ["#role-tree-chat", "#role-tree-agent", "#role-tree-retry"];
+
+function activeRoleIdForTreeWrap(wrap) {
+  if (wrap?.dataset.roleTreeContext === "retry") return _retryRoleId || state.roleId;
+  return state.roleId;
+}
+
+function renderRoleTreeMenus() {
+  for (const id of ROLE_TREE_IDS) {
+    const wrap = $(id);
+    if (!wrap) continue;
+    const activeId = activeRoleIdForTreeWrap(wrap);
+    renderRoleTreeMenu(roleTreeMenuEl(wrap), activeId);
+    const labelEl = wrap.querySelector(".role-tree-trigger-label");
+    if (labelEl) labelEl.textContent = roleLabel(activeId);
+  }
+}
+
+function syncRoleTreeTriggers(label, tip) {
+  for (const id of ["#role-tree-chat", "#role-tree-agent"]) {
+    const wrap = $(id);
+    const trigger = wrap?.querySelector(".role-tree-trigger");
+    const labelEl = wrap?.querySelector(".role-tree-trigger-label");
+    if (labelEl) labelEl.textContent = label;
+    if (trigger) trigger.title = tip || label;
+  }
+}
+
+function roleTreeMenuEl(wrap) {
+  return wrap?._roleTreeMenu || wrap?.querySelector(".role-tree-menu");
+}
+
+function roleTreePortalRoot() {
+  return document.getElementById("app") || document.body;
+}
+
+function positionRoleTreeMenu(wrap) {
+  const menu = roleTreeMenuEl(wrap);
+  const trigger = wrap?.querySelector(".role-tree-trigger");
+  if (!menu || !trigger) return;
+  if (!wrap._roleTreeMenu) wrap._roleTreeMenu = menu;
+  const portal = roleTreePortalRoot();
+  if (menu.parentElement !== portal) {
+    wrap._roleTreeMenuHome = wrap;
+    portal.appendChild(menu);
+  }
+  menu.classList.add("role-tree-menu--floating");
+  const rect = trigger.getBoundingClientRect();
+  const gap = 6;
+  menu.style.minWidth = `${Math.max(rect.width, 220)}px`;
+  let left = rect.left;
+  const menuW = menu.offsetWidth;
+  if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+  left = Math.max(8, left);
+  const menuH = menu.offsetHeight;
+  let top = rect.bottom + gap;
+  if (top + menuH > window.innerHeight - 8 && rect.top > menuH + gap) {
+    top = rect.top - menuH - gap;
+  }
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
+
+function dockRoleTreeMenu(wrap) {
+  const menu = wrap?._roleTreeMenu;
+  if (!menu) return;
+  menu.classList.remove("role-tree-menu--floating");
+  menu.style.left = "";
+  menu.style.top = "";
+  menu.style.minWidth = "";
+  const home = wrap._roleTreeMenuHome || wrap;
+  const portal = roleTreePortalRoot();
+  if ((menu.parentElement === portal || menu.parentElement === document.body) && home) {
+    home.appendChild(menu);
+  }
+}
+
+function repositionOpenRoleTreeMenus() {
+  document.querySelectorAll(".role-tree-select").forEach((wrap) => {
+    const menu = roleTreeMenuEl(wrap);
+    if (menu && !menu.classList.contains("hidden")) {
+      positionRoleTreeMenu(wrap);
+    }
+  });
+}
+
+function closeRoleTreeMenus(exceptWrap = null) {
+  document.querySelectorAll(".role-tree-select").forEach((wrap) => {
+    if (exceptWrap && wrap === exceptWrap) return;
+    const menu = roleTreeMenuEl(wrap);
+    menu?.classList.add("hidden");
+    dockRoleTreeMenu(wrap);
+    const trigger = wrap.querySelector(".role-tree-trigger");
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleRoleTreeMenu(wrap) {
+  const menu = roleTreeMenuEl(wrap);
+  const trigger = wrap.querySelector(".role-tree-trigger");
+  if (!menu || !trigger) return;
+  if (!wrap._roleTreeMenu) wrap._roleTreeMenu = menu;
+  const willOpen = menu.classList.contains("hidden");
+  closeRoleTreeMenus();
+  if (willOpen) {
+    renderRoleTreeMenu(menu, activeRoleIdForTreeWrap(wrap));
+    menu.classList.remove("hidden");
+    positionRoleTreeMenu(wrap);
+    trigger.setAttribute("aria-expanded", "true");
+  }
+}
+
+async function selectRoleFromTree(roleId, wrap) {
+  if (wrap?.dataset.roleTreeContext === "retry") {
+    _retryRoleId = roleId || "auto";
+    renderRoleTreeMenus();
+    closeRoleTreeMenus();
+    return;
+  }
+  setRole(roleId);
+  if (roleId !== "auto") {
+    try {
+      await api(
+        `/api/roles/${encodeURIComponent(roleId)}/activate?locale=${encodeURIComponent(getLocale())}`,
+        { method: "POST" }
+      );
+    } catch {
+      /* 激活失败不阻断选用 */
+    }
+  }
+  closeRoleTreeMenus();
+  renderRoleTreeMenus();
+}
+
+function bindRoleTreeSelects() {
+  document.querySelectorAll(".role-tree-select").forEach((wrap) => {
+    if (wrap.dataset.bound) return;
+    wrap.dataset.bound = "1";
+    const trigger = wrap.querySelector(".role-tree-trigger");
+    const menu = wrap.querySelector(".role-tree-menu");
+    if (menu) wrap._roleTreeMenu = menu;
+    trigger?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      toggleRoleTreeMenu(wrap);
+    });
+    menu?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const groupHead = ev.target.closest(".role-tree-group-head");
+      if (groupHead) {
+        groupHead.closest(".role-tree-group")?.classList.toggle("is-open");
+        return;
+      }
+      const item = ev.target.closest(".role-tree-item[data-role-id]");
+      if (item) void selectRoleFromTree(item.dataset.roleId || "auto", wrap);
+    });
+  });
+  if (!document.body.dataset.roleTreeBound) {
+    document.body.dataset.roleTreeBound = "1";
+    document.addEventListener("click", () => closeRoleTreeMenus());
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") closeRoleTreeMenus();
+    });
+    window.addEventListener("resize", repositionOpenRoleTreeMenus);
+    window.addEventListener("scroll", repositionOpenRoleTreeMenus, true);
+  }
 }
 
 // 智能体运行状态：Code（agent-panel 头）与 Chat（chat-header）两个界面同步显示。
@@ -442,55 +695,605 @@ function bindWorkModeSelects() {
 }
 
 function populateRoleSelects() {
-  const roles = state.roles.length
-    ? state.roles
-    : [{ id: "coder", label: t("role.coder"), description: "" }];
-  for (const sel of ["#role-select", "#role-agent"]) {
-    const el = $(sel);
-    if (!el) continue;
-    const prev = el.value || state.roleId;
-    el.innerHTML = roles
-      .map(
-        (r) =>
-          `<option value="${escapeHtml(r.id)}" title="${escapeHtml(r.description || r.title || "")}">${escapeHtml(r.label)}</option>`
-      )
-      .join("");
-    el.value = roles.some((r) => r.id === prev) ? prev : "coder";
+  if (!state.roles.some((r) => r.id === state.roleId)) {
+    state.roleId = state.roles.find((r) => r.auto || r.id === "auto")?.id || "auto";
   }
-  setRole($("#role-select")?.value || state.roleId, { persist: false });
+  renderRoleTreeMenus();
 }
 
 function setRole(role, { persist = true } = {}) {
-  state.roleId = role || "coder";
+  state.roleId = role || "auto";
   if (persist) localStorage.setItem("auc-role", state.roleId);
-  for (const sel of ["#role-select", "#role-agent"]) {
-    const el = $(sel);
-    if (el && el.value !== state.roleId) el.value = state.roleId;
-  }
+  updateRoleTriggers();
+  renderRoleTreeMenus();
   renderAgentProfile(state.info);
 }
 
-function bindRoleSelects() {
-  for (const sel of ["#role-select", "#role-agent"]) {
-    const el = $(sel);
-    if (!el || el.dataset.bound) continue;
-    el.dataset.bound = "1";
-    el.addEventListener("change", () => setRole(el.value));
+// ── 角色广场（agency-agents 风格：按细分领域分类 / 自动 / 自定义编辑）──
+let rolePlazaFilter = { q: "", division: "all" };
+let roleEditorMode = "create";
+let roleEditorId = "";
+
+function isAutoRole(r) {
+  return Boolean(r?.auto || r?.id === "auto");
+}
+
+function catalogRoleCount() {
+  return state.roles.filter((r) => !isAutoRole(r)).length;
+}
+
+function roleDivisionId(r) {
+  if (isAutoRole(r)) return null;
+  return r.division || "custom";
+}
+
+function divisionLabel(id) {
+  const d = state.roleDivisions.find((x) => x.id === id);
+  return d ? `${d.emoji || ""} ${d.label}`.trim() : id;
+}
+
+function setFacetChipContent(btn, label, count) {
+  const showCount = count != null && count !== "";
+  btn.innerHTML =
+    `<span class="facet-chip-label">${escapeHtml(label)}</span>` +
+    (showCount ? `<span class="facet-chip-badge">${count}</span>` : "");
+}
+
+function countModelsForFacet(models, facetKey, value) {
+  if (value === "all") return models.length;
+  return models.filter((m) =>
+    facetKey === "series" ? modelSeries(m) === value : modelType(m) === value
+  ).length;
+}
+
+function countRolesByDivision() {
+  const counts = new Map();
+  for (const r of state.roles) {
+    const div = roleDivisionId(r);
+    if (!div) continue;
+    counts.set(div, (counts.get(div) || 0) + 1);
+  }
+  return counts;
+}
+
+function populateRoleDivisionFilters() {
+  const wrap = $("#role-plaza-filters");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  const counts = countRolesByDivision();
+  const total = state.roles.length;
+  if (rolePlazaFilter.division !== "all" && !(counts.get(rolePlazaFilter.division) > 0)) {
+    rolePlazaFilter.division = "all";
+  }
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = "facet-chip" + (rolePlazaFilter.division === "all" ? " active" : "");
+  allBtn.dataset.division = "all";
+  setFacetChipContent(allBtn, t("plaza.filterAll"), total);
+  allBtn.disabled = total === 0;
+  if (total === 0) allBtn.classList.add("is-disabled");
+  allBtn.addEventListener("click", () => {
+    if (total === 0) return;
+    rolePlazaFilter.division = "all";
+    populateRoleDivisionFilters();
+    renderRolePlaza();
+  });
+  wrap.appendChild(allBtn);
+  for (const d of state.roleDivisions) {
+    const n = counts.get(d.id) || 0;
+    const disabled = n === 0;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "facet-chip" + (rolePlazaFilter.division === d.id ? " active" : "");
+    if (disabled) {
+      btn.classList.add("is-disabled");
+      btn.disabled = true;
+    }
+    btn.dataset.division = d.id;
+    setFacetChipContent(btn, `${d.emoji || ""} ${d.label}`.trim(), n);
+    btn.title = disabled ? "" : (d.description || "");
+    if (!disabled) {
+      btn.addEventListener("click", () => {
+        rolePlazaFilter.division = d.id;
+        populateRoleDivisionFilters();
+        renderRolePlaza();
+      });
+    }
+    wrap.appendChild(btn);
   }
 }
 
+function populateRoleEditorDivisions() {
+  const sel = $("#role-editor-division");
+  if (!sel) return;
+  sel.innerHTML = state.roleDivisions
+    .map((d) => `<option value="${escapeHtml(d.id)}">${escapeHtml(`${d.emoji || ""} ${d.label}`.trim())}</option>`)
+    .join("");
+  if (!sel.value) sel.value = "custom";
+}
+
+function makeRoleCard(r) {
+  const isAuto = isAutoRole(r);
+  const isCustom = !r.builtin && !isAuto;
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "role-card" + (isAuto ? " role-card-auto" : "") + (r.id === state.roleId ? " active" : "");
+  card.dataset.roleId = r.id;
+  const icon = r.emoji || (isCustom ? "🎭" : "◆");
+  const label = r.label || r.id;
+  const title = r.title || "";
+  const showTitle = Boolean(title && title !== label);
+  const autoDesc = t("plaza.roleAutoDesc", { n: catalogRoleCount() });
+  const desc = isAuto ? r.description || autoDesc : r.description || "";
+  const caps = isAuto
+    ? `<span class="role-card-tag">${escapeHtml(t("plaza.roleAutoTag", { n: catalogRoleCount() }))}</span>`
+    : (r.capabilities || []).slice(0, 3).map((c) => `<span class="role-card-tag">${escapeHtml(c)}</span>`).join("");
+  const vibe = !isAuto && r.vibe ? `<div class="role-card-vibe">${escapeHtml(r.vibe)}</div>` : "";
+  const when = r.when_to_use ? `<div class="role-card-when">${escapeHtml(r.when_to_use)}</div>` : "";
+  card.innerHTML =
+    `<div class="role-card-head"><span class="role-card-icon">${icon}</span><div>` +
+    `<div class="role-card-label">${escapeHtml(label)}</div>` +
+    (showTitle ? `<div class="role-card-title">${escapeHtml(title)}</div>` : "") +
+    `</div></div>${vibe}${when}` +
+    (desc ? `<div class="role-card-desc">${escapeHtml(desc)}</div>` : "") +
+    (caps ? `<div class="role-card-tags">${caps}</div>` : "");
+  card.addEventListener("click", (ev) => {
+    if (ev.target.closest(".role-edit-btn")) return;
+    void selectRoleFromPlaza(r.id);
+  });
+  if (!isAuto && !r.builtin) {
+    const actions = document.createElement("div");
+    actions.className = "role-card-actions";
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "btn ghost sm role-edit-btn";
+    editBtn.textContent = t("plaza.roleEdit");
+    editBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      void openRoleEditor(r.id);
+    });
+    actions.appendChild(editBtn);
+    card.appendChild(actions);
+  }
+  return card;
+}
+
+function hideRolePlaza() {
+  $("#role-plaza-overlay")?.classList.add("hidden");
+}
+
+function hideRoleEditor() {
+  $("#role-editor-overlay")?.classList.add("hidden");
+  $("#role-editor-error")?.classList.add("hidden");
+}
+
+function openRolePlaza() {
+  rolePlazaFilter = { q: "", division: "all" };
+  const search = $("#role-plaza-search");
+  if (search) search.value = "";
+  populateRoleDivisionFilters();
+  renderRolePlaza();
+  $("#role-plaza-overlay")?.classList.remove("hidden");
+}
+
+function appendPlazaSection(container, title, items, { autoSection = false } = {}) {
+  if (!items?.length) return;
+  const section = document.createElement("section");
+  section.className = "plaza-division-section" + (autoSection ? " plaza-auto-section" : "");
+  const head = document.createElement("header");
+  head.className = "plaza-division-head";
+  head.innerHTML =
+    `<span class="plaza-division-title-wrap">` +
+    `<span class="plaza-division-title">${escapeHtml(title)}</span>` +
+    `<span class="facet-chip-badge">${items.length}</span>` +
+    `</span>`;
+  section.appendChild(head);
+  const grid = document.createElement("div");
+  grid.className = "plaza-grid";
+  grid.setAttribute("role", "listbox");
+  for (const r of items) grid.appendChild(makeRoleCard(r));
+  section.appendChild(grid);
+  container.appendChild(section);
+}
+
+function renderRolePlaza() {
+  const container = $("#role-plaza-sections");
+  const empty = $("#role-plaza-empty");
+  if (!container) return;
+  container.innerHTML = "";
+  const q = rolePlazaFilter.q.trim().toLowerCase();
+  const roles = state.roles.length ? state.roles : [];
+
+  const filtered = roles.filter((r) => {
+    if (rolePlazaFilter.division !== "all") {
+      if (isAutoRole(r)) return false;
+      if (roleDivisionId(r) !== rolePlazaFilter.division) return false;
+    }
+    const hay = `${r.label} ${r.title || ""} ${r.description || ""} ${r.vibe || ""} ${r.when_to_use || ""} ${(r.capabilities || []).join(" ")}`.toLowerCase();
+    return !q || hay.includes(q);
+  });
+
+  const autoItems = filtered.filter(isAutoRole);
+  const regular = filtered.filter((r) => !isAutoRole(r));
+
+  if (rolePlazaFilter.division === "all" && autoItems.length) {
+    appendPlazaSection(container, t("plaza.roleAuto"), autoItems, { autoSection: true });
+  }
+
+  const groups = new Map();
+  for (const r of regular) {
+    const div = roleDivisionId(r);
+    if (!div) continue;
+    if (!groups.has(div)) groups.set(div, []);
+    groups.get(div).push(r);
+  }
+
+  const order = state.roleDivisions.length
+    ? state.roleDivisions.map((d) => d.id)
+    : ["specialized", "engineering", "operations", "education", "custom"];
+
+  for (const divId of order) {
+    const items = groups.get(divId);
+    if (!items?.length) continue;
+    appendPlazaSection(container, divisionLabel(divId), items);
+  }
+
+  if (empty) empty.classList.toggle("hidden", filtered.length > 0);
+}
+
+async function selectRoleFromPlaza(roleId) {
+  setRole(roleId);
+  if (roleId !== "auto") {
+    try {
+      await api(`/api/roles/${encodeURIComponent(roleId)}/activate?locale=${encodeURIComponent(getLocale())}`, { method: "POST" });
+    } catch {
+      /* 激活失败不阻断选用 */
+    }
+  }
+  hideRolePlaza();
+}
+
+async function openRoleEditor(roleId = "") {
+  roleEditorMode = roleId ? "edit" : "create";
+  roleEditorId = roleId;
+  const titleEl = $("#role-editor-title");
+  const idInput = $("#role-editor-id");
+  if (titleEl) titleEl.textContent = roleId ? t("plaza.roleEdit") : t("plaza.roleCreate");
+  if (idInput) {
+    idInput.value = roleId || "";
+    idInput.disabled = Boolean(roleId);
+  }
+  $("#role-editor-label").value = "";
+  $("#role-editor-title-field").value = "";
+  $("#role-editor-desc").value = "";
+  $("#role-editor-caps").value = "";
+  $("#role-editor-emoji").value = "";
+  $("#role-editor-vibe").value = "";
+  $("#role-editor-when").value = "";
+  $("#role-editor-persona").value = "";
+  populateRoleEditorDivisions();
+  if (!roleId) $("#role-editor-division").value = "custom";
+  if (roleId) {
+    try {
+      const data = await api(`/api/roles/${encodeURIComponent(roleId)}?locale=${encodeURIComponent(getLocale())}`);
+      $("#role-editor-label").value = data.label || "";
+      $("#role-editor-title-field").value = data.title || "";
+      $("#role-editor-desc").value = data.description || "";
+      $("#role-editor-caps").value = (data.capabilities || []).join(", ");
+      $("#role-editor-emoji").value = data.emoji || "";
+      $("#role-editor-vibe").value = data.vibe || "";
+      $("#role-editor-when").value = data.when_to_use || "";
+      $("#role-editor-division").value = data.division || "custom";
+      $("#role-editor-persona").value = data.persona || "";
+    } catch (err) {
+      const errEl = $("#role-editor-error");
+      if (errEl) {
+        errEl.textContent = err.message || String(err);
+        errEl.classList.remove("hidden");
+      }
+      return;
+    }
+  }
+  hideRolePlaza();
+  $("#role-editor-overlay")?.classList.remove("hidden");
+}
+
+async function saveRoleEditor() {
+  const errEl = $("#role-editor-error");
+  errEl?.classList.add("hidden");
+  const body = {
+    role_id: ($("#role-editor-id")?.value || "").trim(),
+    label: ($("#role-editor-label")?.value || "").trim(),
+    title: ($("#role-editor-title-field")?.value || "").trim(),
+    description: ($("#role-editor-desc")?.value || "").trim(),
+    capabilities: ($("#role-editor-caps")?.value || "").trim(),
+    division: $("#role-editor-division")?.value || "custom",
+    emoji: ($("#role-editor-emoji")?.value || "").trim(),
+    vibe: ($("#role-editor-vibe")?.value || "").trim(),
+    when_to_use: ($("#role-editor-when")?.value || "").trim(),
+    persona: ($("#role-editor-persona")?.value || "").trim(),
+    activate: true,
+  };
+  try {
+    const localeQ = `locale=${encodeURIComponent(getLocale())}`;
+    const data =
+      roleEditorMode === "edit"
+        ? await api(`/api/roles/${encodeURIComponent(roleEditorId)}?${localeQ}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        : await api(`/api/roles?${localeQ}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+    if (data.roles) state.roles = data.roles;
+    if (data.role_divisions) state.roleDivisions = data.role_divisions;
+    populateRoleSelects();
+    populateRoleDivisionFilters();
+    setRole(data.role_id || body.role_id);
+    hideRoleEditor();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message || String(err);
+      errEl.classList.remove("hidden");
+    }
+  }
+}
+
+function bindRolePlaza() {
+  $("#role-pill")?.addEventListener("click", openRolePlaza);
+  $("#role-plaza-close")?.addEventListener("click", hideRolePlaza);
+  $("#role-plaza-overlay")?.addEventListener("click", (ev) => {
+    if (ev.target.id === "role-plaza-overlay") hideRolePlaza();
+  });
+  $("#role-plaza-create")?.addEventListener("click", () => void openRoleEditor());
+  $("#role-plaza-search")?.addEventListener("input", (ev) => {
+    rolePlazaFilter.q = ev.target.value;
+    renderRolePlaza();
+  });
+  $("#role-editor-cancel")?.addEventListener("click", hideRoleEditor);
+  $("#role-editor-save")?.addEventListener("click", () => void saveRoleEditor());
+  $("#role-editor-overlay")?.addEventListener("click", (ev) => {
+    if (ev.target.id === "role-editor-overlay") hideRoleEditor();
+  });
+}
+
+// ── 模型广场（配置连接后自动加载；默认 auto:balanced）──
+let modelPlazaSelection = "";
+let modelPlazaFilter = { q: "", series: "all", type: "all" };
+
+function hideModelPlaza() {
+  $("#model-plaza-overlay")?.classList.add("hidden");
+  $("#model-plaza-error")?.classList.add("hidden");
+}
+
+function selectPlazaModel(model) {
+  modelPlazaSelection = model;
+  $("#model-plaza-chips")?.querySelectorAll(".model-chip").forEach((c) => {
+    c.classList.toggle("active", c.dataset.model === model);
+  });
+  $("#model-plaza-auto-row")?.querySelectorAll(".model-chip.auto").forEach((c) => {
+    c.classList.toggle("active", c.dataset.model === model);
+  });
+}
+
+function buildPlazaModelFacets(models) {
+  const facets = $("#model-plaza-facets");
+  if (!facets) return;
+  facets.innerHTML = "";
+  const presentSeries = new Set(models.map(modelSeries));
+  const seriesOrder = orderedModelSeries(models).filter((n) => presentSeries.has(n));
+  const presentTypes = new Set(models.map(modelType));
+  const typeOrder = ["text", "image", "speech", "video", "embedding", "reranking", "ocr"].filter((tp) =>
+    presentTypes.has(tp)
+  );
+
+  function addFacetRow(facetKey, labelText, values, labelOf) {
+    const row = document.createElement("div");
+    row.className = "model-facet";
+    const lab = document.createElement("span");
+    lab.className = "model-facet-label";
+    lab.textContent = labelText;
+    row.appendChild(lab);
+    const chips = document.createElement("div");
+    chips.className = "model-facet-chips";
+    for (const v of ["all", ...values]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "facet-chip" + (modelPlazaFilter[facetKey] === v ? " active" : "");
+      b.dataset.value = v;
+      const chipLabel = v === "all" ? t("model.facet.all") : labelOf(v);
+      setFacetChipContent(b, chipLabel, countModelsForFacet(models, facetKey, v));
+      b.addEventListener("click", () => {
+        modelPlazaFilter[facetKey] = v;
+        chips.querySelectorAll(".facet-chip").forEach((c) =>
+          c.classList.toggle("active", c.dataset.value === v)
+        );
+        applyPlazaModelFilter();
+      });
+      chips.appendChild(b);
+    }
+    row.appendChild(chips);
+    facets.appendChild(row);
+  }
+
+  if (seriesOrder.length > 1) {
+    addFacetRow("series", t("model.facet.series"), seriesOrder, seriesLabel);
+  }
+  if (typeOrder.length > 1) {
+    addFacetRow("type", t("model.facet.type"), typeOrder, (v) => t("model.type." + v));
+  }
+}
+
+function applyPlazaModelFilter() {
+  const body = $("#model-plaza-chips");
+  const emptyEl = $("#model-plaza-empty");
+  const countEl = $("#model-plaza-count");
+  if (!body) return;
+  const q = modelPlazaFilter.q.trim().toLowerCase();
+  let shown = 0;
+  body.querySelectorAll(".model-chip").forEach((c) => {
+    const id = c.dataset.model || "";
+    const hit =
+      (!q || id.toLowerCase().includes(q)) &&
+      (modelPlazaFilter.series === "all" || modelSeries(id) === modelPlazaFilter.series) &&
+      (modelPlazaFilter.type === "all" || modelType(id) === modelPlazaFilter.type);
+    c.classList.toggle("hidden", !hit);
+    if (hit) shown += 1;
+  });
+  if (emptyEl) emptyEl.classList.toggle("hidden", shown !== 0);
+  const filtered = q || modelPlazaFilter.series !== "all" || modelPlazaFilter.type !== "all";
+  if (countEl) {
+    countEl.textContent = filtered
+      ? t("model.filterCount", { shown, total: discoveredModels.length })
+      : t("model.modelCount", { n: discoveredModels.length });
+  }
+}
+
+function renderPlazaModelChips(models) {
+  const body = $("#model-plaza-chips");
+  if (!body) return;
+  discoveredModels = models.slice();
+  body.innerHTML = "";
+  const current = modelPlazaSelection;
+  for (const m of models) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "model-chip" + (m === current ? " active" : "");
+    chip.dataset.model = m;
+    chip.textContent = m;
+    chip.title = m;
+    chip.addEventListener("click", () => selectPlazaModel(m));
+    body.appendChild(chip);
+  }
+  const search = $("#model-plaza-search");
+  if (search) search.value = modelPlazaFilter.q;
+  buildPlazaModelFacets(models);
+  applyPlazaModelFilter();
+}
+
+async function discoverModelsForPlaza() {
+  const hintEl = $("#model-plaza-hint");
+  const s = modelSettingsCache || {};
+  const provider = s.provider || state.info?.model?.provider || "openai";
+  const base_url = (s.base_url || "").trim();
+  const key = (s.api_key || "").trim();
+  if (!base_url) {
+    if (hintEl) hintEl.textContent = t("model.discoverNeedBase");
+    return;
+  }
+  if (hintEl) hintEl.textContent = t("model.discovering");
+  try {
+    const data = await api("/api/settings/model/models", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, base_url, api_key: key || undefined }),
+    });
+    if (data.ok && Array.isArray(data.models) && data.models.length) {
+      renderPlazaModelChips(data.models);
+      if (hintEl) hintEl.textContent = t("model.discoverOk", { n: data.models.length });
+    } else if (hintEl) {
+      hintEl.textContent = data.error ? t("model.discoverFailManual", { msg: data.error }) : t("model.discoverEmpty");
+    }
+  } catch (err) {
+    if (hintEl) hintEl.textContent = t("model.discoverFailManual", { msg: err.message || String(err) });
+  }
+}
+
+async function openModelPlaza() {
+  try {
+    if (!modelSettingsCache) {
+      modelSettingsCache = await api("/api/settings/model");
+    }
+  } catch (err) {
+    alert(t("model.loadFail", { msg: err.message || String(err) }));
+    return;
+  }
+  modelPlazaSelection = modelSettingsCache.model || state.info?.model?.model || "auto:balanced";
+  if (!modelPlazaSelection) modelPlazaSelection = "auto:balanced";
+  modelPlazaFilter = { q: "", series: "all", type: "all" };
+  selectPlazaModel(modelPlazaSelection);
+  $("#model-plaza-overlay")?.classList.remove("hidden");
+  void discoverModelsForPlaza();
+}
+
+async function saveModelPlaza() {
+  const errEl = $("#model-plaza-error");
+  errEl?.classList.add("hidden");
+  const model = modelPlazaSelection || "auto:balanced";
+  const s = modelSettingsCache || {};
+  const body = {
+    provider: s.provider || "openai",
+    model,
+    base_url: s.base_url || "",
+    scope: "project_local",
+  };
+  try {
+    const data = await api("/api/settings/model", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    modelSettingsCache = data;
+    if (state.info) {
+      state.info.model = {
+        ...state.info.model,
+        provider: data.provider,
+        model: data.model,
+      };
+      $("#model-pill").textContent = `${data.provider} / ${data.model}`;
+      renderAgentProfile(state.info);
+    }
+    hideModelPlaza();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message || String(err);
+      errEl.classList.remove("hidden");
+    }
+  }
+}
+
+function bindModelPlaza() {
+  $("#model-pill")?.addEventListener("click", () => void openModelPlaza());
+  $("#model-conn-btn")?.addEventListener("click", () => void openModelSettings());
+  $("#model-plaza-close")?.addEventListener("click", hideModelPlaza);
+  $("#model-plaza-cancel")?.addEventListener("click", hideModelPlaza);
+  $("#model-plaza-save")?.addEventListener("click", () => void saveModelPlaza());
+  $("#model-plaza-conn")?.addEventListener("click", () => {
+    hideModelPlaza();
+    void openModelSettings();
+  });
+  $("#model-plaza-overlay")?.addEventListener("click", (ev) => {
+    if (ev.target.id === "model-plaza-overlay") hideModelPlaza();
+  });
+  $("#model-plaza-search")?.addEventListener("input", (ev) => {
+    modelPlazaFilter.q = ev.target.value;
+    applyPlazaModelFilter();
+  });
+  $("#model-plaza-auto-row")?.querySelectorAll(".model-chip.auto").forEach((chip) => {
+    chip.addEventListener("click", () => selectPlazaModel(chip.dataset.model || "auto:balanced"));
+  });
+}
+
 async function loadInfo() {
-  state.info = await api("/api/info");
+  state.info = await api(`/api/info?locale=${encodeURIComponent(getLocale())}`);
   state.workModes = state.info.work_modes || [];
   state.roles = state.info.roles || [];
-  const activeFromApi = state.info.roles?.find((r) => r.active);
-  if (activeFromApi) {
-    state.roleId = activeFromApi.id;
-    localStorage.setItem("auc-role", state.roleId);
-  } else if (state.info.agent?.active_role) {
-    state.roleId = state.info.agent.active_role;
-  } else if (state.info.agent?.role_default && !localStorage.getItem("auc-role")) {
-    state.roleId = state.info.agent.role_default;
+  state.roleDivisions = state.info.role_divisions || [];
+  const storedRole = localStorage.getItem("auc-role");
+  if (storedRole && state.roles.some((r) => r.id === storedRole)) {
+    state.roleId = storedRole;
+  } else {
+    const activeFromApi = state.info.roles?.find((r) => r.active);
+    if (activeFromApi) {
+      state.roleId = activeFromApi.id;
+    } else if (state.info.agent?.active_role) {
+      state.roleId = state.info.agent.active_role;
+    } else if (!storedRole) {
+      state.roleId = "auto";
+    }
   }
   state.activeConversationId = state.info.conversation?.active_id || null;
   renderVersionInfo(state.info);
@@ -499,7 +1302,8 @@ async function loadInfo() {
   populateWorkModeSelects();
   bindWorkModeSelects();
   populateRoleSelects();
-  bindRoleSelects();
+  bindRoleTreeSelects();
+  updateRoleTriggers();
   renderAgentProfile(state.info);
   if (state.info.conversation?.messages) {
     await renderChatHistory(state.info.conversation.messages);
@@ -719,11 +1523,9 @@ function hideModelSettings() {
   setModelKeyVisible(false);
   const input = $("#model-settings-api-key");
   if (input) input.value = "";
-  clearModelChips();
 }
 
 let discoveredModels = [];
-let modelFilter = { q: "", series: "all", type: "all" };
 
 // 从模型 ID 推断「系列/厂商」（顺序敏感：先匹配先命中）。
 const MODEL_SERIES_RULES = [
@@ -733,14 +1535,14 @@ const MODEL_SERIES_RULES = [
   ["DeepSeek", /deepseek/],
   ["Qwen", /qwen|qwq|qvq/],
   ["Grok", /grok/],
-  ["Llama", /llama|codellama/],
+  ["Llama", /llama|codellama|meta-llama/],
   ["Mistral", /mistral|mixtral|codestral|pixtral|ministral/],
   ["Cohere", /cohere|(^|[-/])command|rerank-(english|multilingual|v)/],
   ["Moonshot", /moonshot|kimi/],
   ["Zhipu", /\bglm|chatglm|zhipu|cogview|cogvideo/],
   ["MiniMax", /minimax|abab|hailuo/],
   ["Baichuan", /baichuan/],
-  ["Yi", /(^|[-/])yi-|01-ai/],
+  ["Yi", /(^|[-/])yi-|01-ai|01ai/],
   ["StepFun", /(^|[-/])step-/],
   ["ByteDance", /doubao|seedance|seedream|jimeng|(^|[-/])seed-/],
   ["Baidu", /ernie|wenxin/],
@@ -749,7 +1551,83 @@ const MODEL_SERIES_RULES = [
   ["Microsoft", /(^|[-/])phi-/],
   ["Stability", /stable-?diffusion|sdxl|(^|[-/])sd3|(^|[-/])sd-/],
   ["BAAI", /(^|[-/])bge-|baai/],
+  ["Perplexity", /perplexity|pplx/],
+  ["Amazon", /amazon|bedrock|titan/],
+  ["Groq", /groq/],
+  ["Fireworks", /fireworks/],
+  ["Together", /together/],
+  ["Cerebras", /cerebras/],
 ];
+
+const VENDOR_PREFIX_SERIES = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  google: "Google",
+  gemini: "Google",
+  meta: "Meta",
+  "meta-llama": "Meta",
+  deepseek: "DeepSeek",
+  qwen: "Qwen",
+  alibaba: "Qwen",
+  dashscope: "Qwen",
+  mistralai: "Mistral",
+  mistral: "Mistral",
+  moonshotai: "Moonshot",
+  moonshot: "Moonshot",
+  zhipu: "Zhipu",
+  zai: "Zhipu",
+  glm: "Zhipu",
+  cohere: "Cohere",
+  grok: "Grok",
+  xai: "Grok",
+  bytedance: "ByteDance",
+  doubao: "ByteDance",
+  volcengine: "ByteDance",
+  baidu: "Baidu",
+  tencent: "Tencent",
+  minimax: "MiniMax",
+  yi: "Yi",
+  "01ai": "Yi",
+  perplexity: "Perplexity",
+  amazon: "Amazon",
+  bedrock: "Amazon",
+  azure: "Microsoft",
+  microsoft: "Microsoft",
+  nvidia: "Nvidia",
+  huggingface: "HuggingFace",
+  hf: "HuggingFace",
+  together: "Together",
+  fireworks: "Fireworks",
+  groq: "Groq",
+  cerebras: "Cerebras",
+  openrouter: "OpenRouter",
+};
+
+function titleCaseVendor(v) {
+  return v
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ");
+}
+
+function inferSeriesFromLeadingToken(s) {
+  const m = s.match(/^([a-z][a-z0-9]*)/);
+  if (!m) return "通用";
+  const token = m[1];
+  if (VENDOR_PREFIX_SERIES[token]) return VENDOR_PREFIX_SERIES[token];
+  for (const [name, re] of MODEL_SERIES_RULES) if (re.test(token)) return name;
+  return titleCaseVendor(token);
+}
+
+function orderedModelSeries(models) {
+  const present = new Set(models.map(modelSeries));
+  const known = MODEL_SERIES_RULES.map(([n]) => n);
+  return [
+    ...known.filter((n) => present.has(n)),
+    ...[...present].filter((n) => !known.includes(n)).sort((a, b) => a.localeCompare(b)),
+  ];
+}
 
 // 从模型 ID 推断「能力类型」（顺序敏感）。
 const MODEL_TYPE_RULES = [
@@ -762,9 +1640,16 @@ const MODEL_TYPE_RULES = [
 ];
 
 function modelSeries(id) {
-  const s = String(id || "").toLowerCase();
+  const s = String(id || "").toLowerCase().trim();
+  if (!s || s.startsWith("auto")) return "Auto";
+  const slashIdx = s.indexOf("/");
+  if (slashIdx > 0) {
+    const vendor = s.slice(0, slashIdx).replace(/^@/, "");
+    if (VENDOR_PREFIX_SERIES[vendor]) return VENDOR_PREFIX_SERIES[vendor];
+    return titleCaseVendor(vendor);
+  }
   for (const [name, re] of MODEL_SERIES_RULES) if (re.test(s)) return name;
-  return "__other__";
+  return inferSeriesFromLeadingToken(s);
 }
 
 function modelType(id) {
@@ -774,146 +1659,32 @@ function modelType(id) {
 }
 
 function seriesLabel(v) {
-  return v === "__other__" ? t("model.series.other") : v;
+  return v;
 }
 
-function clearModelChips() {
-  discoveredModels = [];
-  modelFilter = { q: "", series: "all", type: "all" };
-  const panel = $("#model-settings-model-list");
-  const body = $("#model-settings-model-chips");
-  const facets = $("#model-settings-facets");
-  const search = $("#model-settings-model-search");
-  if (body) body.innerHTML = "";
-  if (facets) facets.innerHTML = "";
-  if (search) search.value = "";
-  if (panel) panel.classList.add("hidden");
+function updateModelConnStatus(text) {
+  const el = $("#model-settings-conn-status");
+  if (el) el.textContent = text || "";
 }
 
-function selectModelChip(model) {
-  const input = $("#model-settings-model");
-  if (input) input.value = model;
-  $("#model-settings-model-chips")
-    ?.querySelectorAll(".model-chip")
-    .forEach((c) => c.classList.toggle("active", c.dataset.model === model));
-  $("#model-settings-auto-row")
-    ?.querySelectorAll(".model-chip.auto")
-    .forEach((c) => c.classList.remove("active"));
+function updateModelCurrentDisplay(model) {
+  const el = $("#model-settings-current-model");
+  if (el) el.textContent = model || "—";
 }
 
-function renderFacetRow(facetKey, labelText, values, labelOf) {
-  const row = document.createElement("div");
-  row.className = "model-facet";
-  const lab = document.createElement("span");
-  lab.className = "model-facet-label";
-  lab.textContent = labelText;
-  row.appendChild(lab);
-  const chips = document.createElement("div");
-  chips.className = "model-facet-chips";
-  for (const v of ["all", ...values]) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "facet-chip" + (modelFilter[facetKey] === v ? " active" : "");
-    b.dataset.value = v;
-    b.textContent = v === "all" ? t("model.facet.all") : labelOf(v);
-    b.addEventListener("click", () => {
-      modelFilter[facetKey] = v;
-      chips.querySelectorAll(".facet-chip").forEach((c) =>
-        c.classList.toggle("active", c.dataset.value === v));
-      applyModelFilter();
-    });
-    chips.appendChild(b);
-  }
-  row.appendChild(chips);
-  return row;
-}
-
-function buildModelFacets(models) {
-  const facets = $("#model-settings-facets");
-  if (!facets) return;
-  facets.innerHTML = "";
-  const presentSeries = new Set(models.map(modelSeries));
-  const seriesOrder = MODEL_SERIES_RULES.map(([n]) => n).filter((n) => presentSeries.has(n));
-  if (presentSeries.has("__other__")) seriesOrder.push("__other__");
-  const presentTypes = new Set(models.map(modelType));
-  const typeOrder = ["text", "image", "speech", "video", "embedding", "reranking", "ocr"]
-    .filter((tp) => presentTypes.has(tp));
-  if (seriesOrder.length > 1) {
-    facets.appendChild(renderFacetRow("series", t("model.facet.series"), seriesOrder, seriesLabel));
-  }
-  if (typeOrder.length > 1) {
-    facets.appendChild(renderFacetRow("type", t("model.facet.type"), typeOrder, (v) => t("model.type." + v)));
-  }
-}
-
-function applyModelFilter() {
-  const body = $("#model-settings-model-chips");
-  const emptyEl = $("#model-settings-model-empty");
-  const countEl = $("#model-settings-model-count");
-  if (!body) return;
-  const q = modelFilter.q.trim().toLowerCase();
-  let shown = 0;
-  body.querySelectorAll(".model-chip").forEach((c) => {
-    const id = c.dataset.model || "";
-    const hit =
-      (!q || id.toLowerCase().includes(q)) &&
-      (modelFilter.series === "all" || modelSeries(id) === modelFilter.series) &&
-      (modelFilter.type === "all" || modelType(id) === modelFilter.type);
-    c.classList.toggle("hidden", !hit);
-    if (hit) shown += 1;
-  });
-  if (emptyEl) emptyEl.classList.toggle("hidden", shown !== 0);
-  const filtered = q || modelFilter.series !== "all" || modelFilter.type !== "all";
-  if (countEl) {
-    countEl.textContent = filtered
-      ? t("model.filterCount", { shown, total: discoveredModels.length })
-      : t("model.modelCount", { n: discoveredModels.length });
-  }
-}
-
-function renderModelChips(models, { autoSelect = true } = {}) {
-  const panel = $("#model-settings-model-list");
-  const body = $("#model-settings-model-chips");
-  if (!panel || !body) return;
-  discoveredModels = models.slice();
-  modelFilter = { q: "", series: "all", type: "all" };
-  body.innerHTML = "";
-  const current = $("#model-settings-model")?.value?.trim();
-  for (const m of models) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "model-chip" + (m === current ? " active" : "");
-    chip.dataset.model = m;
-    chip.textContent = m;
-    chip.title = m;
-    chip.addEventListener("click", () => selectModelChip(m));
-    body.appendChild(chip);
-  }
-  const search = $("#model-settings-model-search");
-  if (search) search.value = "";
-  buildModelFacets(models);
-  panel.classList.remove("hidden");
-  applyModelFilter();
-  // 自动选择：仅在手动检索且当前模型不在列表中时，默认选中首个，避免空值保存。
-  if (autoSelect && (!current || !models.includes(current))) {
-    selectModelChip(models[0]);
-  }
-}
-
-// auto=true：打开设置时静默自动加载，不覆盖已配置模型，失败也不打扰。
+// auto=true：打开/保存连接后静默探测，仅更新缓存与状态行。
 async function discoverModels({ auto = false } = {}) {
-  const btn = $("#model-settings-discover");
-  const hintEl = $("#model-settings-model-hint");
+  const statusEl = $("#model-settings-conn-status");
   const provider = $("#model-settings-provider")?.value || "openai";
   const base_url = $("#model-settings-base-url")?.value?.trim() || "";
   const key = $("#model-settings-api-key")?.value?.trim() || "";
   if (!base_url) {
-    if (!auto && hintEl) hintEl.textContent = t("model.discoverNeedBase");
+    discoveredModels = [];
+    if (!auto && statusEl) statusEl.textContent = t("model.discoverNeedBase");
+    else if (auto && statusEl) statusEl.textContent = "";
     return;
   }
-  const original = btn ? btn.textContent : "";
-  if (btn) { btn.disabled = true; btn.textContent = t("model.discovering"); }
-  if (auto && hintEl) hintEl.textContent = t("model.discovering");
+  if (auto && statusEl) statusEl.textContent = t("model.discovering");
   try {
     const data = await api("/api/settings/model/models", {
       method: "POST",
@@ -921,57 +1692,32 @@ async function discoverModels({ auto = false } = {}) {
       body: JSON.stringify({ provider, base_url, api_key: key || undefined }),
     });
     if (data.ok && Array.isArray(data.models) && data.models.length) {
-      renderModelChips(data.models, { autoSelect: !auto });
-      if (hintEl) hintEl.textContent = t("model.discoverOk", { n: data.models.length });
+      discoveredModels = data.models.slice();
+      if (statusEl) statusEl.textContent = t("model.connReady", { n: data.models.length });
+      if (!$("#model-plaza-overlay")?.classList.contains("hidden")) {
+        renderPlazaModelChips(discoveredModels);
+      }
     } else {
-      clearModelChips();
-      if (hintEl) {
-        hintEl.textContent = auto
-          ? t("model.modelHint")
+      discoveredModels = [];
+      if (statusEl) {
+        statusEl.textContent = auto
+          ? ""
           : data.error
           ? t("model.discoverFailManual", { msg: data.error })
           : t("model.discoverEmpty");
       }
     }
   } catch (err) {
-    clearModelChips();
-    if (hintEl) {
-      hintEl.textContent = auto
-        ? t("model.modelHint")
-        : t("model.discoverFailManual", { msg: err.message || String(err) });
+    discoveredModels = [];
+    if (statusEl && !auto) {
+      statusEl.textContent = t("model.discoverFailManual", { msg: err.message || String(err) });
     }
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = original || t("model.discover"); }
   }
 }
 
 function renderModelLayers(s) {
   const layers = s.layers || {};
   const activeScope = s.active_scope || layers.active_scope;
-  const scopeLabels = {
-    global: t("model.scope.globalLabel"),
-    project: t("model.scope.projectLabel"),
-    project_local: t("model.scope.localLabel"),
-  };
-  const activeEl = $("#model-settings-active-scope");
-  if (activeEl) {
-    activeEl.textContent = scopeLabels[activeScope] || activeScope || t("model.scope.default");
-  }
-  const note = $("#model-settings-layers");
-  if (note) {
-    const globalFiles = (layers.global_files || []).filter((f) => f.exists).map((f) => f.path);
-    const projectFiles = (layers.project_files || []).filter((f) => f.exists).map((f) => f.path);
-    const parts = [];
-    if (globalFiles.length) {
-      parts.push(`${t("model.layers.global")}：${globalFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
-    }
-    if (projectFiles.length) {
-      parts.push(`${t("model.layers.project")}：${projectFiles.map((p) => p.split("/").slice(-2).join("/")).join("、")}`);
-    }
-    note.textContent = parts.length
-      ? `${parts.join("  →  ")}${t("model.layers.override")}`
-      : t("model.layers.empty");
-  }
   const scopeSel = $("#model-settings-scope");
   const scopeHint = $("#model-settings-scope-hint");
   if (scopeSel && layers.save_scopes) {
@@ -1001,11 +1747,10 @@ async function openModelSettings() {
   }
   const s = modelSettingsCache;
   $("#model-settings-provider").value = s.provider || "openai";
-  $("#model-settings-model").value = s.model || "";
   $("#model-settings-base-url").value = s.base_url || "";
   $("#model-settings-api-key").value = s.api_key || "";
+  updateModelCurrentDisplay(s.model || "auto:balanced");
   setModelKeyVisible(false);
-  clearModelChips();
   renderModelLayers(s);
   const hint = $("#model-settings-key-hint");
   if (hint) {
@@ -1013,9 +1758,11 @@ async function openModelSettings() {
       ? t("model.keyConfigured", { masked: s.api_key_masked })
       : t("model.keyMissing");
   }
+  updateModelConnStatus(
+    discoveredModels.length ? t("model.connReady", { n: discoveredModels.length }) : t("model.connIdle")
+  );
   overlay.classList.remove("hidden");
-  $("#model-settings-model")?.focus();
-  // 打开即自动加载模型（无需点 Discover）：仅当 Base URL + API Key 均就绪时。
+  $("#model-settings-base-url")?.focus();
   if ((s.base_url || "").trim() && ((s.api_key || "").trim() || s.api_key_set)) {
     void discoverModels({ auto: true });
   }
@@ -1026,7 +1773,7 @@ async function saveModelSettings() {
   errEl?.classList.add("hidden");
   const body = {
     provider: $("#model-settings-provider")?.value || "openai",
-    model: $("#model-settings-model")?.value?.trim() || "",
+    model: modelSettingsCache?.model || state.info?.model?.model || "auto:balanced",
     base_url: $("#model-settings-base-url")?.value?.trim() || "",
     scope: $("#model-settings-scope")?.value || "project_local",
   };
@@ -1051,6 +1798,7 @@ async function saveModelSettings() {
       renderAgentProfile(state.info);
     }
     hideModelSettings();
+    void discoverModels({ auto: true });
   } catch (err) {
     if (errEl) {
       errEl.textContent = err.message || String(err);
@@ -1061,32 +1809,17 @@ async function saveModelSettings() {
 
 function applyAilabPreset() {
   $("#model-settings-provider").value = "openai";
-  $("#model-settings-model").value = "DeepSeek";
   $("#model-settings-base-url").value = "http://ailab.hcrdi.com/api";
-  clearModelChips();
 }
 
 function bindModelSettings() {
   setButtonIcon($("#model-settings-key-toggle"), "eye", { size: 16 });
-  $("#model-pill")?.addEventListener("click", () => void openModelSettings());
   $("#model-settings-cancel")?.addEventListener("click", hideModelSettings);
   $("#model-settings-save")?.addEventListener("click", () => void saveModelSettings());
   $("#model-settings-ailab-preset")?.addEventListener("click", applyAilabPreset);
-  $("#model-settings-discover")?.addEventListener("click", () => void discoverModels());
-  $("#model-settings-model-search")?.addEventListener("input", (ev) => {
-    modelFilter.q = ev.target.value || "";
-    applyModelFilter();
-  });
-  const autoChips = $("#model-settings-auto-row")?.querySelectorAll(".model-chip.auto");
-  autoChips?.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const input = $("#model-settings-model");
-      if (input) input.value = btn.dataset.model || "auto";
-      $("#model-settings-model-chips")
-        ?.querySelectorAll(".model-chip")
-        .forEach((c) => c.classList.remove("active"));
-      autoChips.forEach((c) => c.classList.toggle("active", c === btn));
-    });
+  $("#model-settings-open-plaza")?.addEventListener("click", () => {
+    hideModelSettings();
+    void openModelPlaza();
   });
   $("#model-settings-scope")?.addEventListener("change", (ev) => {
     const scopes = modelSettingsCache?.layers?.save_scopes;
@@ -1103,7 +1836,7 @@ function bindModelSettings() {
 
 async function refreshAgentStats() {
   try {
-    const info = await api("/api/info");
+    const info = await api(`/api/info?locale=${encodeURIComponent(getLocale())}`);
     state.info = { ...state.info, ...info };
     renderVersionInfo(state.info);
     renderAgentProfile(state.info);
@@ -1963,10 +2696,10 @@ function appendAssistantActions(el, userIndex) {
 }
 
 let _retryPending = null;
+let _retryRoleId = null;
 
 function populateRetryOptionSelects() {
   const modeSel = $("#retry-opt-work-mode");
-  const roleSel = $("#retry-opt-role");
   if (modeSel) {
     const modes = state.workModes.length
       ? state.workModes
@@ -1976,13 +2709,8 @@ function populateRetryOptionSelects() {
       .join("");
     modeSel.value = state.workMode || "auto";
   }
-  if (roleSel) {
-    const roles = state.roles.length ? state.roles : [{ id: "coder", label: "Coder" }];
-    roleSel.innerHTML = roles
-      .map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.label || r.id)}</option>`)
-      .join("");
-    roleSel.value = state.roleId || "coder";
-  }
+  _retryRoleId = state.roleId || "auto";
+  renderRoleTreeMenus();
   const modelInput = $("#retry-opt-model");
   if (modelInput) {
     modelInput.value = state.info?.model?.model || "";
@@ -2007,7 +2735,7 @@ function readRetryOverrides() {
   const model = ($("#retry-opt-model")?.value || "").trim();
   return {
     workMode: $("#retry-opt-work-mode")?.value || state.workMode,
-    roleId: $("#retry-opt-role")?.value || state.roleId,
+    roleId: _retryRoleId || state.roleId,
     model: model || undefined,
   };
 }
@@ -2407,7 +3135,7 @@ function appendModelNote({ variant, icon, label, timestamp, title }) {
   btn.className = "model-note-btn";
   if (title) btn.title = title;
   btn.innerHTML = `<span class="model-note-icon">${icon}</span><span class="model-note-text">${escapeHtml(label)}</span>`;
-  btn.addEventListener("click", () => void openModelSettings());
+  btn.addEventListener("click", () => void openModelPlaza());
   el.appendChild(btn);
   targetMessages().appendChild(el);
   return el;
@@ -2872,6 +3600,7 @@ async function sendMessage(text, channel = "agent", opts = {}) {
         context,
         work_mode: workMode,
         role_id: roleId,
+        role_locale: getLocale(),
         model: modelOverride,
         conversation_id: streamConversationId,
       }),
@@ -3048,8 +3777,8 @@ function handleEvent(ev, streamConversationId = null) {
     ) {
       loadInfo()
         .then(() => {
-          populateRoleSelects();
-          bindRoleSelects();
+  populateRoleSelects();
+  bindRoleTreeSelects();
           renderAgentProfile();
         })
         .catch(() => {});
@@ -3323,15 +4052,14 @@ $("#approval-allow")?.addEventListener("click", () => submitApproval(true));
 $("#approval-deny")?.addEventListener("click", () => submitApproval(false));
 
 // ── 启动 ──
-function refreshUiLocale() {
+async function refreshUiLocale() {
   applyI18n();
-  if (state.info) {
-    renderVersionInfo(state.info);
-    renderAgentProfile(state.info);
-  }
+  await loadInfo().catch(() => {});
   updateContextBar();
   populateWorkModeSelects();
   populateRoleSelects();
+  bindRoleTreeSelects();
+  updateRoleTriggers();
   void loadProjects();
   void loadConversations();
   void loadTree(state.treePath);
@@ -3342,6 +4070,7 @@ function refreshUiLocale() {
 
 async function boot() {
   applyI18n();
+  updateRoleTriggers();
   $("#lang-toggle")?.addEventListener("click", () => toggleLocale());
   window.addEventListener("auc-locale-change", refreshUiLocale);
   initThemes();
@@ -3356,6 +4085,9 @@ async function boot() {
   });
   bindUpdateBanner();
   bindModelSettings();
+  bindModelPlaza();
+  bindRolePlaza();
+  bindRoleTreeSelects();
   bindMessageActions();
   bindRetryOptions();
   window.addEventListener("auc-terminal-resize", layoutEditor);
