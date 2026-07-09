@@ -52,10 +52,16 @@ const state = {
   activeRunId: null,
   autoAttach: localStorage.getItem("auc-auto-attach") !== "0",
   workMode: localStorage.getItem("auc-work-mode") || "auto",
+  approvalMode: localStorage.getItem("auc-approval-mode") || "ask-on-state",
+  approvalModes: [],
+  autoApproveAvailable: true,
   workModes: [],
   roleId: localStorage.getItem("auc-role") || "auto",
   roles: [],
   roleDivisions: [],
+  skills: [],
+  skillMode: localStorage.getItem("auc-skill-mode") || "auto",
+  skillPinned: JSON.parse(localStorage.getItem("auc-skill-pinned") || "[]"),
   activeConversationId: null,
   conversations: [],
   turns: [],
@@ -346,20 +352,64 @@ function roleLabel(id) {
   return r ? r.label : id;
 }
 
+function renderChoicePill(el, kind, value) {
+  if (!el) return;
+  const labelKey =
+    kind === "role" ? "header.roleKind" : kind === "skill" ? "header.skillKind" : "header.modelKind";
+  const safe = escapeHtml(value || "");
+  const titleKey =
+    kind === "role" ? "plaza.roleOpen" : kind === "skill" ? "plaza.skillOpen" : "plaza.modelOpen";
+  el.setAttribute("role", "button");
+  el.setAttribute("tabindex", "0");
+  el.setAttribute("aria-label", `${t(labelKey)}: ${value || ""}`);
+  el.title = t(titleKey);
+  el.innerHTML =
+    `<span class="choice-pill-kind">${escapeHtml(t(labelKey))}</span>` +
+    `<span class="choice-pill-value"${safe ? ` title="${safe}"` : ""}>${safe}</span>`;
+}
+
+function roleHeaderValue() {
+  const spec = currentRoleSpec();
+  const label = roleLabel(state.roleId);
+  const div =
+    state.roleId !== "auto" && spec?.division && spec.division !== "__auto__"
+      ? divisionLabel(spec.division)
+      : "";
+  return div && state.roleId !== "auto" ? `${div} · ${label}` : label;
+}
+
+function skillHeaderValue() {
+  if (state.skillMode === "manual") {
+    if (!state.skillPinned.length) return t("plaza.skillManual");
+    if (state.skillPinned.length === 1) return state.skillPinned[0];
+    return state.skillPinned.join(", ");
+  }
+  return t("plaza.skillAuto");
+}
+
+function modelHeaderValue(model) {
+  const provider = state.info?.model?.provider;
+  const mid = model || state.info?.model?.model || "";
+  return provider ? `${provider} / ${mid}` : mid;
+}
+
+function updateModelPillDisplay(model) {
+  const pill = $("#model-pill");
+  if (!pill) return;
+  const value = modelHeaderValue(model);
+  if (!value) return;
+  renderChoicePill(pill, "model", value);
+  if (model && state.info?.model) state.info.model.model = model;
+}
+
 function updateRoleTriggers() {
   const spec = currentRoleSpec();
   const label = roleLabel(state.roleId);
-  const div = state.roleId !== "auto" && spec?.division && spec.division !== "__auto__"
-    ? divisionLabel(spec.division)
-    : "";
   const detail = spec?.vibe || spec?.title || spec?.description || "";
-  const pillText = div && state.roleId !== "auto" ? `${div} · ${label}` : label;
   const tip = [detail, spec?.when_to_use].filter(Boolean).join(" — ") || label;
   syncRoleTreeTriggers(label, tip);
-  const pill = $("#role-pill");
-  if (pill) {
-    pill.textContent = pillText;
-  }
+  renderChoicePill($("#role-pill"), "role", roleHeaderValue());
+  updateSkillTriggers();
 }
 
 function rolesForTree() {
@@ -612,11 +662,15 @@ function renderAgentProfile(info = state.info) {
   if (!info) return;
   const agent = info.agent || {};
   const role = currentRoleSpec();
+  const profile = $("#agent-profile");
   const title = $("#agent-title");
   const desc = $("#agent-desc");
   const meta = $("#agent-meta");
   const tags = $("#agent-tags");
   if (!title) return;
+
+  const turns = info.turns || 0;
+  if (profile) profile.classList.toggle("compact", turns > 0);
 
   title.textContent = role?.label || agent.name || t("agent.defaultTitle");
   if (desc) {
@@ -625,22 +679,14 @@ function renderAgentProfile(info = state.info) {
   }
   updateAgentStatus(info);
   if (meta) {
-    const items = [
-      { k: t("meta.model"), v: `${info.model?.provider || "?"} / ${info.model?.model || "?"}` },
-      { k: t("meta.role"), v: roleLabel(state.roleId) },
-      { k: t("meta.mode"), v: workModeLabel(state.workMode) },
-      { k: t("meta.workspace"), v: info.workspace?.display || "." },
-      { k: t("meta.turns"), v: t("meta.turnsUnit", { n: info.turns || 0 }) },
-    ];
-    if (info.evolve) items.push({ k: t("meta.evolve"), v: t("meta.evolveOn") });
-    meta.innerHTML = items
-      .map((it) => `<span class="agent-meta-item"><em>${it.k}</em>${escapeHtml(it.v)}</span>`)
-      .join("");
+    meta.hidden = true;
+    meta.innerHTML = "";
   }
   if (tags) {
-    const caps = role?.capabilities || agent.capabilities || [t("cap.edit"), t("cap.files"), t("cap.mermaid")];
-    tags.innerHTML = caps.map((c) => `<span class="agent-tag">${escapeHtml(c)}</span>`).join("");
+    tags.hidden = true;
+    tags.innerHTML = "";
   }
+  renderActiveConversationUsage(info.conversation?.usage);
 }
 
 function escapeHtml(s) {
@@ -693,6 +739,78 @@ function bindWorkModeSelects() {
     el.addEventListener("change", () => setWorkMode(el.value));
   }
 }
+
+function populateApprovalSelects() {
+  const modes = state.approvalModes.length
+    ? state.approvalModes
+    : [
+        { id: "ask-every-write", label: t("approval.mode.ask-every-write"), hint: "" },
+        { id: "ask-on-state", label: t("approval.mode.ask-on-state"), hint: "" },
+        { id: "ask-on-danger", label: t("approval.mode.ask-on-danger"), hint: "" },
+      ];
+  for (const sel of ["#approval-mode-select", "#approval-mode-agent"]) {
+    const el = $(sel);
+    if (!el) continue;
+    const prev = el.value || state.approvalMode;
+    el.innerHTML = modes
+      .map((m) => {
+        const disabled =
+          m.id === "auto-approve" && state.autoApproveAvailable === false ? " disabled" : "";
+        return `<option value="${escapeHtml(m.id)}" title="${escapeHtml(m.hint || "")}"${disabled}>${escapeHtml(m.label)}</option>`;
+      })
+      .join("");
+    const pick = modes.some((m) => m.id === prev && !(m.id === "auto-approve" && !state.autoApproveAvailable))
+      ? prev
+      : "ask-on-state";
+    el.value = pick;
+  }
+  setApprovalMode($("#approval-mode-select")?.value || state.approvalMode, { persist: false, save: false });
+}
+
+async function saveApprovalModeToServer(mode) {
+  try {
+    await api("/api/settings/approval", {
+      method: "PUT",
+      body: JSON.stringify({ mode, locale: getLocale(), scope: "project_local" }),
+    });
+  } catch (e) {
+    appendNotes([t("approval.saveFail", { msg: e.message })]);
+  }
+}
+
+function setApprovalMode(mode, { persist = true, save = true } = {}) {
+  const next = mode || "ask-on-state";
+  if (next === "auto-approve" && !state.autoApproveAvailable) {
+    state.approvalMode = "ask-on-danger";
+  } else {
+    state.approvalMode = next;
+  }
+  if (persist) localStorage.setItem("auc-approval-mode", state.approvalMode);
+  for (const sel of ["#approval-mode-select", "#approval-mode-agent"]) {
+    const el = $(sel);
+    if (el && el.value !== state.approvalMode) el.value = state.approvalMode;
+  }
+  if (save && persist) void saveApprovalModeToServer(state.approvalMode);
+}
+
+function bindApprovalSelects() {
+  for (const sel of ["#approval-mode-select", "#approval-mode-agent"]) {
+    const el = $(sel);
+    if (!el || el.dataset.bound) continue;
+    el.dataset.bound = "1";
+    el.addEventListener("change", () => {
+      const mode = el.value;
+      if (mode === "auto-approve") {
+        if (!confirm(t("approval.autoApproveConfirm"))) {
+          el.value = state.approvalMode;
+          return;
+        }
+      }
+      setApprovalMode(mode);
+    });
+  }
+}
+
 
 function populateRoleSelects() {
   if (!state.roles.some((r) => r.id === state.roleId)) {
@@ -876,7 +994,7 @@ function openRolePlaza() {
   $("#role-plaza-overlay")?.classList.remove("hidden");
 }
 
-function appendPlazaSection(container, title, items, { autoSection = false } = {}) {
+function appendPlazaSection(container, title, items, { autoSection = false, makeCard = makeRoleCard } = {}) {
   if (!items?.length) return;
   const section = document.createElement("section");
   section.className = "plaza-division-section" + (autoSection ? " plaza-auto-section" : "");
@@ -891,7 +1009,7 @@ function appendPlazaSection(container, title, items, { autoSection = false } = {
   const grid = document.createElement("div");
   grid.className = "plaza-grid";
   grid.setAttribute("role", "listbox");
-  for (const r of items) grid.appendChild(makeRoleCard(r));
+  for (const r of items) grid.appendChild(makeCard(r));
   section.appendChild(grid);
   container.appendChild(section);
 }
@@ -1058,6 +1176,237 @@ function bindRolePlaza() {
   $("#role-editor-overlay")?.addEventListener("click", (ev) => {
     if (ev.target.id === "role-editor-overlay") hideRoleEditor();
   });
+}
+
+// ── 技能广场（按角色分类 / 自动或手动选择）──
+let skillPlazaFilter = { q: "", division: "all" };
+
+function skillDivisionId(sk) {
+  return sk.division || "custom";
+}
+
+function countSkillsByDivision() {
+  const counts = new Map();
+  for (const sk of state.skills) {
+    const div = skillDivisionId(sk);
+    counts.set(div, (counts.get(div) || 0) + 1);
+  }
+  return counts;
+}
+
+function updateSkillTriggers() {
+  renderChoicePill($("#skill-pill"), "skill", skillHeaderValue());
+}
+
+async function persistSkillSettings() {
+  localStorage.setItem("auc-skill-mode", state.skillMode);
+  localStorage.setItem("auc-skill-pinned", JSON.stringify(state.skillPinned));
+  try {
+    await api("/api/settings/skills", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: state.skillMode, pinned: state.skillPinned }),
+    });
+  } catch {
+    /* 离线或沙盒只读时不阻断 UI */
+  }
+  updateSkillTriggers();
+}
+
+function hideSkillPlaza() {
+  $("#skill-plaza-overlay")?.classList.add("hidden");
+}
+
+function openSkillPlaza() {
+  skillPlazaFilter = { q: "", division: "all" };
+  const search = $("#skill-plaza-search");
+  if (search) search.value = "";
+  populateSkillModeBar();
+  populateSkillDivisionFilters();
+  renderSkillPlaza();
+  $("#skill-plaza-overlay")?.classList.remove("hidden");
+}
+
+function populateSkillModeBar() {
+  const wrap = $("#skill-mode-bar");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  for (const mode of ["auto", "manual"]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "facet-chip" + (state.skillMode === mode ? " active" : "");
+    btn.textContent = mode === "auto" ? t("plaza.skillAuto") : t("plaza.skillManual");
+    btn.title = mode === "auto" ? t("plaza.skillAutoDesc") : t("plaza.skillManualDesc");
+    btn.addEventListener("click", () => {
+      state.skillMode = mode;
+      populateSkillModeBar();
+      renderSkillPlaza();
+      void persistSkillSettings();
+    });
+    wrap.appendChild(btn);
+  }
+}
+
+function populateSkillDivisionFilters() {
+  const wrap = $("#skill-plaza-filters");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  const counts = countSkillsByDivision();
+  const total = state.skills.length;
+  if (skillPlazaFilter.division !== "all" && !(counts.get(skillPlazaFilter.division) > 0)) {
+    skillPlazaFilter.division = "all";
+  }
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = "facet-chip" + (skillPlazaFilter.division === "all" ? " active" : "");
+  setFacetChipContent(allBtn, t("plaza.filterAll"), total);
+  allBtn.disabled = total === 0;
+  if (total === 0) allBtn.classList.add("is-disabled");
+  allBtn.addEventListener("click", () => {
+    if (total === 0) return;
+    skillPlazaFilter.division = "all";
+    populateSkillDivisionFilters();
+    renderSkillPlaza();
+  });
+  wrap.appendChild(allBtn);
+  for (const d of state.roleDivisions) {
+    const n = counts.get(d.id) || 0;
+    const disabled = n === 0;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "facet-chip" + (skillPlazaFilter.division === d.id ? " active" : "");
+    if (disabled) {
+      btn.classList.add("is-disabled");
+      btn.disabled = true;
+    }
+    setFacetChipContent(btn, `${d.emoji || ""} ${d.label}`.trim(), n);
+    if (!disabled) {
+      btn.addEventListener("click", () => {
+        skillPlazaFilter.division = d.id;
+        populateSkillDivisionFilters();
+        renderSkillPlaza();
+      });
+    }
+    wrap.appendChild(btn);
+  }
+}
+
+function isSkillPinned(name) {
+  return state.skillPinned.includes(name);
+}
+
+function toggleSkillPin(name) {
+  const idx = state.skillPinned.indexOf(name);
+  if (idx >= 0) {
+    state.skillPinned.splice(idx, 1);
+  } else {
+    state.skillPinned.push(name);
+  }
+  void persistSkillSettings();
+  renderSkillPlaza();
+}
+
+function makeSkillCard(sk) {
+  const pinned = isSkillPinned(sk.name);
+  const card = document.createElement("div");
+  card.className =
+    "role-card skill-card" +
+    (pinned ? " pinned" : "") +
+    (!sk.for_role ? " disabled-for-role" : "");
+  const icon = sk.emoji || "⚡";
+  const desc = (sk.description || "").slice(0, 160);
+  const tags = [];
+  if (sk.builtin) tags.push(t("plaza.skillBuiltin"));
+  if (sk.for_role) tags.push(t("plaza.skillForRole"));
+  const roleTags = (sk.roles || []).slice(0, 3);
+  card.innerHTML =
+    `<div class="role-card-head">` +
+    `<span class="role-card-icon">${escapeHtml(icon)}</span>` +
+    `<span class="role-card-label">${escapeHtml(sk.name)}</span>` +
+    `</div>` +
+    `<div class="role-card-desc">${escapeHtml(desc)}</div>` +
+    `<div class="role-card-tags">` +
+    tags.map((x) => `<span class="role-card-tag">${escapeHtml(x)}</span>`).join("") +
+    roleTags.map((x) => `<span class="role-card-tag">${escapeHtml(x)}</span>`).join("") +
+    `</div>`;
+  if (state.skillMode === "manual") {
+    const pinRow = document.createElement("label");
+    pinRow.className = "skill-card-pin";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = pinned;
+    cb.addEventListener("change", () => toggleSkillPin(sk.name));
+    pinRow.appendChild(cb);
+    pinRow.appendChild(document.createTextNode(t("plaza.skillPin")));
+    card.appendChild(pinRow);
+  }
+  if (sk.source_url) {
+    const link = document.createElement("a");
+    link.className = "role-card-tag";
+    link.href = sk.source_url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "GitHub";
+    card.querySelector(".role-card-tags")?.appendChild(link);
+  }
+  return card;
+}
+
+function renderSkillPlaza() {
+  const container = $("#skill-plaza-sections");
+  const empty = $("#skill-plaza-empty");
+  if (!container) return;
+  container.innerHTML = "";
+  const q = skillPlazaFilter.q.trim().toLowerCase();
+  const filtered = state.skills.filter((sk) => {
+    if (skillPlazaFilter.division !== "all" && skillDivisionId(sk) !== skillPlazaFilter.division) {
+      return false;
+    }
+    const hay = `${sk.name} ${sk.description || ""} ${(sk.triggers || []).join(" ")} ${(sk.roles || []).join(" ")}`.toLowerCase();
+    return !q || hay.includes(q);
+  });
+  const groups = new Map();
+  for (const sk of filtered) {
+    const div = skillDivisionId(sk);
+    if (!groups.has(div)) groups.set(div, []);
+    groups.get(div).push(sk);
+  }
+  const order = state.roleDivisions.length
+    ? state.roleDivisions.map((d) => d.id)
+    : ["design", "engineering", "custom"];
+  for (const divId of order) {
+    const items = groups.get(divId);
+    if (!items?.length) continue;
+    appendPlazaSection(container, divisionLabel(divId), items, { makeCard: makeSkillCard });
+  }
+  if (empty) empty.classList.toggle("hidden", filtered.length > 0);
+}
+
+function bindSkillPlaza() {
+  $("#skill-pill")?.addEventListener("click", openSkillPlaza);
+  $("#skill-plaza-close")?.addEventListener("click", hideSkillPlaza);
+  $("#skill-plaza-overlay")?.addEventListener("click", (ev) => {
+    if (ev.target.id === "skill-plaza-overlay") hideSkillPlaza();
+  });
+  $("#skill-plaza-search")?.addEventListener("input", (ev) => {
+    skillPlazaFilter.q = ev.target.value;
+    renderSkillPlaza();
+  });
+  bindChoicePillKeyboard();
+}
+
+function bindChoicePillKeyboard() {
+  for (const id of ["role-pill", "skill-pill", "model-pill"]) {
+    const el = $(`#${id}`);
+    if (!el || el.dataset.kbBound) continue;
+    el.dataset.kbBound = "1";
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        el.click();
+      }
+    });
+  }
 }
 
 // ── 模型广场（配置连接后自动加载；默认 auto:balanced）──
@@ -1243,7 +1592,7 @@ async function saveModelPlaza() {
         provider: data.provider,
         model: data.model,
       };
-      $("#model-pill").textContent = `${data.provider} / ${data.model}`;
+      updateModelPillDisplay(data.model);
       renderAgentProfile(state.info);
     }
     hideModelPlaza();
@@ -1280,8 +1629,21 @@ function bindModelPlaza() {
 async function loadInfo() {
   state.info = await api(`/api/info?locale=${encodeURIComponent(getLocale())}`);
   state.workModes = state.info.work_modes || [];
+  if (state.info.approval) {
+    state.approvalModes = state.info.approval.modes || [];
+    state.autoApproveAvailable = state.info.approval.auto_approve_available !== false;
+    const stored = localStorage.getItem("auc-approval-mode");
+    state.approvalMode = stored || state.info.approval.mode || "ask-on-state";
+  }
   state.roles = state.info.roles || [];
   state.roleDivisions = state.info.role_divisions || [];
+  state.skills = state.info.skills || [];
+  if (state.info.skill_settings) {
+    state.skillMode = state.info.skill_settings.mode || state.skillMode;
+    state.skillPinned = state.info.skill_settings.pinned || state.skillPinned;
+    localStorage.setItem("auc-skill-mode", state.skillMode);
+    localStorage.setItem("auc-skill-pinned", JSON.stringify(state.skillPinned));
+  }
   const storedRole = localStorage.getItem("auc-role");
   if (storedRole && state.roles.some((r) => r.id === storedRole)) {
     state.roleId = storedRole;
@@ -1297,13 +1659,16 @@ async function loadInfo() {
   }
   state.activeConversationId = state.info.conversation?.active_id || null;
   renderVersionInfo(state.info);
-  $("#model-pill").textContent = `${state.info.model.provider} / ${state.info.model.model}`;
+  updateModelPillDisplay();
   $("#ws-pill").textContent = state.info.workspace.display;
   populateWorkModeSelects();
   bindWorkModeSelects();
+  populateApprovalSelects();
+  bindApprovalSelects();
   populateRoleSelects();
   bindRoleTreeSelects();
   updateRoleTriggers();
+  updateSkillTriggers();
   renderAgentProfile(state.info);
   if (state.info.conversation?.messages) {
     await renderChatHistory(state.info.conversation.messages);
@@ -1748,7 +2113,10 @@ async function openModelSettings() {
   const s = modelSettingsCache;
   $("#model-settings-provider").value = s.provider || "openai";
   $("#model-settings-base-url").value = s.base_url || "";
-  $("#model-settings-api-key").value = s.api_key || "";
+  // 后端不再回显明文 key；留空表示沿用已配置密钥
+  const keyInput = $("#model-settings-api-key");
+  keyInput.value = "";
+  keyInput.placeholder = s.api_key_set ? s.api_key_masked || "········" : "";
   updateModelCurrentDisplay(s.model || "auto:balanced");
   setModelKeyVisible(false);
   renderModelLayers(s);
@@ -1794,7 +2162,7 @@ async function saveModelSettings() {
         configName: data.config_name,
         configId: data.config_id,
       };
-      $("#model-pill").textContent = `${data.provider} / ${data.model}`;
+      updateModelPillDisplay(data.model);
       renderAgentProfile(state.info);
     }
     hideModelSettings();
@@ -3021,7 +3389,12 @@ function renderConversationList() {
     const row = document.createElement("div");
     row.className = "conv-item" + (c.id === state.activeConversationId ? " active" : "");
     row.dataset.id = c.id;
-    const meta = `${formatConvTime(c.updated_at)} · ${t("conv.turns", { n: c.message_count || 0 })}`;
+    const metaParts = [
+      `${formatConvTime(c.updated_at)} · ${t("conv.turns", { n: c.message_count || 0 })}`,
+    ];
+    const usageText = usageLabel(c.usage);
+    if (usageText) metaParts.push(usageText);
+    const meta = metaParts.join(" · ");
     row.innerHTML = `
       <div class="conv-body">
         <div class="conv-title">${escapeHtml(c.title || t("conv.newTitle"))}</div>
@@ -3095,11 +3468,8 @@ function beginAssistant() {
 
 // 顶栏 model-pill 与本次 Run 使用的模型保持一致。
 function syncModelPill(model) {
-  if (!model) return;
-  const pill = $("#model-pill");
-  const provider = state.info?.model?.provider;
-  if (pill) pill.textContent = provider ? `${provider} / ${model}` : model;
-  if (state.info?.model) state.info.model.model = model;
+  if (!model && !state.info?.model?.model) return;
+  updateModelPillDisplay(model);
 }
 
 // 智能路由策略 → 标签（与后端 auc/model/routing.py 对齐）。
@@ -3177,8 +3547,50 @@ function renderResolvedModel(payload, timestamp) {
 }
 
 // token 用量以 K（千）为单位、保留 1 位小数显示。
+const BILLED_COST_MULTIPLIER = 1.5;
+
 function fmtTokK(n) {
   return `${((Number(n) || 0) / 1000).toFixed(1)}K`;
+}
+
+function billedCostUsd(actual) {
+  return (Number(actual) || 0) * BILLED_COST_MULTIPLIER;
+}
+
+function fmtCostUsd(actual) {
+  return billedCostUsd(actual).toFixed(4);
+}
+
+function usageLabel(usage) {
+  if (!usage || !usage.total_tokens) return "";
+  return t("conv.usage", {
+    tokens: fmtTokK(usage.total_tokens),
+    cost: fmtCostUsd(usage.cost_usd),
+  });
+}
+
+function updateConversationUsageInState(convId, usage) {
+  if (!convId || !usage) return;
+  const row = state.conversations.find((c) => c.id === convId);
+  if (row) row.usage = usage;
+  if (state.info?.conversation && state.activeConversationId === convId) {
+    state.info.conversation.usage = usage;
+  }
+}
+
+function renderActiveConversationUsage(usage = state.info?.conversation?.usage) {
+  const el = $("#agent-usage");
+  if (!el) return;
+  if (!usage || !usage.total_tokens) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = t("usage.cumulative", {
+    tokens: fmtTokK(usage.total_tokens),
+    cost: fmtCostUsd(usage.cost_usd),
+  });
 }
 
 function renderUsage(usage) {
@@ -3186,14 +3598,22 @@ function renderUsage(usage) {
   const el = document.createElement("div");
   el.className = "msg msg-usage";
   const cost = usage.cost_usd
-    ? ` · $${Number(usage.cost_usd).toFixed(4)}`
+    ? ` · $${fmtCostUsd(usage.cost_usd)}`
     : "";
+  const cumulative = state.info?.conversation?.usage;
+  const cumulativeLine =
+    cumulative && cumulative.total_tokens
+      ? ` · ${t("usage.cumulative", {
+          tokens: fmtTokK(cumulative.total_tokens),
+          cost: fmtCostUsd(cumulative.cost_usd),
+        })}`
+      : "";
   const over = usage.budget_exceeded
     ? ` · ${escapeHtml(t("usage.budgetExceeded"))}`
     : "";
   el.innerHTML =
     `<span>⛁ ↑${fmtTokK(usage.prompt_tokens)} ↓${fmtTokK(usage.completion_tokens)} ` +
-    `Σ${fmtTokK(usage.total_tokens)} tok${cost}${over}</span>`;
+    `Σ${fmtTokK(usage.total_tokens)} tok${cost}${cumulativeLine}${over}</span>`;
   targetMessages().appendChild(el);
   scrollMessages();
 }
@@ -3601,6 +4021,9 @@ async function sendMessage(text, channel = "agent", opts = {}) {
         work_mode: workMode,
         role_id: roleId,
         role_locale: getLocale(),
+        skill_mode: opts.skillMode ?? state.skillMode,
+        skill_ids: opts.skillIds ?? state.skillPinned,
+        approval_mode: opts.approvalMode ?? state.approvalMode,
         model: modelOverride,
         conversation_id: streamConversationId,
       }),
@@ -3725,6 +4148,10 @@ function handleEvent(ev, streamConversationId = null) {
     } else if (ev.payload?.status === "completed" && !streamText && !streamEl) {
       const out = ev.payload?.output;
       if (out) appendDelta(out);
+    }
+    if (ev.payload?.usage) {
+      updateConversationUsageInState(ev.payload.conversation_id, ev.payload.usage);
+      renderActiveConversationUsage(ev.payload.usage);
     }
     renderUsage(state._lastUsage);
     state._lastUsage = null;
@@ -4057,6 +4484,7 @@ async function refreshUiLocale() {
   await loadInfo().catch(() => {});
   updateContextBar();
   populateWorkModeSelects();
+  populateApprovalSelects();
   populateRoleSelects();
   bindRoleTreeSelects();
   updateRoleTriggers();
@@ -4087,6 +4515,8 @@ async function boot() {
   bindModelSettings();
   bindModelPlaza();
   bindRolePlaza();
+  bindSkillPlaza();
+  bindChoicePillKeyboard();
   bindRoleTreeSelects();
   bindMessageActions();
   bindRetryOptions();

@@ -28,6 +28,7 @@
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -39,6 +40,7 @@ import yaml
 from auc import AgentConfig, DefaultAgent, DefaultToolRegistry, InMemoryModelClient
 from auc.messages import RunRequest, ToolCall
 from auc.model import AssistantMessage
+from auc.sandbox import SandboxViolationError, resolve_under_sandbox
 from auc.tools.files import make_file_tools
 from auc.tools.shell import make_shell_tool
 
@@ -155,10 +157,22 @@ def _build_responses(script: list[dict[str, Any]]) -> list[AssistantMessage]:
 
 
 def _run_command(command: str, cwd: str) -> tuple[int, str]:
+    """执行 `run:` 校验命令。
+
+    安全：不使用 `shell=True`——改用 `shlex.split` 解析为参数向量后 `shell=False`
+    执行，杜绝非受信 YAML 用例经 `;`、`|`、`$()`、`&&` 等 shell 元字符注入命令。
+    需要 shell 管道/重定向的用例应显式写 `sh -c '...'`（此时 shell 由用例作者明示承担）。
+    """
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        return 1, f"命令解析失败：{exc}"
+    if not argv:
+        return 1, "空命令"
     try:
         proc = subprocess.run(
-            command,
-            shell=True,
+            argv,
+            shell=False,
             cwd=cwd,
             capture_output=True,
             text=True,
@@ -171,6 +185,14 @@ def _run_command(command: str, cwd: str) -> tuple[int, str]:
         return 1, str(exc)
 
 
+def _safe_join(sandbox: Path, rel: str) -> Path | None:
+    """把用例相对路径约束到沙盒内；越界（`..`/绝对路径）返回 None。"""
+    try:
+        return resolve_under_sandbox(str(sandbox), rel)
+    except SandboxViolationError:
+        return None
+
+
 def _eval_checks(case: EvalCase, sandbox: Path, status: str) -> list[CheckResult]:
     results: list[CheckResult] = []
     for chk in case.checks:
@@ -181,7 +203,10 @@ def _eval_checks(case: EvalCase, sandbox: Path, status: str) -> list[CheckResult
             )
         elif "file" in chk:
             rel = str(chk["file"])
-            fp = sandbox / rel
+            fp = _safe_join(sandbox, rel)
+            if fp is None:
+                results.append(CheckResult(False, f"file {rel}", "路径越界沙盒"))
+                continue
             if not fp.is_file():
                 results.append(CheckResult(False, f"file {rel}", "文件不存在"))
                 continue
@@ -199,7 +224,11 @@ def _eval_checks(case: EvalCase, sandbox: Path, status: str) -> list[CheckResult
                 results.append(CheckResult(True, f"file {rel} exists"))
         elif "missing" in chk:
             rel = str(chk["missing"])
-            ok = not (sandbox / rel).exists()
+            fp = _safe_join(sandbox, rel)
+            if fp is None:
+                results.append(CheckResult(False, f"missing {rel}", "路径越界沙盒"))
+                continue
+            ok = not fp.exists()
             results.append(CheckResult(ok, f"missing {rel}", "" if ok else "文件仍存在"))
         elif "run" in chk:
             cmd = str(chk["run"])
@@ -229,7 +258,14 @@ async def run_case(case: EvalCase, *, workdir: str | Path | None = None) -> Eval
         sandbox.mkdir(parents=True, exist_ok=True)
     try:
         for rel, content in case.files.items():
-            fp = sandbox / rel
+            fp = _safe_join(sandbox, rel)
+            if fp is None:
+                return EvalResult(
+                    case.id,
+                    passed=False,
+                    status="error",
+                    error=f"用例初始文件路径越界沙盒：{rel!r}",
+                )
             fp.parent.mkdir(parents=True, exist_ok=True)
             fp.write_text(content, encoding="utf-8")
 

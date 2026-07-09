@@ -291,7 +291,12 @@ async def _run_chat_turn(
         enriched, _, _ = enrich_user_turn(message, selected=getattr(args, "_work_mode", None))
         user_msg = ChatMessage(role="user", content=enriched)
     history = [*history, user_msg]
-    req = RunRequest(input=history, metadata=meta)
+    # 后台作业以 --run-id 固定 run_id（精确关联回执）；交互式多轮不应复用同一
+    # run_id，故仅取一次后清空。
+    _fixed_run_id = getattr(args, "run_id", None) or None
+    if _fixed_run_id:
+        args.run_id = None
+    req = RunRequest(input=history, metadata=meta, run_id=_fixed_run_id)
 
     if args.no_stream:
         result = await agent.run(req)
@@ -877,7 +882,8 @@ def _cmd_chat_background(args: argparse.Namespace) -> int:
         from auc.isolation import docker_available
 
         if not docker_available():
-            print(dim("提示：未检测到 docker，worker 执行时将降级为本机运行"))
+            print(dim("警告：未检测到 docker；为避免误以为已隔离，worker 执行该作业时"
+                      "将拒绝运行并标记 failed（安装 docker 后重试）"))
     print(dim(f"运行 `auc jobs worker --sandbox {sandbox}` 处理队列；"
               f"`auc jobs show {job.id}` 查看状态"))
     return 0
@@ -1481,6 +1487,12 @@ def main(argv: list[str] | None = None) -> int:
         help="文件工具沙盒根目录（默认：当前工作目录或 --repo）",
     )
     p_chat.add_argument("--system", default=None)
+    p_chat.add_argument(
+        "--run-id",
+        dest="run_id",
+        default=None,
+        help=argparse.SUPPRESS,  # 内部：后台作业固定 run_id 以精确关联回执
+    )
     p_chat.add_argument(
         "--no-stream",
         action="store_true",

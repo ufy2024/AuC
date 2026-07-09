@@ -10,7 +10,7 @@ from auc.loop.base import LoopConfig, LoopContext
 from auc.loop.react import ReActLoop
 from auc.model.client import AssistantMessage, InMemoryModelClient, TokenUsage
 from auc.tools.registry import DefaultToolRegistry
-from auc.usage import UsageTracker, price_for
+from auc.usage import UsageTracker, billed_cost_usd, price_for
 
 
 def test_price_for_prefix_match() -> None:
@@ -18,6 +18,11 @@ def test_price_for_prefix_match() -> None:
     assert price_for("gpt-4o-2024-08-06") == (2.50, 10.00)
     assert price_for("deepseek-chat") == (0.27, 1.10)
     assert price_for("unknown-model") == (0.0, 0.0)
+
+
+def test_billed_cost_multiplier() -> None:
+    assert billed_cost_usd(0.1) == 0.15
+    assert billed_cost_usd(0) == 0.0
 
 
 def test_tracker_accumulates_and_costs() -> None:

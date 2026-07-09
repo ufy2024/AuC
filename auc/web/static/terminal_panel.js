@@ -60,6 +60,7 @@ const ERROR_MARKERS = [
  *   reconnectNotice: boolean,
  *   reconnectAttempts: number,
  *   reconnectTimer: number | null,
+ *   heartbeatTimer: number | null,
  *   manualClose: boolean,
  *   outputBuffer: string,
  *   lastErrorText: string | null,
@@ -404,6 +405,33 @@ function sendInput(session, data) {
 }
 
 const MAX_RECONNECT_ATTEMPTS = 6;
+const HEARTBEAT_INTERVAL_MS = 25_000;
+
+function isControlMessage(data) {
+  if (typeof data !== "string") return false;
+  try {
+    const payload = JSON.parse(data);
+    return payload?.type === "ping" || payload?.type === "pong";
+  } catch {
+    return false;
+  }
+}
+
+function startHeartbeat(session) {
+  stopHeartbeat(session);
+  session.heartbeatTimer = setInterval(() => {
+    if (session.socket?.readyState === WebSocket.OPEN) {
+      session.socket.send(JSON.stringify({ type: "ping" }));
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeat(session) {
+  if (session.heartbeatTimer != null) {
+    clearInterval(session.heartbeatTimer);
+    session.heartbeatTimer = null;
+  }
+}
 
 function clearReconnectTimer(session) {
   if (session.reconnectTimer != null) {
@@ -446,17 +474,19 @@ function connectSession(session) {
   socket.binaryType = "arraybuffer";
   socket.addEventListener("open", () => {
     clearReconnectTimer(session);
+    startHeartbeat(session);
     const wasDown = session.reconnectAttempts > 0 || session.reconnectNotice;
     session.reconnectAttempts = 0;
     session.reconnectNotice = false;
     if (wasDown && session.id === activeSessionId) {
-      session.term.write(`\x1b[2m[${t("terminal.reconnected")}]\x1b[0m\r\n`);
+      session.term.write(`\r\n\x1b[2m[${t("terminal.reconnected")}]\x1b[0m\r\n`);
     }
     if (session.id === activeSessionId) sendResize(session);
     flushPendingInput(session);
     if (session.id === activeSessionId) session.term.focus();
   });
   socket.addEventListener("message", (ev) => {
+    if (isControlMessage(ev.data)) return;
     let chunk;
     if (ev.data instanceof ArrayBuffer) {
       chunk = new Uint8Array(ev.data);
@@ -477,6 +507,7 @@ function connectSession(session) {
     appendOutputBuffer(session, new TextDecoder().decode(chunk));
   });
   socket.addEventListener("close", () => {
+    stopHeartbeat(session);
     if (session.socket === socket) session.socket = null;
     scheduleReconnect(session);
   });
@@ -489,6 +520,7 @@ function disconnectSession(session) {
   session.pendingInput = null;
   session.reconnectNotice = false;
   session.manualClose = true;
+  stopHeartbeat(session);
   clearReconnectTimer(session);
   if (session.socket) {
     session.socket.close();
@@ -557,6 +589,7 @@ async function createSession({ activate = true } = {}) {
     reconnectNotice: false,
     reconnectAttempts: 0,
     reconnectTimer: null,
+    heartbeatTimer: null,
     manualClose: false,
     outputBuffer: "",
     lastErrorText: null,

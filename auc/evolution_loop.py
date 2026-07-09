@@ -14,7 +14,9 @@
 
 from __future__ import annotations
 
+import copy
 import json
+import logging
 import math
 import random
 import re
@@ -23,8 +25,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from auc.fslock import atomic_write_text, file_lock
 from auc.messages import ChatMessage
 
+logger = logging.getLogger("auc.evolution_loop")
 _STALE_DAYS = 180
 _TOKEN_RE = re.compile(r"[a-zA-Z_\-\u4e00-\u9fff]{3,}")
 
@@ -164,7 +168,7 @@ class Retrospector:
             except TypeError:
                 memory.save_lesson(tag_str, lesson)
             except Exception:  # noqa: BLE001 复盘不得影响主流程
-                pass
+                logger.debug("保存复盘 lesson 失败", exc_info=True)
         return entry
 
 
@@ -193,30 +197,67 @@ class EvolutionMetrics:
     def __init__(self, sandbox_root: str) -> None:
         self._path = Path(sandbox_root).resolve() / ".auc" / "evolution-stats.json"
         self.stats: dict[str, EntryStat] = {}
+        self._baseline: dict[str, EntryStat] = {}
         self._load()
 
     @property
     def path(self) -> Path:
         return self._path
 
-    def _load(self) -> None:
-        if not self._path.is_file():
-            return
+    @property
+    def _lock_path(self) -> Path:
+        return self._path.with_suffix(".json.lock")
+
+    @staticmethod
+    def _read_disk(path: Path) -> dict[str, EntryStat]:
+        out: dict[str, EntryStat] = {}
+        if not path.is_file():
+            return out
         try:
-            data = json.loads(self._path.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
-            return
+            logger.debug("进化度量加载失败，按空数据处理: %s", path, exc_info=True)
+            return out
+        fields = {f for f in EntryStat.__dataclass_fields__}  # type: ignore[attr-defined]
         for raw in data.get("entries", []):
-            fields = {f for f in EntryStat.__dataclass_fields__}  # type: ignore[attr-defined]
             stat = EntryStat(**{k: v for k, v in raw.items() if k in fields})
-            self.stats[stat.id] = stat
+            out[stat.id] = stat
+        return out
+
+    def _load(self) -> None:
+        self.stats = self._read_disk(self._path)
+        # 记录加载基线，save 时据此计算增量、合并到最新磁盘状态（防并发丢更新）。
+        self._baseline = copy.deepcopy(self.stats)
 
     def save(self) -> None:
+        """在跨进程锁下 re-read → 合并增量 → 原子写，避免并发写丢失计数更新。"""
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"version": 1, "entries": [asdict(s) for s in self.stats.values()]}
-        self._path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        with file_lock(self._lock_path):
+            merged = self._read_disk(self._path)
+            for eid, cur in self.stats.items():
+                base = self._baseline.get(eid)
+                disk = merged.get(eid)
+                if disk is None:
+                    merged[eid] = copy.deepcopy(cur)
+                    continue
+                b = base or EntryStat(id=eid)
+                # 计数字段：磁盘值 + 本会话增量（cur - baseline）
+                disk.recall_count += cur.recall_count - b.recall_count
+                disk.adopted_count += cur.adopted_count - b.adopted_count
+                disk.success += cur.success - b.success
+                disk.fail += cur.fail - b.fail
+                # 时间戳取较新者
+                if cur.last_recall and cur.last_recall > (disk.last_recall or ""):
+                    disk.last_recall = cur.last_recall
+                if not disk.created_at:
+                    disk.created_at = cur.created_at
+            data = {"version": 1, "entries": [asdict(s) for s in merged.values()]}
+            atomic_write_text(
+                self._path, json.dumps(data, ensure_ascii=False, indent=2)
+            )
+            # 写盘后同步内存与基线到合并结果，供后续继续累加。
+            self.stats = merged
+            self._baseline = copy.deepcopy(merged)
 
     def _get(self, entry_id: str) -> EntryStat:
         if entry_id not in self.stats:
@@ -265,24 +306,36 @@ class EvolutionMetrics:
         *,
         success: bool,
     ) -> list[str]:
-        """对 (entry_id, keywords) 列表做启发式采纳判定并记账，返回采纳的 id。
+        """对 (entry_id, keywords) 列表做启发式召回/采纳记账，返回被采纳的 id。
 
-        判定：任一 keyword（≥3 字）出现在本 Run 文本（指令/工具/命令/输出）中即视为
-        被召回并采纳，记 recall + adoption + 成败链接。
+        **召回（recall）与采纳（adoption）解耦**，避免二者同增导致晋升阈值形同虚设：
+
+        - **召回**：任一 keyword（≥3 字）命中本 Run 文本（指令/工具/命令/输出）即视为
+          该经验与本 Run *相关*——无论成败都记 recall + 成败链接。
+        - **采纳**：更强信号——被召回**且本 Run 成功**，才视为该经验被*有效采纳*。
+
+        如此 `adopted_count / recall_count` 便是「召回后成功率」，晋升阈值（≥0.5）
+        才有实义（见 `skills.should_promote`）。
         """
         text = run_text.lower()
         adopted: list[str] = []
+        changed = False
         for entry_id, keywords in entries:
             hit = any(
                 kw and len(kw) >= 3 and kw.lower() in text for kw in keywords
             )
             if not hit:
                 continue
+            # 召回 + 成败链接：与成败无关，只要相关就记。
             self.record_recall(entry_id)
-            self.record_adoption(entry_id)
             self.record_link(entry_id, success=success)
-            adopted.append(entry_id)
-        if adopted:
+            changed = True
+            # 采纳：仅在本 Run 成功时计入，使召回≠采纳。
+            if success:
+                self.record_adoption(entry_id)
+                adopted.append(entry_id)
+        # 失败 Run 也更新了 recall/link，须一并落盘（不能仅在有采纳时保存）。
+        if changed:
             self.save()
         return adopted
 
@@ -355,6 +408,7 @@ def run_evolution_cycle(
                 kws = list(ep.tags) + _TOKEN_RE.findall(ep.lesson)[:6]
                 pre_entries.append((ep.id, kws))
         except Exception:  # noqa: BLE001
+            logger.debug("快照 episodes 失败，跳过度量记账", exc_info=True)
             pre_entries = []
 
     if pre_entries:
@@ -369,7 +423,7 @@ def run_evolution_cycle(
                     metrics, skill_store, episodes_by_id
                 )
         except Exception:  # noqa: BLE001 度量失败不影响主流程
-            pass
+            logger.debug("进化度量更新/技能起草失败", exc_info=True)
 
     retro = (retrospector or Retrospector(sample_rate=sample_rate)).retrospect(
         status=status,
@@ -408,6 +462,7 @@ def _draft_promotions(
             )
             drafted.append(entry_id)
         except Exception:  # noqa: BLE001 起草失败不影响主流程
+            logger.debug("技能草案起草失败: %s", entry_id, exc_info=True)
             continue
     return drafted
 

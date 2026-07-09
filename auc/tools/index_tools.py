@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from auc.code_index import SymbolIndex
 from auc.tools.base import ToolPolicy, tool_from_function
 
 _RESULT_LIMIT = 200
+logger = logging.getLogger("auc.tools.index")
 
 
 def make_index_tools(sandbox: str) -> list[tuple[Any, ToolPolicy]]:
@@ -18,7 +20,7 @@ def make_index_tools(sandbox: str) -> list[tuple[Any, ToolPolicy]]:
         try:
             index.refresh()
         except Exception:  # noqa: BLE001 索引失败不应让工具崩溃
-            pass
+            logger.debug("符号索引 refresh 失败，跳过本次刷新", exc_info=True)
 
     def find_symbol(name: str) -> str:
         """按名称查符号定义（函数/类/方法），返回路径与行号。"""

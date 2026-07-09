@@ -60,3 +60,4 @@ class RunResult:
     status: RunStatus
     run_id: RunId
     error: str | None = None
+    usage: dict[str, Any] | None = None

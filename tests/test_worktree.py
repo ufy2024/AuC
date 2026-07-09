@@ -180,6 +180,57 @@ def test_run_parallel_merge_and_cleanup(tmp_path):
     assert not (repo / ".auc" / "worktrees" / "m1").exists()
 
 
+def test_run_parallel_cleanup_preserves_conflicted_worktree(tmp_path):
+    """合并冲突时即使 cleanup=True 也应保留 worktree，避免丢失未合并改动。"""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    # 主分支改 README，制造与子分支的冲突
+    (repo / "README.md").write_text("# main change\n", encoding="utf-8")
+    _git(["add", "."], repo)
+    _git(["commit", "-m", "main edit"], repo)
+
+    def conflicting_exec(worktree, message):
+        p = Path(worktree.path)
+        (p / "README.md").write_text("# branch change\n", encoding="utf-8")
+        _git(["add", "."], p)
+        _git(["commit", "-m", message], p)
+        return 0
+
+    results = run_parallel(
+        str(repo),
+        [("conf", "edit readme")],
+        base="HEAD~1",
+        executor=conflicting_exec,
+        merge=True,
+        cleanup=True,
+    )
+    r = results[0]
+    assert r.merge is not None and r.merge.ok is False
+    assert r.cleaned is False
+    # worktree 目录仍在，供人工解决冲突
+    assert (repo / ".auc" / "worktrees" / "conf").exists()
+
+
+def test_run_parallel_cleanup_skips_failed_task(tmp_path):
+    """任务失败（非 0 退出）时保留 worktree 便于排查。"""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    def failing_exec(worktree, message):
+        return 1
+
+    results = run_parallel(
+        str(repo),
+        [("bad", "task")],
+        executor=failing_exec,
+        cleanup=True,
+    )
+    r = results[0]
+    assert r.status == "failed"
+    assert r.cleaned is False
+    assert (repo / ".auc" / "worktrees" / "bad").exists()
+
+
 def test_run_parallel_executor_failure(tmp_path):
     repo = tmp_path / "repo"
     _init_repo(repo)

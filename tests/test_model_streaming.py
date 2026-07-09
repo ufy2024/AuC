@@ -166,6 +166,49 @@ def test_anthropic_stream_text_thinking_and_tool_use() -> None:
     asyncio.run(_run())
 
 
+def test_anthropic_stream_retries_before_first_chunk() -> None:
+    """首个 chunk 之前遇 503 应退避重试并最终成功（与 OpenAI 对称）。"""
+    sse = _anthropic_sse(
+        [
+            ("message_start", {"message": {"id": "msg_1"}}),
+            ("content_block_start", {"index": 0, "content_block": {"type": "text"}}),
+            (
+                "content_block_delta",
+                {"index": 0, "delta": {"type": "text_delta", "text": "ok"}},
+            ),
+            ("content_block_stop", {"index": 0}),
+            ("message_delta", {"delta": {"stop_reason": "end_turn"}}),
+        ]
+    )
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(503, json={"error": {"message": "overloaded"}})
+        return httpx.Response(
+            200, content=sse, headers={"content-type": "text/event-stream"}
+        )
+
+    async def _run() -> None:
+        client = AnthropicClient(model="test", api_key="x")
+        client._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            base_url="http://mock.local",
+        )
+        texts: list[str] = []
+        async for chunk in client.complete_stream(
+            [ChatMessage(role="user", content="hi")]
+        ):
+            if chunk.delta_content:
+                texts.append(chunk.delta_content)
+        assert "".join(texts) == "ok"
+        assert calls["n"] == 2  # 第一次 503，重试后成功
+        await client.aclose()
+
+    asyncio.run(_run())
+
+
 def test_anthropic_stream_error_event_raises() -> None:
     sse = _anthropic_sse(
         [

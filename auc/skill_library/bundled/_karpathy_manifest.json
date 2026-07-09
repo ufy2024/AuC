@@ -1,0 +1,14 @@
+{
+  "source": "https://github.com/multica-ai/andrej-karpathy-skills",
+  "branch": "main",
+  "count": 1,
+  "skills": [
+    {
+      "slug": "karpathy-guidelines",
+      "name": "karpathy-guidelines",
+      "path": "skills/karpathy-guidelines/SKILL.md",
+      "dest": "auc/skill_library/bundled/karpathy-guidelines/SKILL.md"
+    }
+  ],
+  "skipped": []
+}

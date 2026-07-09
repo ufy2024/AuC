@@ -15,7 +15,10 @@ logger = logging.getLogger("auc.model.retry")
 
 T = TypeVar("T")
 
-_RETRY_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+# 仅重试瞬时/幂等安全的状态：连接超时(408)、Too Early(425)、限流(429)、5xx。
+# 刻意排除 409 Conflict——它不是瞬时错误，对非幂等的 POST /chat/completions
+# 重试会导致重复补全与重复计费。
+_RETRY_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
 DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_BASE_DELAY = 0.5
 DEFAULT_MAX_DELAY = 8.0

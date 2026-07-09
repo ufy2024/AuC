@@ -125,6 +125,37 @@ def test_metrics_update_from_run(tmp_path):
     assert m.stats["ep-1"].success == 1
 
 
+def test_metrics_recall_decoupled_from_adoption_on_failure(tmp_path):
+    """失败 Run：命中经验记召回 + 失败链接，但不计采纳（召回≠采纳）。"""
+    m = EvolutionMetrics(str(tmp_path))
+    entries = [("ep-1", ["mermaid", "gantt"])]
+    run_text = build_run_text(_msgs(goal="修复 mermaid gantt 语法"))
+    adopted = m.update_from_run(entries, run_text, success=False)
+    assert adopted == []
+    s = m.stats["ep-1"]
+    assert s.recall_count == 1
+    assert s.adopted_count == 0
+    assert s.fail == 1 and s.success == 0
+    # 失败 Run 的召回/链接也须落盘
+    reloaded = EvolutionMetrics(str(tmp_path))
+    assert reloaded.stats["ep-1"].recall_count == 1
+    assert reloaded.stats["ep-1"].adopted_count == 0
+
+
+def test_metrics_adoption_rate_below_one_with_mixed_outcomes(tmp_path):
+    """混合成败：召回后成功率 = adopted/recall，可低于 1，使晋升阈值有实义。"""
+    m = EvolutionMetrics(str(tmp_path))
+    entries = [("ep-1", ["mermaid"])]
+    run_text = build_run_text(_msgs(goal="修复 mermaid 图"))
+    m.update_from_run(entries, run_text, success=True)
+    m.update_from_run(entries, run_text, success=False)
+    m.update_from_run(entries, run_text, success=False)
+    s = m.stats["ep-1"]
+    assert s.recall_count == 3
+    assert s.adopted_count == 1  # 仅 1 次成功
+    assert s.adopted_count / s.recall_count < 0.5
+
+
 def test_metrics_archive_candidates(tmp_path):
     m = EvolutionMetrics(str(tmp_path))
     for _ in range(3):

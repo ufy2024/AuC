@@ -139,12 +139,17 @@ def build_run_result(
             if msg.role == "assistant" and msg.content and not msg.tool_calls:
                 output = msg.content
                 break
+    usage = None
+    tracker = getattr(ctx, "usage_tracker", None)
+    if tracker is not None and getattr(tracker, "calls", 0) > 0:
+        usage = tracker.snapshot()
     return RunResult(
         output=output,
         messages=messages,
         status=status,
         run_id=ctx.run_id,
         error=ctx.error,
+        usage=usage,
     )
 
 

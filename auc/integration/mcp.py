@@ -46,6 +46,9 @@ class MCPServerConfig:
     allowed_tools: list[str] = field(default_factory=list)  # glob 白名单；空=全部
     forbidden_tools: list[str] = field(default_factory=list)  # glob 黑名单（优先）
     owner: str = ""
+    # 安全默认：强制路径参数沙盒校验（即便配置为 L1 也生效）。仅在明确信任
+    # 该 server 需访问沙盒外资源时，于配置里显式设 sandbox_only:false 关闭。
+    sandbox_only: bool = True
 
 
 def _coerce_str_list(value: Any) -> list[str]:
@@ -102,6 +105,7 @@ def parse_mcp_configs(settings: dict[str, Any] | None) -> list[MCPServerConfig]:
                 allowed_tools=_coerce_str_list(raw.get("allowed_tools") or raw.get("allow")),
                 forbidden_tools=_coerce_str_list(raw.get("forbidden_tools") or raw.get("deny")),
                 owner=str(raw.get("owner") or ""),
+                sandbox_only=bool(raw.get("sandbox_only", True)),
             )
         )
     return configs
@@ -210,6 +214,7 @@ def connector_card(
         "endpoint": config.url or config.command,
         "owner": config.owner,
         "privilege": config.privilege,
+        "sandbox_only": config.sandbox_only,
         "enabled": config.enabled,
         "allowed_tools": list(config.allowed_tools),
         "forbidden_tools": list(config.forbidden_tools),
@@ -288,7 +293,7 @@ async def discover_and_register(
                 ToolPolicy(
                     name=reg_name,
                     privilege=config.privilege,
-                    sandbox_only=False,
+                    sandbox_only=config.sandbox_only,
                     mutates_state=True,
                 ),
             )

@@ -35,6 +35,10 @@ from auc.web.model_settings import (
     model_settings_payload,
     save_model_settings,
 )
+from auc.web.approval_settings import (
+    approval_settings_payload,
+    save_approval_settings,
+)
 from auc.web.workspace import (
     SandboxViolationError,
     create_directory,
@@ -98,6 +102,22 @@ def _work_modes_payload() -> list[dict[str, str]]:
         },
         *list_work_modes(),
     ]
+
+
+def _skills_payload(
+    sandbox: str,
+    *,
+    role_id: str | None = None,
+    division: str | None = None,
+    include_drafts: bool = False,
+) -> list[dict[str, object]]:
+    from auc.skills import SkillStore, skills_payload
+
+    store = SkillStore(sandbox)
+    return skills_payload(
+        store.list(include_drafts=include_drafts, role_id=role_id, division=division),
+        active_role=role_id,
+    )
 
 
 def _get_approval() -> WebApprovalPort:
@@ -177,15 +197,36 @@ def create_app():  # noqa: ANN201
     app = FastAPI(title="AuC Web", version=__version__, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
+    # 需鉴权的非 /api/ 前缀路径（token 模式下也必须校验，防绕过）。
+    _PROTECTED_PREFIXES = ("/api/", "/preview/", "/proxy/")
+
     @app.middleware("http")
     async def web_auth_middleware(request: Request, call_next):  # noqa: ANN001
         expected = _state.get("web_token")
         path = request.url.path
-        if expected and path.startswith("/api/"):
-            provided = extract_request_token(request.headers)
+        if expected and any(path.startswith(p) for p in _PROTECTED_PREFIXES):
+            provided = extract_request_token(request.headers) or request.query_params.get("token")
             if not token_ok(expected, provided):
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
         return await call_next(request)
+
+    async def _ws_auth_ok(websocket) -> bool:  # noqa: ANN001
+        """WebSocket 握手鉴权：token 模式下校验 query `?token=` 或 Authorization 头。
+
+        WebSocket 不经 HTTP 中间件，需在 accept 前显式校验，否则可绕过 token
+        直接连上 PTY 终端 / 项目代理。校验失败时以 1008 关闭并返回 False。
+        """
+        expected = _state.get("web_token")
+        if not expected:
+            return True
+        provided = extract_request_token(websocket.headers) or websocket.query_params.get("token")
+        if token_ok(expected, provided):
+            return True
+        try:
+            await websocket.close(code=1008, reason="unauthorized")
+        except Exception:  # noqa: BLE001
+            pass
+        return False
 
     @app.get("/")
     async def index() -> FileResponse:
@@ -194,6 +235,16 @@ def create_app():  # noqa: ANN201
     @app.get("/api/info")
     async def api_info(request: Request) -> JSONResponse:
         from auc.roles.agency_sources import role_catalog_source_url
+        from auc.skill_library.sources import (
+            ANBEIME_SKILL_URL,
+            ANTHROPICS_SKILLS_URL,
+            ECC_URL,
+            KARPATHY_URL,
+            MATTPOCOCK_SKILLS_URL,
+            SUPERPOWERS_URL,
+            UI_UX_PRO_MAX_URL,
+        )
+        from auc.web.skill_settings import skill_settings_payload
 
         session = _get_session()
         locale = _parse_locale(request.query_params.get("locale"))
@@ -225,6 +276,9 @@ def create_app():  # noqa: ANN201
             "conversation": {
                 "active_id": session.active_conversation_id,
                 "messages": messages_for_ui(session.history),
+                "usage": session.store.get_usage(session.active_conversation_id).to_dict()
+                if session.active_conversation_id
+                else {},
             },
             "multimodal": {
                 "enabled": True,
@@ -242,6 +296,22 @@ def create_app():  # noqa: ANN201
             "role_catalog_locale": locale,
             "role_catalog_source": role_catalog_source_url(locale),
             "work_modes": _work_modes_payload(),
+            "approval": approval_settings_payload(
+                session.sandbox,
+                bind_host=str(_state.get("bind_host") or ""),
+                locale=locale,
+            ),
+            "skills": _skills_payload(session.sandbox, role_id=active_role),
+            "skill_settings": skill_settings_payload(session.sandbox, locale=locale),
+            "skill_catalog_sources": {
+                "anbeime": ANBEIME_SKILL_URL,
+                "anthropics": ANTHROPICS_SKILLS_URL,
+                "ecc": ECC_URL,
+                "karpathy": KARPATHY_URL,
+                "mattpocock": MATTPOCOCK_SKILLS_URL,
+                "superpowers": SUPERPOWERS_URL,
+                "ui_ux_pro_max": UI_UX_PRO_MAX_URL,
+            },
             "terminal": {
                 "enabled": True,
                 "ws": "/api/terminal/ws",
@@ -326,6 +396,56 @@ def create_app():  # noqa: ANN201
         await _reload_session_model(cfg)
         payload = model_settings_payload(session.cfg, sandbox_root=session.sandbox, save_path=path)
         payload["ok"] = True
+        return JSONResponse(payload)
+
+    @app.get("/api/settings/approval")
+    async def api_get_approval_settings(request: Request) -> JSONResponse:
+        session = _get_session()
+        locale = request.query_params.get("locale") or "zh"
+        return JSONResponse(
+            approval_settings_payload(
+                session.sandbox,
+                bind_host=str(_state.get("bind_host") or ""),
+                locale=locale,
+            )
+        )
+
+    @app.put("/api/settings/approval")
+    async def api_put_approval_settings(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"invalid JSON: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(400, "body must be object")
+        session = _get_session()
+        mode = str(body.get("mode") or body.get("approval_mode") or "").strip()
+        if not mode:
+            raise HTTPException(400, "mode is required")
+        scope = str(body.get("scope") or "project_local")
+        if scope not in ("global", "project", "project_local"):
+            raise HTTPException(400, "scope must be global|project|project_local")
+        locale = str(body.get("locale") or request.query_params.get("locale") or "zh")
+        try:
+            prefs, path = save_approval_settings(
+                session.sandbox,
+                mode_id=mode,
+                scope=scope,  # type: ignore[arg-type]
+                bind_host=str(_state.get("bind_host") or ""),
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        payload = approval_settings_payload(
+            session.sandbox,
+            bind_host=str(_state.get("bind_host") or ""),
+            locale=locale,
+            scope=scope,  # type: ignore[arg-type]
+        )
+        payload["ok"] = True
+        payload["settings_path"] = str(path)
+        payload["mode"] = prefs.mode_id
+        payload["autonomy"] = prefs.autonomy
+        payload["auto_approve"] = prefs.auto_approve
         return JSONResponse(payload)
 
     @app.post("/api/settings/model/models")
@@ -517,6 +637,80 @@ def create_app():  # noqa: ANN201
         catalog = load_role_catalog(sandbox=session.sandbox, locale=locale)
         return JSONResponse({"ok": True, "role_id": rid, "roles": roles_payload(catalog=catalog)})
 
+    @app.get("/api/skills")
+    async def api_list_skills(request: Request) -> JSONResponse:
+        session = _get_session()
+        role_id = request.query_params.get("role_id")
+        division = request.query_params.get("division")
+        include_drafts = request.query_params.get("drafts") in ("1", "true", "yes")
+        return JSONResponse(
+            {
+                "skills": _skills_payload(
+                    session.sandbox,
+                    role_id=role_id,
+                    division=division,
+                    include_drafts=include_drafts,
+                )
+            }
+        )
+
+    @app.get("/api/skills/{skill_name}")
+    async def api_get_skill(skill_name: str, request: Request) -> JSONResponse:
+        from auc.skills import SkillStore
+
+        session = _get_session()
+        store = SkillStore(session.sandbox)
+        sk = store.get(skill_name)
+        if sk is None:
+            raise HTTPException(404, f"skill not found: {skill_name}")
+        return JSONResponse(
+            {
+                "name": sk.name,
+                "description": sk.description,
+                "triggers": sk.triggers,
+                "roles": sk.roles,
+                "division": sk.division,
+                "builtin": sk.builtin,
+                "draft": sk.draft,
+                "source": sk.source,
+                "source_url": sk.source_url,
+                "emoji": sk.emoji,
+                "body": sk.body,
+            }
+        )
+
+    @app.get("/api/settings/skills")
+    async def api_get_skill_settings(request: Request) -> JSONResponse:
+        from auc.web.skill_settings import skill_settings_payload
+
+        session = _get_session()
+        locale = _parse_locale(request.query_params.get("locale"))
+        return JSONResponse(skill_settings_payload(session.sandbox, locale=locale))
+
+    @app.put("/api/settings/skills")
+    async def api_put_skill_settings(request: Request) -> JSONResponse:
+        from auc.skills import SkillPrefs
+        from auc.web.skill_settings import save_skill_prefs, skill_settings_payload
+
+        session = _get_session()
+        locale = _parse_locale(request.query_params.get("locale"))
+        try:
+            body: Any = await request.json()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"invalid JSON: {exc}") from exc
+        if not isinstance(body, dict):
+            raise HTTPException(400, "body must be object")
+        mode = str(body.get("mode") or "auto")
+        pinned_raw = body.get("pinned") or []
+        if not isinstance(pinned_raw, list):
+            raise HTTPException(400, "pinned must be array")
+        prefs = SkillPrefs(
+            mode="manual" if mode == "manual" else "auto",
+            pinned=[str(x) for x in pinned_raw],
+        ).normalized()
+        save_skill_prefs(session.sandbox, prefs)
+        return JSONResponse(skill_settings_payload(session.sandbox, locale=locale))
+
     def _runner() -> ProjectRunner:
         runner = _state.get("runner")
         if runner is None:
@@ -634,6 +828,8 @@ def create_app():  # noqa: ANN201
     async def proxy_run_ws(run_id: str, websocket: WebSocket):  # noqa: ANN201
         from fastapi import WebSocketDisconnect
 
+        if not await _ws_auth_ok(websocket):
+            return
         inst = _runner().get(run_id)
         if inst is None or inst.port is None or inst.status != "running":
             await _bridge_websocket(websocket, None, err="run not found")
@@ -769,9 +965,13 @@ def create_app():  # noqa: ANN201
     async def api_read_file_raw(path: str):  # noqa: ANN201
         from fastapi.responses import FileResponse
 
+        from auc.web.workspace import resolve_workspace_path
+
         session = _get_session()
         try:
-            resolved = resolve_under_sandbox(session.sandbox, path)
+            # 与其余 workspace API 一致：沙盒约束 + 拒绝 .auc/ 元数据
+            #（内含 settings.local.json 密钥、审计与检查点数据）。
+            resolved = resolve_workspace_path(session.sandbox, path)
         except SandboxViolationError as exc:
             raise HTTPException(403, str(exc)) from exc
         if not resolved.is_file():
@@ -856,6 +1056,8 @@ def create_app():  # noqa: ANN201
         from auc.web.pty_terminal import bridge_pty_terminal, terminal_available
         from fastapi import WebSocketDisconnect
 
+        if not await _ws_auth_ok(websocket):
+            return
         if not terminal_available():
             await websocket.accept()
             await websocket.send_text(
@@ -1216,7 +1418,23 @@ def create_app():  # noqa: ANN201
                 work_mode = body.get("work_mode") or "auto"
                 role_id = body.get("role_id") or body.get("role") or "coder"
                 role_locale = body.get("role_locale") or body.get("locale")
+                skill_mode = body.get("skill_mode") or None
+                skill_ids = body.get("skill_ids")
+                if skill_ids is not None and not isinstance(skill_ids, list):
+                    yield _sse({"type": "error", "payload": {"message": "skill_ids 必须是数组"}})
+                    return
+                if not skill_mode or skill_ids is None:
+                    from auc.web.skill_settings import load_skill_prefs
+
+                    saved = load_skill_prefs(session.sandbox)
+                    skill_mode = skill_mode or saved.mode
+                    if skill_ids is None:
+                        skill_ids = saved.pinned
                 autonomy = body.get("autonomy") or None
+                approval_mode = body.get("approval_mode") or body.get("mode") or None
+                auto_approve = body.get("auto_approve")
+                if auto_approve is not None:
+                    auto_approve = bool(auto_approve)
                 approved_plan = body.get("approved_plan")
                 if approved_plan is not None and not isinstance(approved_plan, dict):
                     yield _sse(
@@ -1246,9 +1464,14 @@ def create_app():  # noqa: ANN201
                         editor_context,
                         work_mode=work_mode,
                         autonomy=autonomy,
+                        approval_mode=str(approval_mode) if approval_mode else None,
+                        auto_approve=auto_approve,
+                        bind_host=str(_state.get("bind_host") or ""),
                         approved_plan=approved_plan,
                         role_id=role_id,
                         role_locale=role_locale,
+                        skill_mode=str(skill_mode) if skill_mode else None,
+                        skill_ids=[str(x) for x in skill_ids] if skill_ids else None,
                     )
                 except ValueError as exc:
                     yield _sse({"type": "error", "payload": {"message": str(exc)}})
@@ -1330,6 +1553,10 @@ def create_app():  # noqa: ANN201
                     await aclose_model_client(session.agent._config.model)  # noqa: SLF001
                     session.agent._config.model = prev_model_client  # noqa: SLF001
                 session.active_run_id = None
+                done_usage: dict[str, Any] | None = None
+                if saved_conv_id or run_conversation_id:
+                    conv_for_usage = saved_conv_id or run_conversation_id
+                    done_usage = session.store.get_usage(conv_for_usage).to_dict()
                 yield _sse(
                     {
                         "type": "done",
@@ -1338,6 +1565,7 @@ def create_app():  # noqa: ANN201
                             "error": err,
                             "output": (result.output or "")[:500] if result else "",
                             "conversation_id": saved_conv_id or run_conversation_id,
+                            "usage": done_usage,
                         },
                     }
                 )
@@ -1532,6 +1760,8 @@ def create_app():  # noqa: ANN201
     async def sandbox_ws_proxy(websocket: WebSocket):  # noqa: ANN201
         from fastapi import WebSocketDisconnect
 
+        if not await _ws_auth_ok(websocket):
+            return
         inst = _runner().get_active_backend()
         if inst is None or inst.port is None:
             await _bridge_websocket(websocket, None, err="请先启动 backend 项目")
@@ -1580,6 +1810,7 @@ def init_web_state(
     repo: str | None,
     cfg: Any,
     evolve: bool,
+    bind_host: str = "127.0.0.1",
 ) -> None:
     opts = ChatAgentOptions(
         sandbox=sandbox,
@@ -1589,6 +1820,7 @@ def init_web_state(
     root = resolve_sandbox_root(sandbox=sandbox, repo=repo)
     approval = WebApprovalPort()
     _state["approval"] = approval
+    _state["bind_host"] = bind_host
     _state["repo"] = repo
     agent = build_chat_agent(cfg, opts, approval=approval)
     store = ConversationStore(root)
@@ -1642,7 +1874,7 @@ def main(argv: list[str] | None = None) -> int:
         base_url=args.base_url,
         repo_root=repo or sandbox,
     )
-    init_web_state(sandbox=sandbox, repo=repo, cfg=cfg, evolve=not args.no_evolve)
+    init_web_state(sandbox=sandbox, repo=repo, cfg=cfg, evolve=not args.no_evolve, bind_host=args.host)
 
     from auc.web.auth import require_web_token
 
@@ -1666,6 +1898,8 @@ def main(argv: list[str] | None = None) -> int:
         port=args.port,
         log_level="info",
         log_config=uvicorn_log_config(),
+        ws_ping_interval=20.0,
+        ws_ping_timeout=60.0,
     )
     return 0
 

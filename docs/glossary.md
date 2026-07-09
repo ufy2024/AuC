@@ -14,7 +14,10 @@ AuC 文档与接口中使用的核心术语。
 | **Au-Context Slicer** | Context Slicer | AuM 语义代码切片器，产出 `ContextPackage` |
 | **Au-Rules Matrix** | Rules Matrix | AuM 对 `.aurules` / `AUM.md` 的解析与缓存 |
 | **Au-Nuggets** | — | AuM 固化的 YAML 技能金块（进化层） |
-| **ApprovalPort** | — | L3 人工批复端口（AuM IM 实现） |
+| **ApprovalPort** | — | 人工批复端口（Web / CLI / Telegram / QQ） |
+| **授权模式** | Approval Mode | 会话级「何时询问」：`ask-every-write` / `ask-on-state` / `ask-on-danger` / `auto-approve`；实现映射 `autonomy` 三档，见 [approval-modes.md](approval-modes.md) |
+| **AutonomyPolicy** | — | R6 会话自治策略；`confirm-all` / `auto-edit` / `full-auto` |
+| **Escalation** | — | R1 危险命令升级；命中则本次调用等效 L3 |
 | **ContextPackage** | — | 任务相关代码片段包，挂载于 `RunRequest` |
 | **CodeSnippet** | — | Package 内单文件片段与行号范围 |
 | **.pending_approval** | — | Run 等待 L3 批复的状态 |

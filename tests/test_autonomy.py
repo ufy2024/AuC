@@ -44,3 +44,9 @@ def test_plain_l2_tool_never_blocked() -> None:
     plain = ToolPolicy(name="echo", privilege="L2")
     for level in ("confirm-all", "auto-edit", "full-auto"):
         assert not AutonomyPolicy(level=level).requires_approval(plain)  # type: ignore[arg-type]
+
+
+def test_auto_approve_skips_all() -> None:
+    pol = AutonomyPolicy(level="full-auto", auto_approve=True)
+    assert pol.skips_all_approval()
+    assert not pol.requires_approval(L3)

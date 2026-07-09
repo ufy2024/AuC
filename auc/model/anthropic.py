@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from dataclasses import dataclass, field
@@ -8,7 +9,17 @@ from typing import Any, AsyncIterator
 from auc.messages import ChatMessage, ToolCall
 from auc.multimodal import anthropic_user_content
 from auc.model.client import AssistantMessage, StreamChunk, TokenUsage
-from auc.model.retry import make_timeout, with_retry
+from auc.model.retry import (
+    DEFAULT_MAX_ATTEMPTS,
+    _RETRY_STATUS,
+    _backoff_delay,
+    _is_retryable_exception,
+    _retry_after_of,
+    _status_of,
+    format_model_http_error,
+    make_timeout,
+    with_retry,
+)
 from auc.model.deepseek_anthropic import (
     deepseek_request_extra,
     inject_assistant_thinking_block,
@@ -305,14 +316,46 @@ class AnthropicClient:
         messages: list[ChatMessage],
         tools: list[ToolSchema] | None = None,
     ) -> AsyncIterator[StreamChunk]:
+        """流式补全，接入与 OpenAI 对称的重试。
+
+        仅在**尚未产出任何 chunk** 时对瞬时/限流/5xx 错误退避重试，
+        避免半途重试导致重复输出。
+        """
         client = self._get_client()
         body = self._build_body(messages, tools, stream=True)
+        emitted = False
+        last_exc: BaseException | None = None
+        for attempt in range(1, DEFAULT_MAX_ATTEMPTS + 1):
+            try:
+                async for chunk in self._iter_completion_stream(client, body):
+                    emitted = True
+                    yield chunk
+                return
+            except Exception as exc:  # noqa: BLE001
+                status = _status_of(exc)
+                retryable = _is_retryable_exception(exc) or (
+                    status is not None and status in _RETRY_STATUS
+                )
+                if emitted or not retryable or attempt >= DEFAULT_MAX_ATTEMPTS:
+                    last_exc = exc
+                    break
+                await asyncio.sleep(_backoff_delay(attempt, _retry_after_of(exc)))
+        raise RuntimeError(format_model_http_error(last_exc)) from last_exc
+
+    async def _iter_completion_stream(
+        self, client: Any, body: dict[str, Any]
+    ) -> AsyncIterator[StreamChunk]:
         tool_blocks: dict[int, dict[str, Any]] = {}
         current_tool_idx: int | None = None
         thinking_parts: list[str] = []
 
         async with client.stream("POST", "/v1/messages", json=body) as resp:
             if resp.status_code >= 400:
+                # 5xx/429 等瞬时错误抛 HTTPStatusError 以便上层退避重试；
+                # 其余客户端错误透出响应体里的具体原因。
+                if resp.status_code in _RETRY_STATUS:
+                    await resp.aread()
+                    resp.raise_for_status()
                 await self._raise_api_error(resp)
             event_type = ""
             async for line in resp.aiter_lines():

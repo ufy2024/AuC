@@ -1,0 +1,1673 @@
+{
+  "source": "https://github.com/affaan-m/ECC",
+  "branch": "main",
+  "count": 277,
+  "conflicts_renamed": [],
+  "skills": [
+    {
+      "slug": "accessibility",
+      "name": "accessibility",
+      "path": "skills/accessibility/SKILL.md",
+      "dest": "auc/skill_library/bundled/accessibility/SKILL.md"
+    },
+    {
+      "slug": "agent-architecture-audit",
+      "name": "agent-architecture-audit",
+      "path": "skills/agent-architecture-audit/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-architecture-audit/SKILL.md"
+    },
+    {
+      "slug": "agent-eval",
+      "name": "agent-eval",
+      "path": "skills/agent-eval/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-eval/SKILL.md"
+    },
+    {
+      "slug": "agent-harness-construction",
+      "name": "agent-harness-construction",
+      "path": "skills/agent-harness-construction/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-harness-construction/SKILL.md"
+    },
+    {
+      "slug": "agent-introspection-debugging",
+      "name": "agent-introspection-debugging",
+      "path": "skills/agent-introspection-debugging/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-introspection-debugging/SKILL.md"
+    },
+    {
+      "slug": "agent-payment-x402",
+      "name": "agent-payment-x402",
+      "path": "skills/agent-payment-x402/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-payment-x402/SKILL.md"
+    },
+    {
+      "slug": "agent-self-evaluation",
+      "name": "agent-self-evaluation",
+      "path": "skills/agent-self-evaluation/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-self-evaluation/SKILL.md"
+    },
+    {
+      "slug": "agent-sort",
+      "name": "agent-sort",
+      "path": "skills/agent-sort/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-sort/SKILL.md"
+    },
+    {
+      "slug": "agentic-engineering",
+      "name": "agentic-engineering",
+      "path": "skills/agentic-engineering/SKILL.md",
+      "dest": "auc/skill_library/bundled/agentic-engineering/SKILL.md"
+    },
+    {
+      "slug": "agentic-os",
+      "name": "agentic-os",
+      "path": "skills/agentic-os/SKILL.md",
+      "dest": "auc/skill_library/bundled/agentic-os/SKILL.md"
+    },
+    {
+      "slug": "ai-first-engineering",
+      "name": "ai-first-engineering",
+      "path": "skills/ai-first-engineering/SKILL.md",
+      "dest": "auc/skill_library/bundled/ai-first-engineering/SKILL.md"
+    },
+    {
+      "slug": "ai-regression-testing",
+      "name": "ai-regression-testing",
+      "path": "skills/ai-regression-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/ai-regression-testing/SKILL.md"
+    },
+    {
+      "slug": "android-clean-architecture",
+      "name": "android-clean-architecture",
+      "path": "skills/android-clean-architecture/SKILL.md",
+      "dest": "auc/skill_library/bundled/android-clean-architecture/SKILL.md"
+    },
+    {
+      "slug": "angular-developer",
+      "name": "angular-developer",
+      "path": "skills/angular-developer/SKILL.md",
+      "dest": "auc/skill_library/bundled/angular-developer/SKILL.md"
+    },
+    {
+      "slug": "api-connector-builder",
+      "name": "api-connector-builder",
+      "path": "skills/api-connector-builder/SKILL.md",
+      "dest": "auc/skill_library/bundled/api-connector-builder/SKILL.md"
+    },
+    {
+      "slug": "api-design",
+      "name": "api-design",
+      "path": "skills/api-design/SKILL.md",
+      "dest": "auc/skill_library/bundled/api-design/SKILL.md"
+    },
+    {
+      "slug": "architecture-decision-records",
+      "name": "architecture-decision-records",
+      "path": "skills/architecture-decision-records/SKILL.md",
+      "dest": "auc/skill_library/bundled/architecture-decision-records/SKILL.md"
+    },
+    {
+      "slug": "article-writing",
+      "name": "article-writing",
+      "path": "skills/article-writing/SKILL.md",
+      "dest": "auc/skill_library/bundled/article-writing/SKILL.md"
+    },
+    {
+      "slug": "automation-audit-ops",
+      "name": "automation-audit-ops",
+      "path": "skills/automation-audit-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/automation-audit-ops/SKILL.md"
+    },
+    {
+      "slug": "autonomous-agent-harness",
+      "name": "autonomous-agent-harness",
+      "path": "skills/autonomous-agent-harness/SKILL.md",
+      "dest": "auc/skill_library/bundled/autonomous-agent-harness/SKILL.md"
+    },
+    {
+      "slug": "autonomous-loops",
+      "name": "autonomous-loops",
+      "path": "skills/autonomous-loops/SKILL.md",
+      "dest": "auc/skill_library/bundled/autonomous-loops/SKILL.md"
+    },
+    {
+      "slug": "backend-patterns",
+      "name": "backend-patterns",
+      "path": "skills/backend-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/backend-patterns/SKILL.md"
+    },
+    {
+      "slug": "benchmark",
+      "name": "benchmark",
+      "path": "skills/benchmark/SKILL.md",
+      "dest": "auc/skill_library/bundled/benchmark/SKILL.md"
+    },
+    {
+      "slug": "benchmark-methodology",
+      "name": "benchmark-methodology",
+      "path": "skills/benchmark-methodology/SKILL.md",
+      "dest": "auc/skill_library/bundled/benchmark-methodology/SKILL.md"
+    },
+    {
+      "slug": "benchmark-optimization-loop",
+      "name": "benchmark-optimization-loop",
+      "path": "skills/benchmark-optimization-loop/SKILL.md",
+      "dest": "auc/skill_library/bundled/benchmark-optimization-loop/SKILL.md"
+    },
+    {
+      "slug": "blender-motion-state-inspection",
+      "name": "blender-motion-state-inspection",
+      "path": "skills/blender-motion-state-inspection/SKILL.md",
+      "dest": "auc/skill_library/bundled/blender-motion-state-inspection/SKILL.md"
+    },
+    {
+      "slug": "blueprint",
+      "name": "blueprint",
+      "path": "skills/blueprint/SKILL.md",
+      "dest": "auc/skill_library/bundled/blueprint/SKILL.md"
+    },
+    {
+      "slug": "brand-discovery",
+      "name": "brand-discovery",
+      "path": "skills/brand-discovery/SKILL.md",
+      "dest": "auc/skill_library/bundled/brand-discovery/SKILL.md"
+    },
+    {
+      "slug": "brand-voice",
+      "name": "brand-voice",
+      "path": "skills/brand-voice/SKILL.md",
+      "dest": "auc/skill_library/bundled/brand-voice/SKILL.md"
+    },
+    {
+      "slug": "browser-qa",
+      "name": "browser-qa",
+      "path": "skills/browser-qa/SKILL.md",
+      "dest": "auc/skill_library/bundled/browser-qa/SKILL.md"
+    },
+    {
+      "slug": "bun-runtime",
+      "name": "bun-runtime",
+      "path": "skills/bun-runtime/SKILL.md",
+      "dest": "auc/skill_library/bundled/bun-runtime/SKILL.md"
+    },
+    {
+      "slug": "canary-watch",
+      "name": "canary-watch",
+      "path": "skills/canary-watch/SKILL.md",
+      "dest": "auc/skill_library/bundled/canary-watch/SKILL.md"
+    },
+    {
+      "slug": "carrier-relationship-management",
+      "name": "carrier-relationship-management",
+      "path": "skills/carrier-relationship-management/SKILL.md",
+      "dest": "auc/skill_library/bundled/carrier-relationship-management/SKILL.md"
+    },
+    {
+      "slug": "cisco-ios-patterns",
+      "name": "cisco-ios-patterns",
+      "path": "skills/cisco-ios-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/cisco-ios-patterns/SKILL.md"
+    },
+    {
+      "slug": "ck",
+      "name": "ck",
+      "path": "skills/ck/SKILL.md",
+      "dest": "auc/skill_library/bundled/ck/SKILL.md"
+    },
+    {
+      "slug": "claude-devfleet",
+      "name": "claude-devfleet",
+      "path": "skills/claude-devfleet/SKILL.md",
+      "dest": "auc/skill_library/bundled/claude-devfleet/SKILL.md"
+    },
+    {
+      "slug": "click-path-audit",
+      "name": "click-path-audit",
+      "path": "skills/click-path-audit/SKILL.md",
+      "dest": "auc/skill_library/bundled/click-path-audit/SKILL.md"
+    },
+    {
+      "slug": "clickhouse-io",
+      "name": "clickhouse-io",
+      "path": "skills/clickhouse-io/SKILL.md",
+      "dest": "auc/skill_library/bundled/clickhouse-io/SKILL.md"
+    },
+    {
+      "slug": "code-tour",
+      "name": "code-tour",
+      "path": "skills/code-tour/SKILL.md",
+      "dest": "auc/skill_library/bundled/code-tour/SKILL.md"
+    },
+    {
+      "slug": "codebase-onboarding",
+      "name": "codebase-onboarding",
+      "path": "skills/codebase-onboarding/SKILL.md",
+      "dest": "auc/skill_library/bundled/codebase-onboarding/SKILL.md"
+    },
+    {
+      "slug": "codehealth-mcp",
+      "name": "codehealth-mcp",
+      "path": "skills/codehealth-mcp/SKILL.md",
+      "dest": "auc/skill_library/bundled/codehealth-mcp/SKILL.md"
+    },
+    {
+      "slug": "coding-standards",
+      "name": "coding-standards",
+      "path": "skills/coding-standards/SKILL.md",
+      "dest": "auc/skill_library/bundled/coding-standards/SKILL.md"
+    },
+    {
+      "slug": "competitive-platform-analysis",
+      "name": "competitive-platform-analysis",
+      "path": "skills/competitive-platform-analysis/SKILL.md",
+      "dest": "auc/skill_library/bundled/competitive-platform-analysis/SKILL.md"
+    },
+    {
+      "slug": "competitive-report-structure",
+      "name": "competitive-report-structure",
+      "path": "skills/competitive-report-structure/SKILL.md",
+      "dest": "auc/skill_library/bundled/competitive-report-structure/SKILL.md"
+    },
+    {
+      "slug": "compose-multiplatform-patterns",
+      "name": "compose-multiplatform-patterns",
+      "path": "skills/compose-multiplatform-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/compose-multiplatform-patterns/SKILL.md"
+    },
+    {
+      "slug": "config-gc",
+      "name": "config-gc",
+      "path": "skills/config-gc/SKILL.md",
+      "dest": "auc/skill_library/bundled/config-gc/SKILL.md"
+    },
+    {
+      "slug": "configure-ecc",
+      "name": "configure-ecc",
+      "path": "skills/configure-ecc/SKILL.md",
+      "dest": "auc/skill_library/bundled/configure-ecc/SKILL.md"
+    },
+    {
+      "slug": "connections-optimizer",
+      "name": "connections-optimizer",
+      "path": "skills/connections-optimizer/SKILL.md",
+      "dest": "auc/skill_library/bundled/connections-optimizer/SKILL.md"
+    },
+    {
+      "slug": "content-engine",
+      "name": "content-engine",
+      "path": "skills/content-engine/SKILL.md",
+      "dest": "auc/skill_library/bundled/content-engine/SKILL.md"
+    },
+    {
+      "slug": "content-hash-cache-pattern",
+      "name": "content-hash-cache-pattern",
+      "path": "skills/content-hash-cache-pattern/SKILL.md",
+      "dest": "auc/skill_library/bundled/content-hash-cache-pattern/SKILL.md"
+    },
+    {
+      "slug": "context-budget",
+      "name": "context-budget",
+      "path": "skills/context-budget/SKILL.md",
+      "dest": "auc/skill_library/bundled/context-budget/SKILL.md"
+    },
+    {
+      "slug": "continuous-agent-loop",
+      "name": "continuous-agent-loop",
+      "path": "skills/continuous-agent-loop/SKILL.md",
+      "dest": "auc/skill_library/bundled/continuous-agent-loop/SKILL.md"
+    },
+    {
+      "slug": "continuous-learning",
+      "name": "continuous-learning",
+      "path": "skills/continuous-learning/SKILL.md",
+      "dest": "auc/skill_library/bundled/continuous-learning/SKILL.md"
+    },
+    {
+      "slug": "continuous-learning-v2",
+      "name": "continuous-learning-v2",
+      "path": "skills/continuous-learning-v2/SKILL.md",
+      "dest": "auc/skill_library/bundled/continuous-learning-v2/SKILL.md"
+    },
+    {
+      "slug": "cost-aware-llm-pipeline",
+      "name": "cost-aware-llm-pipeline",
+      "path": "skills/cost-aware-llm-pipeline/SKILL.md",
+      "dest": "auc/skill_library/bundled/cost-aware-llm-pipeline/SKILL.md"
+    },
+    {
+      "slug": "cost-tracking",
+      "name": "cost-tracking",
+      "path": "skills/cost-tracking/SKILL.md",
+      "dest": "auc/skill_library/bundled/cost-tracking/SKILL.md"
+    },
+    {
+      "slug": "council",
+      "name": "council",
+      "path": "skills/council/SKILL.md",
+      "dest": "auc/skill_library/bundled/council/SKILL.md"
+    },
+    {
+      "slug": "cpp-coding-standards",
+      "name": "cpp-coding-standards",
+      "path": "skills/cpp-coding-standards/SKILL.md",
+      "dest": "auc/skill_library/bundled/cpp-coding-standards/SKILL.md"
+    },
+    {
+      "slug": "cpp-testing",
+      "name": "cpp-testing",
+      "path": "skills/cpp-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/cpp-testing/SKILL.md"
+    },
+    {
+      "slug": "crosspost",
+      "name": "crosspost",
+      "path": "skills/crosspost/SKILL.md",
+      "dest": "auc/skill_library/bundled/crosspost/SKILL.md"
+    },
+    {
+      "slug": "csharp-testing",
+      "name": "csharp-testing",
+      "path": "skills/csharp-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/csharp-testing/SKILL.md"
+    },
+    {
+      "slug": "customer-billing-ops",
+      "name": "customer-billing-ops",
+      "path": "skills/customer-billing-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/customer-billing-ops/SKILL.md"
+    },
+    {
+      "slug": "customs-trade-compliance",
+      "name": "customs-trade-compliance",
+      "path": "skills/customs-trade-compliance/SKILL.md",
+      "dest": "auc/skill_library/bundled/customs-trade-compliance/SKILL.md"
+    },
+    {
+      "slug": "dart-flutter-patterns",
+      "name": "dart-flutter-patterns",
+      "path": "skills/dart-flutter-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/dart-flutter-patterns/SKILL.md"
+    },
+    {
+      "slug": "dashboard-builder",
+      "name": "dashboard-builder",
+      "path": "skills/dashboard-builder/SKILL.md",
+      "dest": "auc/skill_library/bundled/dashboard-builder/SKILL.md"
+    },
+    {
+      "slug": "data-scraper-agent",
+      "name": "data-scraper-agent",
+      "path": "skills/data-scraper-agent/SKILL.md",
+      "dest": "auc/skill_library/bundled/data-scraper-agent/SKILL.md"
+    },
+    {
+      "slug": "data-throughput-accelerator",
+      "name": "data-throughput-accelerator",
+      "path": "skills/data-throughput-accelerator/SKILL.md",
+      "dest": "auc/skill_library/bundled/data-throughput-accelerator/SKILL.md"
+    },
+    {
+      "slug": "database-migrations",
+      "name": "database-migrations",
+      "path": "skills/database-migrations/SKILL.md",
+      "dest": "auc/skill_library/bundled/database-migrations/SKILL.md"
+    },
+    {
+      "slug": "deep-research",
+      "name": "deep-research",
+      "path": "skills/deep-research/SKILL.md",
+      "dest": "auc/skill_library/bundled/deep-research/SKILL.md"
+    },
+    {
+      "slug": "defi-amm-security",
+      "name": "defi-amm-security",
+      "path": "skills/defi-amm-security/SKILL.md",
+      "dest": "auc/skill_library/bundled/defi-amm-security/SKILL.md"
+    },
+    {
+      "slug": "delivery-gate",
+      "name": "delivery-gate",
+      "path": "skills/delivery-gate/SKILL.md",
+      "dest": "auc/skill_library/bundled/delivery-gate/SKILL.md"
+    },
+    {
+      "slug": "deployment-patterns",
+      "name": "deployment-patterns",
+      "path": "skills/deployment-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/deployment-patterns/SKILL.md"
+    },
+    {
+      "slug": "design-system",
+      "name": "design-system",
+      "path": "skills/design-system/SKILL.md",
+      "dest": "auc/skill_library/bundled/design-system/SKILL.md"
+    },
+    {
+      "slug": "django-celery",
+      "name": "django-celery",
+      "path": "skills/django-celery/SKILL.md",
+      "dest": "auc/skill_library/bundled/django-celery/SKILL.md"
+    },
+    {
+      "slug": "django-patterns",
+      "name": "django-patterns",
+      "path": "skills/django-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/django-patterns/SKILL.md"
+    },
+    {
+      "slug": "django-security",
+      "name": "django-security",
+      "path": "skills/django-security/SKILL.md",
+      "dest": "auc/skill_library/bundled/django-security/SKILL.md"
+    },
+    {
+      "slug": "django-tdd",
+      "name": "django-tdd",
+      "path": "skills/django-tdd/SKILL.md",
+      "dest": "auc/skill_library/bundled/django-tdd/SKILL.md"
+    },
+    {
+      "slug": "django-verification",
+      "name": "django-verification",
+      "path": "skills/django-verification/SKILL.md",
+      "dest": "auc/skill_library/bundled/django-verification/SKILL.md"
+    },
+    {
+      "slug": "dmux-workflows",
+      "name": "dmux-workflows",
+      "path": "skills/dmux-workflows/SKILL.md",
+      "dest": "auc/skill_library/bundled/dmux-workflows/SKILL.md"
+    },
+    {
+      "slug": "docker-patterns",
+      "name": "docker-patterns",
+      "path": "skills/docker-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/docker-patterns/SKILL.md"
+    },
+    {
+      "slug": "documentation-lookup",
+      "name": "documentation-lookup",
+      "path": "skills/documentation-lookup/SKILL.md",
+      "dest": "auc/skill_library/bundled/documentation-lookup/SKILL.md"
+    },
+    {
+      "slug": "dotnet-patterns",
+      "name": "dotnet-patterns",
+      "path": "skills/dotnet-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/dotnet-patterns/SKILL.md"
+    },
+    {
+      "slug": "dynamic-workflow-mode",
+      "name": "dynamic-workflow-mode",
+      "path": "skills/dynamic-workflow-mode/SKILL.md",
+      "dest": "auc/skill_library/bundled/dynamic-workflow-mode/SKILL.md"
+    },
+    {
+      "slug": "e2e-testing",
+      "name": "e2e-testing",
+      "path": "skills/e2e-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/e2e-testing/SKILL.md"
+    },
+    {
+      "slug": "ecc-guide",
+      "name": "ecc-guide",
+      "path": "skills/ecc-guide/SKILL.md",
+      "dest": "auc/skill_library/bundled/ecc-guide/SKILL.md"
+    },
+    {
+      "slug": "ecc-recipes",
+      "name": "ecc-recipes",
+      "path": "skills/ecc-recipes/SKILL.md",
+      "dest": "auc/skill_library/bundled/ecc-recipes/SKILL.md"
+    },
+    {
+      "slug": "ecc-tools-cost-audit",
+      "name": "ecc-tools-cost-audit",
+      "path": "skills/ecc-tools-cost-audit/SKILL.md",
+      "dest": "auc/skill_library/bundled/ecc-tools-cost-audit/SKILL.md"
+    },
+    {
+      "slug": "email-ops",
+      "name": "email-ops",
+      "path": "skills/email-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/email-ops/SKILL.md"
+    },
+    {
+      "slug": "energy-procurement",
+      "name": "energy-procurement",
+      "path": "skills/energy-procurement/SKILL.md",
+      "dest": "auc/skill_library/bundled/energy-procurement/SKILL.md"
+    },
+    {
+      "slug": "enterprise-agent-ops",
+      "name": "enterprise-agent-ops",
+      "path": "skills/enterprise-agent-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/enterprise-agent-ops/SKILL.md"
+    },
+    {
+      "slug": "error-handling",
+      "name": "error-handling",
+      "path": "skills/error-handling/SKILL.md",
+      "dest": "auc/skill_library/bundled/error-handling/SKILL.md"
+    },
+    {
+      "slug": "eval-harness",
+      "name": "eval-harness",
+      "path": "skills/eval-harness/SKILL.md",
+      "dest": "auc/skill_library/bundled/eval-harness/SKILL.md"
+    },
+    {
+      "slug": "evm-token-decimals",
+      "name": "evm-token-decimals",
+      "path": "skills/evm-token-decimals/SKILL.md",
+      "dest": "auc/skill_library/bundled/evm-token-decimals/SKILL.md"
+    },
+    {
+      "slug": "exa-search",
+      "name": "exa-search",
+      "path": "skills/exa-search/SKILL.md",
+      "dest": "auc/skill_library/bundled/exa-search/SKILL.md"
+    },
+    {
+      "slug": "fal-ai-media",
+      "name": "fal-ai-media",
+      "path": "skills/fal-ai-media/SKILL.md",
+      "dest": "auc/skill_library/bundled/fal-ai-media/SKILL.md"
+    },
+    {
+      "slug": "fastapi-patterns",
+      "name": "fastapi-patterns",
+      "path": "skills/fastapi-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/fastapi-patterns/SKILL.md"
+    },
+    {
+      "slug": "finance-billing-ops",
+      "name": "finance-billing-ops",
+      "path": "skills/finance-billing-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/finance-billing-ops/SKILL.md"
+    },
+    {
+      "slug": "flox-environments",
+      "name": "flox-environments",
+      "path": "skills/flox-environments/SKILL.md",
+      "dest": "auc/skill_library/bundled/flox-environments/SKILL.md"
+    },
+    {
+      "slug": "flutter-dart-code-review",
+      "name": "flutter-dart-code-review",
+      "path": "skills/flutter-dart-code-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/flutter-dart-code-review/SKILL.md"
+    },
+    {
+      "slug": "foundation-models-on-device",
+      "name": "foundation-models-on-device",
+      "path": "skills/foundation-models-on-device/SKILL.md",
+      "dest": "auc/skill_library/bundled/foundation-models-on-device/SKILL.md"
+    },
+    {
+      "slug": "frontend-a11y",
+      "name": "frontend-a11y",
+      "path": "skills/frontend-a11y/SKILL.md",
+      "dest": "auc/skill_library/bundled/frontend-a11y/SKILL.md"
+    },
+    {
+      "slug": "frontend-design-direction",
+      "name": "frontend-design-direction",
+      "path": "skills/frontend-design-direction/SKILL.md",
+      "dest": "auc/skill_library/bundled/frontend-design-direction/SKILL.md"
+    },
+    {
+      "slug": "frontend-patterns",
+      "name": "frontend-patterns",
+      "path": "skills/frontend-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/frontend-patterns/SKILL.md"
+    },
+    {
+      "slug": "frontend-slides",
+      "name": "frontend-slides",
+      "path": "skills/frontend-slides/SKILL.md",
+      "dest": "auc/skill_library/bundled/frontend-slides/SKILL.md"
+    },
+    {
+      "slug": "fsharp-testing",
+      "name": "fsharp-testing",
+      "path": "skills/fsharp-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/fsharp-testing/SKILL.md"
+    },
+    {
+      "slug": "gan-style-harness",
+      "name": "gan-style-harness",
+      "path": "skills/gan-style-harness/SKILL.md",
+      "dest": "auc/skill_library/bundled/gan-style-harness/SKILL.md"
+    },
+    {
+      "slug": "gateguard",
+      "name": "gateguard",
+      "path": "skills/gateguard/SKILL.md",
+      "dest": "auc/skill_library/bundled/gateguard/SKILL.md"
+    },
+    {
+      "slug": "generating-python-installer",
+      "name": "generating-python-installer",
+      "path": "skills/generating-python-installer/SKILL.md",
+      "dest": "auc/skill_library/bundled/generating-python-installer/SKILL.md"
+    },
+    {
+      "slug": "git-workflow",
+      "name": "git-workflow",
+      "path": "skills/git-workflow/SKILL.md",
+      "dest": "auc/skill_library/bundled/git-workflow/SKILL.md"
+    },
+    {
+      "slug": "github-ops",
+      "name": "github-ops",
+      "path": "skills/github-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/github-ops/SKILL.md"
+    },
+    {
+      "slug": "golang-patterns",
+      "name": "golang-patterns",
+      "path": "skills/golang-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/golang-patterns/SKILL.md"
+    },
+    {
+      "slug": "golang-testing",
+      "name": "golang-testing",
+      "path": "skills/golang-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/golang-testing/SKILL.md"
+    },
+    {
+      "slug": "google-workspace-ops",
+      "name": "google-workspace-ops",
+      "path": "skills/google-workspace-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/google-workspace-ops/SKILL.md"
+    },
+    {
+      "slug": "growth-log",
+      "name": "growth-log",
+      "path": "skills/growth-log/SKILL.md",
+      "dest": "auc/skill_library/bundled/growth-log/SKILL.md"
+    },
+    {
+      "slug": "healthcare-cdss-patterns",
+      "name": "healthcare-cdss-patterns",
+      "path": "skills/healthcare-cdss-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/healthcare-cdss-patterns/SKILL.md"
+    },
+    {
+      "slug": "healthcare-emr-patterns",
+      "name": "healthcare-emr-patterns",
+      "path": "skills/healthcare-emr-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/healthcare-emr-patterns/SKILL.md"
+    },
+    {
+      "slug": "healthcare-eval-harness",
+      "name": "healthcare-eval-harness",
+      "path": "skills/healthcare-eval-harness/SKILL.md",
+      "dest": "auc/skill_library/bundled/healthcare-eval-harness/SKILL.md"
+    },
+    {
+      "slug": "healthcare-phi-compliance",
+      "name": "healthcare-phi-compliance",
+      "path": "skills/healthcare-phi-compliance/SKILL.md",
+      "dest": "auc/skill_library/bundled/healthcare-phi-compliance/SKILL.md"
+    },
+    {
+      "slug": "hermes-imports",
+      "name": "hermes-imports",
+      "path": "skills/hermes-imports/SKILL.md",
+      "dest": "auc/skill_library/bundled/hermes-imports/SKILL.md"
+    },
+    {
+      "slug": "hexagonal-architecture",
+      "name": "hexagonal-architecture",
+      "path": "skills/hexagonal-architecture/SKILL.md",
+      "dest": "auc/skill_library/bundled/hexagonal-architecture/SKILL.md"
+    },
+    {
+      "slug": "hipaa-compliance",
+      "name": "hipaa-compliance",
+      "path": "skills/hipaa-compliance/SKILL.md",
+      "dest": "auc/skill_library/bundled/hipaa-compliance/SKILL.md"
+    },
+    {
+      "slug": "homelab-network-readiness",
+      "name": "homelab-network-readiness",
+      "path": "skills/homelab-network-readiness/SKILL.md",
+      "dest": "auc/skill_library/bundled/homelab-network-readiness/SKILL.md"
+    },
+    {
+      "slug": "homelab-network-setup",
+      "name": "homelab-network-setup",
+      "path": "skills/homelab-network-setup/SKILL.md",
+      "dest": "auc/skill_library/bundled/homelab-network-setup/SKILL.md"
+    },
+    {
+      "slug": "homelab-pihole-dns",
+      "name": "homelab-pihole-dns",
+      "path": "skills/homelab-pihole-dns/SKILL.md",
+      "dest": "auc/skill_library/bundled/homelab-pihole-dns/SKILL.md"
+    },
+    {
+      "slug": "homelab-vlan-segmentation",
+      "name": "homelab-vlan-segmentation",
+      "path": "skills/homelab-vlan-segmentation/SKILL.md",
+      "dest": "auc/skill_library/bundled/homelab-vlan-segmentation/SKILL.md"
+    },
+    {
+      "slug": "homelab-wireguard-vpn",
+      "name": "homelab-wireguard-vpn",
+      "path": "skills/homelab-wireguard-vpn/SKILL.md",
+      "dest": "auc/skill_library/bundled/homelab-wireguard-vpn/SKILL.md"
+    },
+    {
+      "slug": "hookify-rules",
+      "name": "hookify-rules",
+      "path": "skills/hookify-rules/SKILL.md",
+      "dest": "auc/skill_library/bundled/hookify-rules/SKILL.md"
+    },
+    {
+      "slug": "inherit-legacy-style",
+      "name": "inherit-legacy-style",
+      "path": "skills/inherit-legacy-style/SKILL.md",
+      "dest": "auc/skill_library/bundled/inherit-legacy-style/SKILL.md"
+    },
+    {
+      "slug": "intent-driven-development",
+      "name": "intent-driven-development",
+      "path": "skills/intent-driven-development/SKILL.md",
+      "dest": "auc/skill_library/bundled/intent-driven-development/SKILL.md"
+    },
+    {
+      "slug": "inventory-demand-planning",
+      "name": "inventory-demand-planning",
+      "path": "skills/inventory-demand-planning/SKILL.md",
+      "dest": "auc/skill_library/bundled/inventory-demand-planning/SKILL.md"
+    },
+    {
+      "slug": "investor-materials",
+      "name": "investor-materials",
+      "path": "skills/investor-materials/SKILL.md",
+      "dest": "auc/skill_library/bundled/investor-materials/SKILL.md"
+    },
+    {
+      "slug": "investor-outreach",
+      "name": "investor-outreach",
+      "path": "skills/investor-outreach/SKILL.md",
+      "dest": "auc/skill_library/bundled/investor-outreach/SKILL.md"
+    },
+    {
+      "slug": "ios-icon-gen",
+      "name": "ios-icon-gen",
+      "path": "skills/ios-icon-gen/SKILL.md",
+      "dest": "auc/skill_library/bundled/ios-icon-gen/SKILL.md"
+    },
+    {
+      "slug": "iterative-retrieval",
+      "name": "iterative-retrieval",
+      "path": "skills/iterative-retrieval/SKILL.md",
+      "dest": "auc/skill_library/bundled/iterative-retrieval/SKILL.md"
+    },
+    {
+      "slug": "ito-basket-compare",
+      "name": "ito-basket-compare",
+      "path": "skills/ito-basket-compare/SKILL.md",
+      "dest": "auc/skill_library/bundled/ito-basket-compare/SKILL.md"
+    },
+    {
+      "slug": "ito-data-atlas-agent",
+      "name": "ito-data-atlas-agent",
+      "path": "skills/ito-data-atlas-agent/SKILL.md",
+      "dest": "auc/skill_library/bundled/ito-data-atlas-agent/SKILL.md"
+    },
+    {
+      "slug": "ito-market-intelligence",
+      "name": "ito-market-intelligence",
+      "path": "skills/ito-market-intelligence/SKILL.md",
+      "dest": "auc/skill_library/bundled/ito-market-intelligence/SKILL.md"
+    },
+    {
+      "slug": "ito-trade-planner",
+      "name": "ito-trade-planner",
+      "path": "skills/ito-trade-planner/SKILL.md",
+      "dest": "auc/skill_library/bundled/ito-trade-planner/SKILL.md"
+    },
+    {
+      "slug": "java-coding-standards",
+      "name": "java-coding-standards",
+      "path": "skills/java-coding-standards/SKILL.md",
+      "dest": "auc/skill_library/bundled/java-coding-standards/SKILL.md"
+    },
+    {
+      "slug": "jira-integration",
+      "name": "jira-integration",
+      "path": "skills/jira-integration/SKILL.md",
+      "dest": "auc/skill_library/bundled/jira-integration/SKILL.md"
+    },
+    {
+      "slug": "jpa-patterns",
+      "name": "jpa-patterns",
+      "path": "skills/jpa-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/jpa-patterns/SKILL.md"
+    },
+    {
+      "slug": "knowledge-ops",
+      "name": "knowledge-ops",
+      "path": "skills/knowledge-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/knowledge-ops/SKILL.md"
+    },
+    {
+      "slug": "kotlin-coroutines-flows",
+      "name": "kotlin-coroutines-flows",
+      "path": "skills/kotlin-coroutines-flows/SKILL.md",
+      "dest": "auc/skill_library/bundled/kotlin-coroutines-flows/SKILL.md"
+    },
+    {
+      "slug": "kotlin-exposed-patterns",
+      "name": "kotlin-exposed-patterns",
+      "path": "skills/kotlin-exposed-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/kotlin-exposed-patterns/SKILL.md"
+    },
+    {
+      "slug": "kotlin-ktor-patterns",
+      "name": "kotlin-ktor-patterns",
+      "path": "skills/kotlin-ktor-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/kotlin-ktor-patterns/SKILL.md"
+    },
+    {
+      "slug": "kotlin-patterns",
+      "name": "kotlin-patterns",
+      "path": "skills/kotlin-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/kotlin-patterns/SKILL.md"
+    },
+    {
+      "slug": "kotlin-testing",
+      "name": "kotlin-testing",
+      "path": "skills/kotlin-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/kotlin-testing/SKILL.md"
+    },
+    {
+      "slug": "kubernetes-patterns",
+      "name": "kubernetes-patterns",
+      "path": "skills/kubernetes-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/kubernetes-patterns/SKILL.md"
+    },
+    {
+      "slug": "laravel-patterns",
+      "name": "laravel-patterns",
+      "path": "skills/laravel-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/laravel-patterns/SKILL.md"
+    },
+    {
+      "slug": "laravel-plugin-discovery",
+      "name": "laravel-plugin-discovery",
+      "path": "skills/laravel-plugin-discovery/SKILL.md",
+      "dest": "auc/skill_library/bundled/laravel-plugin-discovery/SKILL.md"
+    },
+    {
+      "slug": "laravel-security",
+      "name": "laravel-security",
+      "path": "skills/laravel-security/SKILL.md",
+      "dest": "auc/skill_library/bundled/laravel-security/SKILL.md"
+    },
+    {
+      "slug": "laravel-tdd",
+      "name": "laravel-tdd",
+      "path": "skills/laravel-tdd/SKILL.md",
+      "dest": "auc/skill_library/bundled/laravel-tdd/SKILL.md"
+    },
+    {
+      "slug": "laravel-verification",
+      "name": "laravel-verification",
+      "path": "skills/laravel-verification/SKILL.md",
+      "dest": "auc/skill_library/bundled/laravel-verification/SKILL.md"
+    },
+    {
+      "slug": "latency-critical-systems",
+      "name": "latency-critical-systems",
+      "path": "skills/latency-critical-systems/SKILL.md",
+      "dest": "auc/skill_library/bundled/latency-critical-systems/SKILL.md"
+    },
+    {
+      "slug": "lead-intelligence",
+      "name": "lead-intelligence",
+      "path": "skills/lead-intelligence/SKILL.md",
+      "dest": "auc/skill_library/bundled/lead-intelligence/SKILL.md"
+    },
+    {
+      "slug": "liquid-glass-design",
+      "name": "liquid-glass-design",
+      "path": "skills/liquid-glass-design/SKILL.md",
+      "dest": "auc/skill_library/bundled/liquid-glass-design/SKILL.md"
+    },
+    {
+      "slug": "llm-trading-agent-security",
+      "name": "llm-trading-agent-security",
+      "path": "skills/llm-trading-agent-security/SKILL.md",
+      "dest": "auc/skill_library/bundled/llm-trading-agent-security/SKILL.md"
+    },
+    {
+      "slug": "logistics-exception-management",
+      "name": "logistics-exception-management",
+      "path": "skills/logistics-exception-management/SKILL.md",
+      "dest": "auc/skill_library/bundled/logistics-exception-management/SKILL.md"
+    },
+    {
+      "slug": "mailtrap-email-integration",
+      "name": "mailtrap-email-integration",
+      "path": "skills/mailtrap-email-integration/SKILL.md",
+      "dest": "auc/skill_library/bundled/mailtrap-email-integration/SKILL.md"
+    },
+    {
+      "slug": "make-interfaces-feel-better",
+      "name": "make-interfaces-feel-better",
+      "path": "skills/make-interfaces-feel-better/SKILL.md",
+      "dest": "auc/skill_library/bundled/make-interfaces-feel-better/SKILL.md"
+    },
+    {
+      "slug": "manim-video",
+      "name": "manim-video",
+      "path": "skills/manim-video/SKILL.md",
+      "dest": "auc/skill_library/bundled/manim-video/SKILL.md"
+    },
+    {
+      "slug": "market-research",
+      "name": "market-research",
+      "path": "skills/market-research/SKILL.md",
+      "dest": "auc/skill_library/bundled/market-research/SKILL.md"
+    },
+    {
+      "slug": "marketing-campaign",
+      "name": "marketing-campaign",
+      "path": "skills/marketing-campaign/SKILL.md",
+      "dest": "auc/skill_library/bundled/marketing-campaign/SKILL.md"
+    },
+    {
+      "slug": "mcp-server-patterns",
+      "name": "mcp-server-patterns",
+      "path": "skills/mcp-server-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/mcp-server-patterns/SKILL.md"
+    },
+    {
+      "slug": "messages-ops",
+      "name": "messages-ops",
+      "path": "skills/messages-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/messages-ops/SKILL.md"
+    },
+    {
+      "slug": "ml-adoption-playbook",
+      "name": "ml-adoption-playbook",
+      "path": "skills/ml-adoption-playbook/SKILL.md",
+      "dest": "auc/skill_library/bundled/ml-adoption-playbook/SKILL.md"
+    },
+    {
+      "slug": "mle-workflow",
+      "name": "mle-workflow",
+      "path": "skills/mle-workflow/SKILL.md",
+      "dest": "auc/skill_library/bundled/mle-workflow/SKILL.md"
+    },
+    {
+      "slug": "motion-advanced",
+      "name": "motion-advanced",
+      "path": "skills/motion-advanced/SKILL.md",
+      "dest": "auc/skill_library/bundled/motion-advanced/SKILL.md"
+    },
+    {
+      "slug": "motion-foundations",
+      "name": "motion-foundations",
+      "path": "skills/motion-foundations/SKILL.md",
+      "dest": "auc/skill_library/bundled/motion-foundations/SKILL.md"
+    },
+    {
+      "slug": "motion-patterns",
+      "name": "motion-patterns",
+      "path": "skills/motion-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/motion-patterns/SKILL.md"
+    },
+    {
+      "slug": "motion-ui",
+      "name": "motion-ui",
+      "path": "skills/motion-ui/SKILL.md",
+      "dest": "auc/skill_library/bundled/motion-ui/SKILL.md"
+    },
+    {
+      "slug": "mysql-patterns",
+      "name": "mysql-patterns",
+      "path": "skills/mysql-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/mysql-patterns/SKILL.md"
+    },
+    {
+      "slug": "nanoclaw-repl",
+      "name": "nanoclaw-repl",
+      "path": "skills/nanoclaw-repl/SKILL.md",
+      "dest": "auc/skill_library/bundled/nanoclaw-repl/SKILL.md"
+    },
+    {
+      "slug": "nestjs-patterns",
+      "name": "nestjs-patterns",
+      "path": "skills/nestjs-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/nestjs-patterns/SKILL.md"
+    },
+    {
+      "slug": "netmiko-ssh-automation",
+      "name": "netmiko-ssh-automation",
+      "path": "skills/netmiko-ssh-automation/SKILL.md",
+      "dest": "auc/skill_library/bundled/netmiko-ssh-automation/SKILL.md"
+    },
+    {
+      "slug": "network-bgp-diagnostics",
+      "name": "network-bgp-diagnostics",
+      "path": "skills/network-bgp-diagnostics/SKILL.md",
+      "dest": "auc/skill_library/bundled/network-bgp-diagnostics/SKILL.md"
+    },
+    {
+      "slug": "network-config-validation",
+      "name": "network-config-validation",
+      "path": "skills/network-config-validation/SKILL.md",
+      "dest": "auc/skill_library/bundled/network-config-validation/SKILL.md"
+    },
+    {
+      "slug": "network-interface-health",
+      "name": "network-interface-health",
+      "path": "skills/network-interface-health/SKILL.md",
+      "dest": "auc/skill_library/bundled/network-interface-health/SKILL.md"
+    },
+    {
+      "slug": "nextjs-turbopack",
+      "name": "nextjs-turbopack",
+      "path": "skills/nextjs-turbopack/SKILL.md",
+      "dest": "auc/skill_library/bundled/nextjs-turbopack/SKILL.md"
+    },
+    {
+      "slug": "nodejs-keccak256",
+      "name": "nodejs-keccak256",
+      "path": "skills/nodejs-keccak256/SKILL.md",
+      "dest": "auc/skill_library/bundled/nodejs-keccak256/SKILL.md"
+    },
+    {
+      "slug": "nutrient-document-processing",
+      "name": "nutrient-document-processing",
+      "path": "skills/nutrient-document-processing/SKILL.md",
+      "dest": "auc/skill_library/bundled/nutrient-document-processing/SKILL.md"
+    },
+    {
+      "slug": "nuxt4-patterns",
+      "name": "nuxt4-patterns",
+      "path": "skills/nuxt4-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/nuxt4-patterns/SKILL.md"
+    },
+    {
+      "slug": "openclaw-persona-forge",
+      "name": "openclaw-persona-forge",
+      "path": "skills/openclaw-persona-forge/SKILL.md",
+      "dest": "auc/skill_library/bundled/openclaw-persona-forge/SKILL.md"
+    },
+    {
+      "slug": "opensource-pipeline",
+      "name": "opensource-pipeline",
+      "path": "skills/opensource-pipeline/SKILL.md",
+      "dest": "auc/skill_library/bundled/opensource-pipeline/SKILL.md"
+    },
+    {
+      "slug": "orch-add-feature",
+      "name": "orch-add-feature",
+      "path": "skills/orch-add-feature/SKILL.md",
+      "dest": "auc/skill_library/bundled/orch-add-feature/SKILL.md"
+    },
+    {
+      "slug": "orch-build-mvp",
+      "name": "orch-build-mvp",
+      "path": "skills/orch-build-mvp/SKILL.md",
+      "dest": "auc/skill_library/bundled/orch-build-mvp/SKILL.md"
+    },
+    {
+      "slug": "orch-change-feature",
+      "name": "orch-change-feature",
+      "path": "skills/orch-change-feature/SKILL.md",
+      "dest": "auc/skill_library/bundled/orch-change-feature/SKILL.md"
+    },
+    {
+      "slug": "orch-fix-defect",
+      "name": "orch-fix-defect",
+      "path": "skills/orch-fix-defect/SKILL.md",
+      "dest": "auc/skill_library/bundled/orch-fix-defect/SKILL.md"
+    },
+    {
+      "slug": "orch-pipeline",
+      "name": "orch-pipeline",
+      "path": "skills/orch-pipeline/SKILL.md",
+      "dest": "auc/skill_library/bundled/orch-pipeline/SKILL.md"
+    },
+    {
+      "slug": "orch-refine-code",
+      "name": "orch-refine-code",
+      "path": "skills/orch-refine-code/SKILL.md",
+      "dest": "auc/skill_library/bundled/orch-refine-code/SKILL.md"
+    },
+    {
+      "slug": "parallel-execution-optimizer",
+      "name": "parallel-execution-optimizer",
+      "path": "skills/parallel-execution-optimizer/SKILL.md",
+      "dest": "auc/skill_library/bundled/parallel-execution-optimizer/SKILL.md"
+    },
+    {
+      "slug": "perl-patterns",
+      "name": "perl-patterns",
+      "path": "skills/perl-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/perl-patterns/SKILL.md"
+    },
+    {
+      "slug": "perl-security",
+      "name": "perl-security",
+      "path": "skills/perl-security/SKILL.md",
+      "dest": "auc/skill_library/bundled/perl-security/SKILL.md"
+    },
+    {
+      "slug": "perl-testing",
+      "name": "perl-testing",
+      "path": "skills/perl-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/perl-testing/SKILL.md"
+    },
+    {
+      "slug": "plan-canvas",
+      "name": "plan-canvas",
+      "path": "skills/plan-canvas/SKILL.md",
+      "dest": "auc/skill_library/bundled/plan-canvas/SKILL.md"
+    },
+    {
+      "slug": "plan-orchestrate",
+      "name": "plan-orchestrate",
+      "path": "skills/plan-orchestrate/SKILL.md",
+      "dest": "auc/skill_library/bundled/plan-orchestrate/SKILL.md"
+    },
+    {
+      "slug": "plankton-code-quality",
+      "name": "plankton-code-quality",
+      "path": "skills/plankton-code-quality/SKILL.md",
+      "dest": "auc/skill_library/bundled/plankton-code-quality/SKILL.md"
+    },
+    {
+      "slug": "postgres-patterns",
+      "name": "postgres-patterns",
+      "path": "skills/postgres-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/postgres-patterns/SKILL.md"
+    },
+    {
+      "slug": "prediction-market-oracle-research",
+      "name": "prediction-market-oracle-research",
+      "path": "skills/prediction-market-oracle-research/SKILL.md",
+      "dest": "auc/skill_library/bundled/prediction-market-oracle-research/SKILL.md"
+    },
+    {
+      "slug": "prediction-market-risk-review",
+      "name": "prediction-market-risk-review",
+      "path": "skills/prediction-market-risk-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/prediction-market-risk-review/SKILL.md"
+    },
+    {
+      "slug": "prisma-patterns",
+      "name": "prisma-patterns",
+      "path": "skills/prisma-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/prisma-patterns/SKILL.md"
+    },
+    {
+      "slug": "product-capability",
+      "name": "product-capability",
+      "path": "skills/product-capability/SKILL.md",
+      "dest": "auc/skill_library/bundled/product-capability/SKILL.md"
+    },
+    {
+      "slug": "product-lens",
+      "name": "product-lens",
+      "path": "skills/product-lens/SKILL.md",
+      "dest": "auc/skill_library/bundled/product-lens/SKILL.md"
+    },
+    {
+      "slug": "production-audit",
+      "name": "production-audit",
+      "path": "skills/production-audit/SKILL.md",
+      "dest": "auc/skill_library/bundled/production-audit/SKILL.md"
+    },
+    {
+      "slug": "production-scheduling",
+      "name": "production-scheduling",
+      "path": "skills/production-scheduling/SKILL.md",
+      "dest": "auc/skill_library/bundled/production-scheduling/SKILL.md"
+    },
+    {
+      "slug": "project-flow-ops",
+      "name": "project-flow-ops",
+      "path": "skills/project-flow-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/project-flow-ops/SKILL.md"
+    },
+    {
+      "slug": "prompt-optimizer",
+      "name": "prompt-optimizer",
+      "path": "skills/prompt-optimizer/SKILL.md",
+      "dest": "auc/skill_library/bundled/prompt-optimizer/SKILL.md"
+    },
+    {
+      "slug": "python-patterns",
+      "name": "python-patterns",
+      "path": "skills/python-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/python-patterns/SKILL.md"
+    },
+    {
+      "slug": "python-testing",
+      "name": "python-testing",
+      "path": "skills/python-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/python-testing/SKILL.md"
+    },
+    {
+      "slug": "pytorch-patterns",
+      "name": "pytorch-patterns",
+      "path": "skills/pytorch-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/pytorch-patterns/SKILL.md"
+    },
+    {
+      "slug": "quality-nonconformance",
+      "name": "quality-nonconformance",
+      "path": "skills/quality-nonconformance/SKILL.md",
+      "dest": "auc/skill_library/bundled/quality-nonconformance/SKILL.md"
+    },
+    {
+      "slug": "quarkus-patterns",
+      "name": "quarkus-patterns",
+      "path": "skills/quarkus-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/quarkus-patterns/SKILL.md"
+    },
+    {
+      "slug": "quarkus-security",
+      "name": "quarkus-security",
+      "path": "skills/quarkus-security/SKILL.md",
+      "dest": "auc/skill_library/bundled/quarkus-security/SKILL.md"
+    },
+    {
+      "slug": "quarkus-tdd",
+      "name": "quarkus-tdd",
+      "path": "skills/quarkus-tdd/SKILL.md",
+      "dest": "auc/skill_library/bundled/quarkus-tdd/SKILL.md"
+    },
+    {
+      "slug": "quarkus-verification",
+      "name": "quarkus-verification",
+      "path": "skills/quarkus-verification/SKILL.md",
+      "dest": "auc/skill_library/bundled/quarkus-verification/SKILL.md"
+    },
+    {
+      "slug": "ralphinho-rfc-pipeline",
+      "name": "ralphinho-rfc-pipeline",
+      "path": "skills/ralphinho-rfc-pipeline/SKILL.md",
+      "dest": "auc/skill_library/bundled/ralphinho-rfc-pipeline/SKILL.md"
+    },
+    {
+      "slug": "react-native-patterns",
+      "name": "react-native-patterns",
+      "path": "skills/react-native-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/react-native-patterns/SKILL.md"
+    },
+    {
+      "slug": "react-patterns",
+      "name": "react-patterns",
+      "path": "skills/react-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/react-patterns/SKILL.md"
+    },
+    {
+      "slug": "react-performance",
+      "name": "react-performance",
+      "path": "skills/react-performance/SKILL.md",
+      "dest": "auc/skill_library/bundled/react-performance/SKILL.md"
+    },
+    {
+      "slug": "react-testing",
+      "name": "react-testing",
+      "path": "skills/react-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/react-testing/SKILL.md"
+    },
+    {
+      "slug": "recsys-pipeline-architect",
+      "name": "recsys-pipeline-architect",
+      "path": "skills/recsys-pipeline-architect/SKILL.md",
+      "dest": "auc/skill_library/bundled/recsys-pipeline-architect/SKILL.md"
+    },
+    {
+      "slug": "recursive-decision-ledger",
+      "name": "recursive-decision-ledger",
+      "path": "skills/recursive-decision-ledger/SKILL.md",
+      "dest": "auc/skill_library/bundled/recursive-decision-ledger/SKILL.md"
+    },
+    {
+      "slug": "redis-patterns",
+      "name": "redis-patterns",
+      "path": "skills/redis-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/redis-patterns/SKILL.md"
+    },
+    {
+      "slug": "regex-vs-llm-structured-text",
+      "name": "regex-vs-llm-structured-text",
+      "path": "skills/regex-vs-llm-structured-text/SKILL.md",
+      "dest": "auc/skill_library/bundled/regex-vs-llm-structured-text/SKILL.md"
+    },
+    {
+      "slug": "remotion-video-creation",
+      "name": "remotion-video-creation",
+      "path": "skills/remotion-video-creation/SKILL.md",
+      "dest": "auc/skill_library/bundled/remotion-video-creation/SKILL.md"
+    },
+    {
+      "slug": "repo-scan",
+      "name": "repo-scan",
+      "path": "skills/repo-scan/SKILL.md",
+      "dest": "auc/skill_library/bundled/repo-scan/SKILL.md"
+    },
+    {
+      "slug": "research-ops",
+      "name": "research-ops",
+      "path": "skills/research-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/research-ops/SKILL.md"
+    },
+    {
+      "slug": "returns-reverse-logistics",
+      "name": "returns-reverse-logistics",
+      "path": "skills/returns-reverse-logistics/SKILL.md",
+      "dest": "auc/skill_library/bundled/returns-reverse-logistics/SKILL.md"
+    },
+    {
+      "slug": "rules-distill",
+      "name": "rules-distill",
+      "path": "skills/rules-distill/SKILL.md",
+      "dest": "auc/skill_library/bundled/rules-distill/SKILL.md"
+    },
+    {
+      "slug": "rust-patterns",
+      "name": "rust-patterns",
+      "path": "skills/rust-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/rust-patterns/SKILL.md"
+    },
+    {
+      "slug": "rust-testing",
+      "name": "rust-testing",
+      "path": "skills/rust-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/rust-testing/SKILL.md"
+    },
+    {
+      "slug": "safety-guard",
+      "name": "safety-guard",
+      "path": "skills/safety-guard/SKILL.md",
+      "dest": "auc/skill_library/bundled/safety-guard/SKILL.md"
+    },
+    {
+      "slug": "santa-method",
+      "name": "santa-method",
+      "path": "skills/santa-method/SKILL.md",
+      "dest": "auc/skill_library/bundled/santa-method/SKILL.md"
+    },
+    {
+      "slug": "pubmed-database",
+      "name": "pubmed-database",
+      "path": "skills/scientific-db-pubmed-database/SKILL.md",
+      "dest": "auc/skill_library/bundled/pubmed-database/SKILL.md"
+    },
+    {
+      "slug": "uspto-database",
+      "name": "uspto-database",
+      "path": "skills/scientific-db-uspto-database/SKILL.md",
+      "dest": "auc/skill_library/bundled/uspto-database/SKILL.md"
+    },
+    {
+      "slug": "gget",
+      "name": "gget",
+      "path": "skills/scientific-pkg-gget/SKILL.md",
+      "dest": "auc/skill_library/bundled/gget/SKILL.md"
+    },
+    {
+      "slug": "literature-review",
+      "name": "literature-review",
+      "path": "skills/scientific-thinking-literature-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/literature-review/SKILL.md"
+    },
+    {
+      "slug": "scholar-evaluation",
+      "name": "scholar-evaluation",
+      "path": "skills/scientific-thinking-scholar-evaluation/SKILL.md",
+      "dest": "auc/skill_library/bundled/scholar-evaluation/SKILL.md"
+    },
+    {
+      "slug": "search-first",
+      "name": "search-first",
+      "path": "skills/search-first/SKILL.md",
+      "dest": "auc/skill_library/bundled/search-first/SKILL.md"
+    },
+    {
+      "slug": "security-bounty-hunter",
+      "name": "security-bounty-hunter",
+      "path": "skills/security-bounty-hunter/SKILL.md",
+      "dest": "auc/skill_library/bundled/security-bounty-hunter/SKILL.md"
+    },
+    {
+      "slug": "security-review",
+      "name": "security-review",
+      "path": "skills/security-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/security-review/SKILL.md"
+    },
+    {
+      "slug": "security-scan",
+      "name": "security-scan",
+      "path": "skills/security-scan/SKILL.md",
+      "dest": "auc/skill_library/bundled/security-scan/SKILL.md"
+    },
+    {
+      "slug": "seo",
+      "name": "seo",
+      "path": "skills/seo/SKILL.md",
+      "dest": "auc/skill_library/bundled/seo/SKILL.md"
+    },
+    {
+      "slug": "skill-comply",
+      "name": "skill-comply",
+      "path": "skills/skill-comply/SKILL.md",
+      "dest": "auc/skill_library/bundled/skill-comply/SKILL.md"
+    },
+    {
+      "slug": "skill-scout",
+      "name": "skill-scout",
+      "path": "skills/skill-scout/SKILL.md",
+      "dest": "auc/skill_library/bundled/skill-scout/SKILL.md"
+    },
+    {
+      "slug": "skill-stocktake",
+      "name": "skill-stocktake",
+      "path": "skills/skill-stocktake/SKILL.md",
+      "dest": "auc/skill_library/bundled/skill-stocktake/SKILL.md"
+    },
+    {
+      "slug": "social-graph-ranker",
+      "name": "social-graph-ranker",
+      "path": "skills/social-graph-ranker/SKILL.md",
+      "dest": "auc/skill_library/bundled/social-graph-ranker/SKILL.md"
+    },
+    {
+      "slug": "social-publisher",
+      "name": "social-publisher",
+      "path": "skills/social-publisher/SKILL.md",
+      "dest": "auc/skill_library/bundled/social-publisher/SKILL.md"
+    },
+    {
+      "slug": "springboot-patterns",
+      "name": "springboot-patterns",
+      "path": "skills/springboot-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/springboot-patterns/SKILL.md"
+    },
+    {
+      "slug": "springboot-security",
+      "name": "springboot-security",
+      "path": "skills/springboot-security/SKILL.md",
+      "dest": "auc/skill_library/bundled/springboot-security/SKILL.md"
+    },
+    {
+      "slug": "springboot-tdd",
+      "name": "springboot-tdd",
+      "path": "skills/springboot-tdd/SKILL.md",
+      "dest": "auc/skill_library/bundled/springboot-tdd/SKILL.md"
+    },
+    {
+      "slug": "springboot-verification",
+      "name": "springboot-verification",
+      "path": "skills/springboot-verification/SKILL.md",
+      "dest": "auc/skill_library/bundled/springboot-verification/SKILL.md"
+    },
+    {
+      "slug": "strategic-compact",
+      "name": "strategic-compact",
+      "path": "skills/strategic-compact/SKILL.md",
+      "dest": "auc/skill_library/bundled/strategic-compact/SKILL.md"
+    },
+    {
+      "slug": "swift-actor-persistence",
+      "name": "swift-actor-persistence",
+      "path": "skills/swift-actor-persistence/SKILL.md",
+      "dest": "auc/skill_library/bundled/swift-actor-persistence/SKILL.md"
+    },
+    {
+      "slug": "swift-concurrency-6-2",
+      "name": "swift-concurrency-6-2",
+      "path": "skills/swift-concurrency-6-2/SKILL.md",
+      "dest": "auc/skill_library/bundled/swift-concurrency-6-2/SKILL.md"
+    },
+    {
+      "slug": "swift-protocol-di-testing",
+      "name": "swift-protocol-di-testing",
+      "path": "skills/swift-protocol-di-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/swift-protocol-di-testing/SKILL.md"
+    },
+    {
+      "slug": "swiftui-patterns",
+      "name": "swiftui-patterns",
+      "path": "skills/swiftui-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/swiftui-patterns/SKILL.md"
+    },
+    {
+      "slug": "taste",
+      "name": "taste",
+      "path": "skills/taste/SKILL.md",
+      "dest": "auc/skill_library/bundled/taste/SKILL.md"
+    },
+    {
+      "slug": "tdd-workflow",
+      "name": "tdd-workflow",
+      "path": "skills/tdd-workflow/SKILL.md",
+      "dest": "auc/skill_library/bundled/tdd-workflow/SKILL.md"
+    },
+    {
+      "slug": "team-agent-orchestration",
+      "name": "team-agent-orchestration",
+      "path": "skills/team-agent-orchestration/SKILL.md",
+      "dest": "auc/skill_library/bundled/team-agent-orchestration/SKILL.md"
+    },
+    {
+      "slug": "team-builder",
+      "name": "team-builder",
+      "path": "skills/team-builder/SKILL.md",
+      "dest": "auc/skill_library/bundled/team-builder/SKILL.md"
+    },
+    {
+      "slug": "terminal-ops",
+      "name": "terminal-ops",
+      "path": "skills/terminal-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/terminal-ops/SKILL.md"
+    },
+    {
+      "slug": "tinystruct-patterns",
+      "name": "tinystruct-patterns",
+      "path": "skills/tinystruct-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/tinystruct-patterns/SKILL.md"
+    },
+    {
+      "slug": "token-budget-advisor",
+      "name": "token-budget-advisor",
+      "path": "skills/token-budget-advisor/SKILL.md",
+      "dest": "auc/skill_library/bundled/token-budget-advisor/SKILL.md"
+    },
+    {
+      "slug": "ui-demo",
+      "name": "ui-demo",
+      "path": "skills/ui-demo/SKILL.md",
+      "dest": "auc/skill_library/bundled/ui-demo/SKILL.md"
+    },
+    {
+      "slug": "ui-to-vue",
+      "name": "ui-to-vue",
+      "path": "skills/ui-to-vue/SKILL.md",
+      "dest": "auc/skill_library/bundled/ui-to-vue/SKILL.md"
+    },
+    {
+      "slug": "uncloud",
+      "name": "uncloud",
+      "path": "skills/uncloud/SKILL.md",
+      "dest": "auc/skill_library/bundled/uncloud/SKILL.md"
+    },
+    {
+      "slug": "unified-notifications-ops",
+      "name": "unified-notifications-ops",
+      "path": "skills/unified-notifications-ops/SKILL.md",
+      "dest": "auc/skill_library/bundled/unified-notifications-ops/SKILL.md"
+    },
+    {
+      "slug": "verification-loop",
+      "name": "verification-loop",
+      "path": "skills/verification-loop/SKILL.md",
+      "dest": "auc/skill_library/bundled/verification-loop/SKILL.md"
+    },
+    {
+      "slug": "video-editing",
+      "name": "video-editing",
+      "path": "skills/video-editing/SKILL.md",
+      "dest": "auc/skill_library/bundled/video-editing/SKILL.md"
+    },
+    {
+      "slug": "videodb",
+      "name": "videodb",
+      "path": "skills/videodb/SKILL.md",
+      "dest": "auc/skill_library/bundled/videodb/SKILL.md"
+    },
+    {
+      "slug": "visa-doc-translate",
+      "name": "visa-doc-translate",
+      "path": "skills/visa-doc-translate/SKILL.md",
+      "dest": "auc/skill_library/bundled/visa-doc-translate/SKILL.md"
+    },
+    {
+      "slug": "vite-patterns",
+      "name": "vite-patterns",
+      "path": "skills/vite-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/vite-patterns/SKILL.md"
+    },
+    {
+      "slug": "vue-patterns",
+      "name": "vue-patterns",
+      "path": "skills/vue-patterns/SKILL.md",
+      "dest": "auc/skill_library/bundled/vue-patterns/SKILL.md"
+    },
+    {
+      "slug": "windows-desktop-e2e",
+      "name": "windows-desktop-e2e",
+      "path": "skills/windows-desktop-e2e/SKILL.md",
+      "dest": "auc/skill_library/bundled/windows-desktop-e2e/SKILL.md"
+    },
+    {
+      "slug": "workspace-surface-audit",
+      "name": "workspace-surface-audit",
+      "path": "skills/workspace-surface-audit/SKILL.md",
+      "dest": "auc/skill_library/bundled/workspace-surface-audit/SKILL.md"
+    },
+    {
+      "slug": "x-api",
+      "name": "x-api",
+      "path": "skills/x-api/SKILL.md",
+      "dest": "auc/skill_library/bundled/x-api/SKILL.md"
+    }
+  ],
+  "skipped": [
+    "skills/loop-design-check/SKILL.md"
+  ]
+}

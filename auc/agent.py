@@ -45,6 +45,7 @@ class AgentConfig:
     system_prompt: str | None = None
     sandbox_root: str | None = None
     autonomy: AutonomyLevel = "auto-edit"  # R6 默认级别，可被 metadata.autonomy 覆盖
+    auto_approve: bool = False  # 全部通过（仅 full-auto + 本地门禁）
     enable_checkpoints: bool = True  # R4
     compaction: CompactionConfig | None = None  # R3，None 时按 loop_config 构造
     hooks: Any = None  # R14 生命周期钩子（auc.hooks.HookRunner）
@@ -193,11 +194,15 @@ class DefaultAgent:
         ):
             tools = tools.filtered_view(READONLY_TOOL_NAMES)
 
-        # R6：会话级自治级别（metadata 覆盖配置默认值）
+        # R6：会话级授权模式（metadata 覆盖配置默认值）
+        auto_approve = bool(request.metadata.get("auto_approve"))
+        if "auto_approve" not in request.metadata:
+            auto_approve = self._config.auto_approve
         autonomy = AutonomyPolicy(
             level=normalize_autonomy(
                 str(request.metadata.get("autonomy") or self._config.autonomy)
-            )
+            ),
+            auto_approve=auto_approve,
         )
 
         # R4：写前检查点（沙盒内 .auc/checkpoints/，框架特权 IO）
@@ -259,6 +264,20 @@ class DefaultAgent:
             model=str(getattr(self._config.model, "model", "") or "")
         )
 
+        memory = self._config.memory
+        if memory is not None and hasattr(memory, "set_skill_prefs"):
+            from auc.skills import SkillPrefs
+
+            skill_mode = str(request.metadata.get("skill_mode") or "auto")
+            pinned_raw = request.metadata.get("skill_ids") or request.metadata.get("pinned_skills") or []
+            pinned = [str(x) for x in pinned_raw] if isinstance(pinned_raw, list) else []
+            memory.set_skill_prefs(
+                SkillPrefs(
+                    mode="manual" if skill_mode == "manual" else "auto",
+                    pinned=pinned,
+                )
+            )
+
         ctx = LoopContext(
             agent_id=agent_id,
             run_id=run_id,
@@ -267,7 +286,7 @@ class DefaultAgent:
             model=self._config.model,
             events=bus,
             config=self._config.loop_config,
-            memory=self._config.memory,
+            memory=memory,
             composer=self._config.composer,
             context_package=package,
             project_rules=project_rules,

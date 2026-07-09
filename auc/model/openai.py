@@ -41,9 +41,39 @@ def _require_httpx() -> Any:
     return httpx
 
 
-def _messages_to_api(messages: list[ChatMessage]) -> list[dict[str, Any]]:
+# 流式累积/历史中偶发出现空 tool_call name（网关未回传 function.name），
+# 直接回送会触发 400；用占位名保证 ≥1 字符且保留 id 以维持工具结果配对。
+_FALLBACK_TOOL_NAME = "unknown_tool"
+
+
+def _message_text(m: ChatMessage) -> str:
+    if m.role == "user":
+        raw = openai_message_content(m)
+        return raw if isinstance(raw, str) else str(raw or "")
+    return str(m.content or "")
+
+
+def _messages_to_api(messages: list[ChatMessage]) -> tuple[list[dict[str, Any]], str | None]:
+    """OpenAI Chat Completions 消息体；system 提取到顶层 ``system`` 字段。
+
+    许多 Anthropic 兼容网关（含 inferera 路由的 Claude）拒绝 ``messages`` 内的
+    ``role: system``，要求使用顶层 ``system`` 参数。
+    """
+    system_parts: list[str] = []
     out: list[dict[str, Any]] = []
+    seen_dialogue = False
     for m in messages:
+        if m.role == "system":
+            text = _message_text(m).strip()
+            if not text:
+                continue
+            if not seen_dialogue:
+                system_parts.append(text)
+            else:
+                # 压缩摘要等中途 system：改写为 user 注记，避免 400
+                out.append({"role": "user", "content": f"[system]\n{text}"})
+            continue
+        seen_dialogue = True
         content = openai_message_content(m) if m.role == "user" else m.content
         item: dict[str, Any] = {"role": m.role, "content": content}
         if m.name:
@@ -53,17 +83,20 @@ def _messages_to_api(messages: list[ChatMessage]) -> list[dict[str, Any]]:
         if m.tool_calls:
             item["tool_calls"] = [
                 {
-                    "id": tc.id,
+                    "id": tc.id or f"call_{i}",
                     "type": "function",
                     "function": {
-                        "name": tc.name,
+                        # 空 name 会被 Anthropic 兼容网关拒绝
+                        # （tool_use.name: String should have at least 1 character）
+                        "name": tc.name or _FALLBACK_TOOL_NAME,
                         "arguments": json.dumps(tc.arguments, ensure_ascii=False),
                     },
                 }
-                for tc in m.tool_calls
+                for i, tc in enumerate(m.tool_calls)
             ]
         out.append(item)
-    return out
+    system = "\n\n".join(system_parts) if system_parts else None
+    return out, system
 
 
 def _tools_to_api(tools: list[ToolSchema] | None) -> list[dict[str, Any]] | None:
@@ -94,15 +127,32 @@ _MODEL_UNAVAILABLE_RE = re.compile(
 def _looks_like_model_unavailable(exc: BaseException) -> bool:
     """错误是否意味着「网关不认识该模型名」（典型：填 auto 但网关无智能路由）。
 
-    依据：HTTP 400/404/422，或错误文本明确指向模型不存在/无效/不支持。
+    仅当响应体/异常文本明确指向模型无效时才判定；普通 400（参数、配额等）不触发本地路由。
     """
     msg = str(exc)
     status = _status_of(exc)
-    if status in (400, 404, 422):
+    if status == 404:
         return True
-    if re.search(r"\b(400|404|422)\b", msg):
+    if status == 422 and _MODEL_UNAVAILABLE_RE.search(msg):
         return True
-    return bool(_MODEL_UNAVAILABLE_RE.search(msg))
+    if _MODEL_UNAVAILABLE_RE.search(msg):
+        return True
+    if status == 400 and re.search(
+        r"\b(not found|does not exist|unknown model|unsupported model|invalid model)\b",
+        msg,
+        re.I,
+    ):
+        return True
+    return False
+
+
+def _gateway_lists_auto(models: list[str]) -> bool:
+    """网关模型列表含 ``auto`` 时，说明已支持侧智能路由，AuC 不应再本地顶替。"""
+    for mid in models:
+        head = str(mid or "").strip().lower().split(":", 1)[0]
+        if head == "auto":
+            return True
+    return False
 
 
 def _format_api_error(status_code: int, body_text: str) -> str:
@@ -140,7 +190,7 @@ def _parse_tool_calls(raw: list[dict[str, Any]] | None) -> list[ToolCall] | None
         calls.append(
             ToolCall(
                 id=str(item.get("id", "")),
-                name=str(fn.get("name", "")),
+                name=str(fn.get("name", "")) or _FALLBACK_TOOL_NAME,
                 arguments=args,
             )
         )
@@ -171,6 +221,8 @@ class OpenAICompatibleClient:
         self._auto = is_auto_model(self.model)
         self._auto_strategy = parse_auto_model(self.model)[1] if self._auto else ""
         self._routed_model: str | None = None
+        self._tried_models: set[str] = set()
+        self._discovered_models: list[str] | None = None
 
     def _effective_model(self) -> str:
         """当前实际发往网关的模型：本地已选则用之，否则用配置（含 auto）。"""
@@ -183,30 +235,41 @@ class OpenAICompatibleClient:
 
     async def _maybe_local_route(self, exc: BaseException) -> bool:
         """网关不支持 auto（报模型无效）时，本地按策略选一个真实模型；成功返回 True。"""
-        if not self._auto or self._routed_model is not None:
+        if not self._auto:
             return False
         if not _looks_like_model_unavailable(exc):
             return False
         try:
             from auc.model.discovery import discover_models
-            from auc.model.local_routing import select_model
+            from auc.model.local_routing import rank_models
 
-            models = await discover_models(
-                base_url=self.base_url, api_key=self.api_key, provider="openai"
-            )
+            if self._discovered_models is None:
+                self._discovered_models = await discover_models(
+                    base_url=self.base_url, api_key=self.api_key, provider="openai"
+                )
+            models = self._discovered_models
         except Exception:  # noqa: BLE001 检索失败则无法本地路由，维持原错误
             return False
-        chosen = select_model(models, self._auto_strategy)
-        if not chosen:
+        if _gateway_lists_auto(models):
+            logger.info(
+                "gateway model list includes 'auto'; skip local routing (strategy=%s)",
+                self._auto_strategy,
+            )
             return False
-        self._routed_model = chosen
-        logger.warning(
-            "gateway has no 'auto' routing; locally selected %s (strategy=%s, %d candidates)",
-            chosen,
-            self._auto_strategy,
-            len(models),
-        )
-        return True
+        ranked = rank_models(models, self._auto_strategy)
+        for chosen in ranked:
+            if chosen in self._tried_models:
+                continue
+            self._tried_models.add(chosen)
+            self._routed_model = chosen
+            logger.warning(
+                "gateway has no 'auto' routing; locally selected %s (strategy=%s, %d candidates)",
+                chosen,
+                self._auto_strategy,
+                len(models),
+            )
+            return True
+        return False
 
     def _get_client(self) -> Any:
         if self._client is None:
@@ -225,13 +288,12 @@ class OpenAICompatibleClient:
         messages: list[ChatMessage],
         tools: list[ToolSchema] | None = None,
     ) -> AssistantMessage:
-        try:
-            return await self._complete_once(messages, tools)
-        except RuntimeError as exc:
-            # 网关不支持 auto → 本地选定真实模型后重试一次。
-            if await self._maybe_local_route(exc):
+        while True:
+            try:
                 return await self._complete_once(messages, tools)
-            raise
+            except RuntimeError as exc:
+                if not await self._maybe_local_route(exc):
+                    raise
 
     async def _complete_once(
         self,
@@ -277,11 +339,14 @@ class OpenAICompatibleClient:
         stream: bool,
         model: str | None = None,
     ) -> dict[str, Any]:
+        api_messages, system = _messages_to_api(messages)
         body: dict[str, Any] = {
             "model": model or self.model,
-            "messages": _messages_to_api(messages),
+            "messages": api_messages,
             "stream": stream,
         }
+        if system:
+            body["system"] = system
         api_tools = _tools_to_api(tools)
         if api_tools:
             body["tools"] = api_tools
@@ -362,7 +427,7 @@ class OpenAICompatibleClient:
                 calls.append(
                     ToolCall(
                         id=entry.get("id") or f"call_{idx}",
-                        name=entry.get("name") or "",
+                        name=entry.get("name") or _FALLBACK_TOOL_NAME,
                         arguments=args,
                     )
                 )
@@ -374,7 +439,6 @@ class OpenAICompatibleClient:
         tools: list[ToolSchema] | None = None,
     ) -> AsyncIterator[StreamChunk]:
         client = self._get_client()
-        local_routed = False
         while True:
             body = self._build_body(
                 messages, tools, stream=True, model=self._effective_model()
@@ -404,11 +468,9 @@ class OpenAICompatibleClient:
             # 未产出任何 chunk、配置为 auto 且网关不识别该模型 → 本地路由后重开流。
             if (
                 not emitted
-                and not local_routed
                 and last_exc is not None
                 and await self._maybe_local_route(last_exc)
             ):
-                local_routed = True
                 continue
             raise RuntimeError(format_model_http_error(last_exc)) from last_exc
 

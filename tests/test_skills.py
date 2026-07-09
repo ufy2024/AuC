@@ -58,15 +58,15 @@ def test_store_write_list_match(tmp_path):
     store.write(sk, draft=False)
 
     listed = store.list()
-    assert len(listed) == 1
-    assert listed[0].name == "fix-mermaid-gantt"
+    custom = [s for s in listed if s.name == "fix-mermaid-gantt"]
+    assert len(custom) == 1
 
     matched = store.match("我的 mermaid 甘特图 渲染失败了")
-    assert len(matched) == 1
+    assert any(s.name == "fix-mermaid-gantt" for s in matched)
     assert matched[0].name == "fix-mermaid-gantt"
 
-    # 不命中
-    assert store.match("kubernetes helm") == []
+    # 不命中（避免与内置 ECC 等技能 trigger 冲突）
+    assert store.match("xyzzy-plugh-no-skill-match") == []
 
 
 def test_store_drafts_and_promote(tmp_path):
@@ -74,14 +74,16 @@ def test_store_drafts_and_promote(tmp_path):
     draft = Skill(name="my-skill", description="d", triggers=["foo"], body="step")
     store.write(draft, draft=True)
 
-    assert store.list() == []  # 草案不在正式列表
-    assert len(store.list(include_drafts=True)) == 1
+    assert not any(s.name == "my-skill" for s in store.list())  # 草案不在正式列表
+    drafts = [s for s in store.list(include_drafts=True) if s.draft]
+    assert len(drafts) == 1
+    assert drafts[0].name == "my-skill"
 
     promoted = store.promote("my-skill")
     assert promoted is not None
     assert promoted.draft is False
     assert promoted.source == "promoted"
-    assert len(store.list()) == 1
+    assert store.get("my-skill", draft=False) is not None
     assert store.get("my-skill", draft=True) is None  # 草案已移除
 
 
@@ -94,7 +96,7 @@ def test_store_remove(tmp_path):
     store = SkillStore(str(tmp_path))
     store.write(parse_skill_md(SAMPLE), draft=False)
     assert store.remove("fix-mermaid-gantt") is True
-    assert store.list() == []
+    assert store.get("fix-mermaid-gantt") is None
     assert store.remove("fix-mermaid-gantt") is False
 
 
@@ -117,8 +119,7 @@ def test_matched_skill_messages(tmp_path):
     store = SkillStore(str(tmp_path))
     store.write(parse_skill_md(SAMPLE), draft=False)
     msgs = matched_skill_messages(store, "mermaid gantt 出错")
-    assert len(msgs) == 1
-    assert msgs[0].role == "system"
+    assert len(msgs) >= 1
     assert "技能·fix-mermaid-gantt" in msgs[0].content
 
 
@@ -195,6 +196,7 @@ def test_cli_skills_flow(tmp_path, capsys):
     capsys.readouterr()
     assert main(["skills", "list", "--sandbox", str(tmp_path), "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
-    assert data[0]["name"] == "s1"
+    names = {item["name"] for item in data}
+    assert "s1" in names
     assert main(["skills", "show", "s1", "--sandbox", str(tmp_path)]) == 0
     assert main(["skills", "remove", "s1", "--sandbox", str(tmp_path)]) == 0

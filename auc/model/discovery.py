@@ -134,7 +134,10 @@ async def discover_models(
     errors: list[str] = []
     saw_empty = False
 
-    async with httpx_mod.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+    # 安全：禁用自动重定向（follow_redirects=False）。否则被攻陷/恶意的网关可用
+    # 30x 把带 API Key 的请求转发到任意主机（含内网），造成 SSRF 与密钥外泄。
+    # 3xx 一律作为错误处理并换下一个候选 URL，绝不携密钥跟随跳转。
+    async with httpx_mod.AsyncClient(timeout=timeout, follow_redirects=False) as client:
         for url in candidate_urls:
             path = _short_url(url)
             for headers in header_variants:
@@ -143,6 +146,9 @@ async def discover_models(
                 except Exception as exc:  # noqa: BLE001 网络层异常统一归类
                     errors.append(f"{path}: 请求失败（{exc}）")
                     break  # 同一 URL 换鉴权头无意义
+                if 300 <= resp.status_code < 400:
+                    errors.append(f"{path}: HTTP {resp.status_code}（拒绝跟随重定向，防密钥外泄）")
+                    break  # 重定向：换鉴权头无意义，试下一个 URL
                 if resp.is_error:
                     errors.append(f"{path}: HTTP {resp.status_code}")
                     # 端点不存在/方法不允许：换鉴权头无意义，直接试下一个 URL

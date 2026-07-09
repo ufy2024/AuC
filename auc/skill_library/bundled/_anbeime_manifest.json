@@ -1,0 +1,414 @@
+{
+  "source": "https://github.com/anbeime/skill",
+  "branch": "main",
+  "count": 67,
+  "skills": [
+    {
+      "slug": "xiaoyue-companion",
+      "name": "xiaoyue-companion",
+      "path": "SKILL.md",
+      "dest": "auc/skill_library/bundled/xiaoyue-companion/SKILL.md"
+    },
+    {
+      "slug": "xiaoyue-companion-companion-simple",
+      "name": "xiaoyue-companion",
+      "path": "projects/companion-simple/SKILL.md",
+      "dest": "auc/skill_library/bundled/xiaoyue-companion-companion-simple/SKILL.md"
+    },
+    {
+      "slug": "agent-team",
+      "name": "agent-team",
+      "path": "skills/agent-team/agent-team/SKILL.md",
+      "dest": "auc/skill_library/bundled/agent-team/SKILL.md"
+    },
+    {
+      "slug": "agentkit-multimedia-shopping",
+      "name": "agentkit-multimedia-shopping",
+      "path": "skills/agentkit-multimedia-shopping/agentkit-multimedia-shopping/SKILL.md",
+      "dest": "auc/skill_library/bundled/agentkit-multimedia-shopping/SKILL.md"
+    },
+    {
+      "slug": "article-illustrator",
+      "name": "article-illustrator",
+      "path": "skills/article-illustrator/article-illustrator/SKILL.md",
+      "dest": "auc/skill_library/bundled/article-illustrator/SKILL.md"
+    },
+    {
+      "slug": "bedtime-story",
+      "name": "bedtime-story",
+      "path": "skills/bedtime-story/bedtime-story/SKILL.md",
+      "dest": "auc/skill_library/bundled/bedtime-story/SKILL.md"
+    },
+    {
+      "slug": "chrome-automation",
+      "name": "chrome-automation",
+      "path": "skills/chrome-automation/chrome-automation/SKILL.md",
+      "dest": "auc/skill_library/bundled/chrome-automation/SKILL.md"
+    },
+    {
+      "slug": "content-creation-publisher",
+      "name": "content-creation-publisher",
+      "path": "skills/content-creation-publisher/SKILL.md",
+      "dest": "auc/skill_library/bundled/content-creation-publisher/SKILL.md"
+    },
+    {
+      "slug": "article-illustrator-article-illustrator",
+      "name": "article-illustrator",
+      "path": "skills/content-creation-publisher/article-illustrator/SKILL.md",
+      "dest": "auc/skill_library/bundled/article-illustrator-article-illustrator/SKILL.md"
+    },
+    {
+      "slug": "baoyu-format-markdown",
+      "name": "baoyu-format-markdown",
+      "path": "skills/content-creation-publisher/baoyu-format-markdown/SKILL.md",
+      "dest": "auc/skill_library/bundled/baoyu-format-markdown/SKILL.md"
+    },
+    {
+      "slug": "baoyu-post-to-wechat",
+      "name": "baoyu-post-to-wechat",
+      "path": "skills/content-creation-publisher/baoyu-post-to-wechat/SKILL.md",
+      "dest": "auc/skill_library/bundled/baoyu-post-to-wechat/SKILL.md"
+    },
+    {
+      "slug": "baoyu-post-to-x",
+      "name": "baoyu-post-to-x",
+      "path": "skills/content-creation-publisher/baoyu-post-to-x/SKILL.md",
+      "dest": "auc/skill_library/bundled/baoyu-post-to-x/SKILL.md"
+    },
+    {
+      "slug": "baoyu-url-to-markdown",
+      "name": "baoyu-url-to-markdown",
+      "path": "skills/content-creation-publisher/baoyu-url-to-markdown/SKILL.md",
+      "dest": "auc/skill_library/bundled/baoyu-url-to-markdown/SKILL.md"
+    },
+    {
+      "slug": "content-research-writer",
+      "name": "content-research-writer",
+      "path": "skills/content-research-writer/SKILL.md",
+      "dest": "auc/skill_library/bundled/content-research-writer/SKILL.md"
+    },
+    {
+      "slug": "data-storytelling",
+      "name": "data-storytelling",
+      "path": "skills/data-storytelling/data-storytelling/SKILL.md",
+      "dest": "auc/skill_library/bundled/data-storytelling/SKILL.md"
+    },
+    {
+      "slug": "digital-avatar-shopping-video",
+      "name": "digital-avatar-shopping-video",
+      "path": "skills/digital-avatar-shopping-video/digital-avatar-shopping-video/SKILL.md",
+      "dest": "auc/skill_library/bundled/digital-avatar-shopping-video/SKILL.md"
+    },
+    {
+      "slug": "dream-video-prompt-generator",
+      "name": "dream-video-prompt-generator",
+      "path": "skills/dream-video-prompt-generator/dream-video-prompt-generator/SKILL.md",
+      "dest": "auc/skill_library/bundled/dream-video-prompt-generator/SKILL.md"
+    },
+    {
+      "slug": "ecommerce-copywriter",
+      "name": "ecommerce-copywriter",
+      "path": "skills/ecommerce-copywriter/ecommerce-copywriter/SKILL.md",
+      "dest": "auc/skill_library/bundled/ecommerce-copywriter/SKILL.md"
+    },
+    {
+      "slug": "ecommerce-video-marketing",
+      "name": "ecommerce-video-marketing",
+      "path": "skills/ecommerce-video-marketing/ecommerce-video-marketing/SKILL.md",
+      "dest": "auc/skill_library/bundled/ecommerce-video-marketing/SKILL.md"
+    },
+    {
+      "slug": "frontend-design",
+      "name": "frontend-design",
+      "path": "skills/frontend-design/frontend-design/SKILL.md",
+      "dest": "auc/skill_library/bundled/frontend-design/SKILL.md"
+    },
+    {
+      "slug": "historical-interview-scripts",
+      "name": "historical-interview-scripts",
+      "path": "skills/historical-interview-scripts/historical-interview-scripts/SKILL.md",
+      "dest": "auc/skill_library/bundled/historical-interview-scripts/SKILL.md"
+    },
+    {
+      "slug": "historical-science-video-prod",
+      "name": "historical-science-video-prod",
+      "path": "skills/historical-science-video-prod/historical-science-video-prod/SKILL.md",
+      "dest": "auc/skill_library/bundled/historical-science-video-prod/SKILL.md"
+    },
+    {
+      "slug": "infinitetalk",
+      "name": "infinitetalk",
+      "path": "skills/infinitetalk/SKILL.md",
+      "dest": "auc/skill_library/bundled/infinitetalk/SKILL.md"
+    },
+    {
+      "slug": "infinitetalk-infinitetalk",
+      "name": "infinitetalk",
+      "path": "skills/infinitetalk/infinitetalk/SKILL.md",
+      "dest": "auc/skill_library/bundled/infinitetalk-infinitetalk/SKILL.md"
+    },
+    {
+      "slug": "infinitetalk-shopping-avatar",
+      "name": "infinitetalk-shopping-avatar",
+      "path": "skills/infinitetalk-shopping-avatar/infinitetalk-shopping-avatar/SKILL.md",
+      "dest": "auc/skill_library/bundled/infinitetalk-shopping-avatar/SKILL.md"
+    },
+    {
+      "slug": "intelligent-content-system",
+      "name": "intelligent-content-system",
+      "path": "skills/intelligent-content-system/SKILL.md",
+      "dest": "auc/skill_library/bundled/intelligent-content-system/SKILL.md"
+    },
+    {
+      "slug": "contract-review",
+      "name": "contract-review",
+      "path": "skills/legal-assistant-skills-main/contract-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/contract-review/SKILL.md"
+    },
+    {
+      "slug": "law-to-markdown",
+      "name": "law-to-markdown",
+      "path": "skills/legal-assistant-skills-main/law-to-markdown/SKILL.md",
+      "dest": "auc/skill_library/bundled/law-to-markdown/SKILL.md"
+    },
+    {
+      "slug": "media-processor",
+      "name": "media-processor",
+      "path": "skills/media-processor/media-processor/SKILL.md",
+      "dest": "auc/skill_library/bundled/media-processor/SKILL.md"
+    },
+    {
+      "slug": "moltbook",
+      "name": "moltbook",
+      "path": "skills/moltbook/SKILL.md",
+      "dest": "auc/skill_library/bundled/moltbook/SKILL.md"
+    },
+    {
+      "slug": "multi-agent-meeting",
+      "name": "multi-agent-meeting",
+      "path": "skills/multi-agent-meeting/multi-agent-meeting/SKILL.md",
+      "dest": "auc/skill_library/bundled/multi-agent-meeting/SKILL.md"
+    },
+    {
+      "slug": "nanobanana-ppt-visualizer",
+      "name": "nanobanana-ppt-visualizer",
+      "path": "skills/nanobanana-ppt-visualizer/nanobanana-ppt-visualizer/SKILL.md",
+      "dest": "auc/skill_library/bundled/nanobanana-ppt-visualizer/SKILL.md"
+    },
+    {
+      "slug": "json-canvas",
+      "name": "json-canvas",
+      "path": "skills/obsidian-skills-integrated/json-canvas/SKILL.md",
+      "dest": "auc/skill_library/bundled/json-canvas/SKILL.md"
+    },
+    {
+      "slug": "obsidian-bases",
+      "name": "obsidian-bases",
+      "path": "skills/obsidian-skills-integrated/obsidian-bases/SKILL.md",
+      "dest": "auc/skill_library/bundled/obsidian-bases/SKILL.md"
+    },
+    {
+      "slug": "obsidian-markdown",
+      "name": "obsidian-markdown",
+      "path": "skills/obsidian-skills-integrated/obsidian-markdown/SKILL.md",
+      "dest": "auc/skill_library/bundled/obsidian-markdown/SKILL.md"
+    },
+    {
+      "slug": "paper-analysis-assistant",
+      "name": "paper-analysis-assistant",
+      "path": "skills/paper-analysis-assistant/paper-analysis-assistant/SKILL.md",
+      "dest": "auc/skill_library/bundled/paper-analysis-assistant/SKILL.md"
+    },
+    {
+      "slug": "pdf-processing-pro",
+      "name": "PDF Processing Pro",
+      "path": "skills/pdf-processing-pro/pdf-processing-pro/SKILL.md",
+      "dest": "auc/skill_library/bundled/pdf-processing-pro/SKILL.md"
+    },
+    {
+      "slug": "pet-commerce-creator",
+      "name": "pet-commerce-creator",
+      "path": "skills/pet-commerce-creator/pet-commerce-creator/SKILL.md",
+      "dest": "auc/skill_library/bundled/pet-commerce-creator/SKILL.md"
+    },
+    {
+      "slug": "poetry-music-visual",
+      "name": "poetry-music-visual",
+      "path": "skills/poetry-music-visual/poetry-music-visual/SKILL.md",
+      "dest": "auc/skill_library/bundled/poetry-music-visual/SKILL.md"
+    },
+    {
+      "slug": "pop-up-book-illustration",
+      "name": "pop-up-book-illustration",
+      "path": "skills/pop-up-book-illustration/pop-up-book-illustration/SKILL.md",
+      "dest": "auc/skill_library/bundled/pop-up-book-illustration/SKILL.md"
+    },
+    {
+      "slug": "ppt-generator",
+      "name": "ppt-generator",
+      "path": "skills/ppt-generator/ppt-generator/SKILL.md",
+      "dest": "auc/skill_library/bundled/ppt-generator/SKILL.md"
+    },
+    {
+      "slug": "ppt-roadshow-generator",
+      "name": "ppt-roadshow-generator",
+      "path": "skills/ppt-roadshow-generator/ppt-roadshow-generator/SKILL.md",
+      "dest": "auc/skill_library/bundled/ppt-roadshow-generator/SKILL.md"
+    },
+    {
+      "slug": "pptx-generator",
+      "name": "pptx-generator",
+      "path": "skills/pptx-generator/pptx-generator/SKILL.md",
+      "dest": "auc/skill_library/bundled/pptx-generator/SKILL.md"
+    },
+    {
+      "slug": "product-manager-toolkit",
+      "name": "product-manager-toolkit",
+      "path": "skills/product-manager-toolkit/product-manager-toolkit/SKILL.md",
+      "dest": "auc/skill_library/bundled/product-manager-toolkit/SKILL.md"
+    },
+    {
+      "slug": "product-marketing-copywriter",
+      "name": "product-marketing-copywriter",
+      "path": "skills/product-marketing-copywriter/product-marketing-copywriter/SKILL.md",
+      "dest": "auc/skill_library/bundled/product-marketing-copywriter/SKILL.md"
+    },
+    {
+      "slug": "product-video-creator",
+      "name": "product-video-creator",
+      "path": "skills/product-video-creator/product-video-creator/SKILL.md",
+      "dest": "auc/skill_library/bundled/product-video-creator/SKILL.md"
+    },
+    {
+      "slug": "x-article-publisher",
+      "name": "x-article-publisher",
+      "path": "skills/qiaomu-x-article-publisher/SKILL.md",
+      "dest": "auc/skill_library/bundled/x-article-publisher/SKILL.md"
+    },
+    {
+      "slug": "x-article-publisher-qiaomu-x-article-publisher-g",
+      "name": "x-article-publisher",
+      "path": "skills/qiaomu-x-article-publisher/qiaomu-x-article-publisher-github/SKILL.md",
+      "dest": "auc/skill_library/bundled/x-article-publisher-qiaomu-x-article-publisher-g/SKILL.md"
+    },
+    {
+      "slug": "qwen3-asr-assistant",
+      "name": "qwen3-asr-assistant",
+      "path": "skills/qwen3-asr-assistant/qwen3-asr-assistant/SKILL.md",
+      "dest": "auc/skill_library/bundled/qwen3-asr-assistant/SKILL.md"
+    },
+    {
+      "slug": "qwen3-tts-local",
+      "name": "qwen3-tts-local",
+      "path": "skills/qwen3-tts-local/qwen3-tts-local/SKILL.md",
+      "dest": "auc/skill_library/bundled/qwen3-tts-local/SKILL.md"
+    },
+    {
+      "slug": "remotion-video-enhancer",
+      "name": "remotion-video-enhancer",
+      "path": "skills/remotion-video-enhancer/remotion-video-enhancer/SKILL.md",
+      "dest": "auc/skill_library/bundled/remotion-video-enhancer/SKILL.md"
+    },
+    {
+      "slug": "stock-analysis",
+      "name": "stock-analysis",
+      "path": "skills/stock-analysis/stock-analysis/SKILL.md",
+      "dest": "auc/skill_library/bundled/stock-analysis/SKILL.md"
+    },
+    {
+      "slug": "tailored-resume-generator",
+      "name": "tailored-resume-generator",
+      "path": "skills/tailored-resume-generator/tailored-resume-generator/SKILL.md",
+      "dest": "auc/skill_library/bundled/tailored-resume-generator/SKILL.md"
+    },
+    {
+      "slug": "three-body-video-creator",
+      "name": "three-body-video-creator",
+      "path": "skills/three-body-video-creator/three-body-video-creator/SKILL.md",
+      "dest": "auc/skill_library/bundled/three-body-video-creator/SKILL.md"
+    },
+    {
+      "slug": "tts-voice-synthesis",
+      "name": "tts-voice-synthesis",
+      "path": "skills/tts-voice-synthesis/SKILL.md",
+      "dest": "auc/skill_library/bundled/tts-voice-synthesis/SKILL.md"
+    },
+    {
+      "slug": "video-creation-collaborator",
+      "name": "video-creation-collaborator",
+      "path": "skills/video-creation-collaborator/video-creation-collaborator/SKILL.md",
+      "dest": "auc/skill_library/bundled/video-creation-collaborator/SKILL.md"
+    },
+    {
+      "slug": "video-creation-pro",
+      "name": "video-creation-pro",
+      "path": "skills/video-creation-pro/video-creation-pro/SKILL.md",
+      "dest": "auc/skill_library/bundled/video-creation-pro/SKILL.md"
+    },
+    {
+      "slug": "video-creation-suite",
+      "name": "video-creation-suite",
+      "path": "skills/video-creation-suite/video-creation-suite/SKILL.md",
+      "dest": "auc/skill_library/bundled/video-creation-suite/SKILL.md"
+    },
+    {
+      "slug": "video-frame-extractor",
+      "name": "video-frame-extractor",
+      "path": "skills/video-frame-extractor/video-frame-extractor/SKILL.md",
+      "dest": "auc/skill_library/bundled/video-frame-extractor/SKILL.md"
+    },
+    {
+      "slug": "video-recreation",
+      "name": "video-recreation",
+      "path": "skills/video-recreation/video-recreation/SKILL.md",
+      "dest": "auc/skill_library/bundled/video-recreation/SKILL.md"
+    },
+    {
+      "slug": "video-transcript-downloader",
+      "name": "video-transcript-downloader",
+      "path": "skills/video-transcript-downloader/video-transcript-downloader/SKILL.md",
+      "dest": "auc/skill_library/bundled/video-transcript-downloader/SKILL.md"
+    },
+    {
+      "slug": "viral-video-copywriting",
+      "name": "viral-video-copywriting",
+      "path": "skills/viral-video-copywriting/viral-video-copywriting/SKILL.md",
+      "dest": "auc/skill_library/bundled/viral-video-copywriting/SKILL.md"
+    },
+    {
+      "slug": "web-design-analyzer",
+      "name": "web-design-analyzer",
+      "path": "skills/web-design-analyzer/web-design-analyzer/SKILL.md",
+      "dest": "auc/skill_library/bundled/web-design-analyzer/SKILL.md"
+    },
+    {
+      "slug": "web-to-app",
+      "name": "web-to-app",
+      "path": "skills/web-to-app/web-to-app/SKILL.md",
+      "dest": "auc/skill_library/bundled/web-to-app/SKILL.md"
+    },
+    {
+      "slug": "wechat-hotspot-publisher",
+      "name": "wechat-hotspot-publisher",
+      "path": "skills/wechat-hotspot-publisher/wechat-hotspot-publisher/SKILL.md",
+      "dest": "auc/skill_library/bundled/wechat-hotspot-publisher/SKILL.md"
+    },
+    {
+      "slug": "wechatsync-publisher",
+      "name": "wechatsync-publisher",
+      "path": "skills/wechatsync-publisher/wechatsync-publisher/SKILL.md",
+      "dest": "auc/skill_library/bundled/wechatsync-publisher/SKILL.md"
+    },
+    {
+      "slug": "xiaohongshu-makeup",
+      "name": "xiaohongshu-makeup",
+      "path": "skills/xiaohongshu-makeup/xiaohongshu-makeup/SKILL.md",
+      "dest": "auc/skill_library/bundled/xiaohongshu-makeup/SKILL.md"
+    }
+  ],
+  "skipped": [
+    "projects/companion-skill/SKILL.md",
+    "skills/icon-generator/SKILL.md",
+    "skills/obsidian-skills-integrated/SKILL.md"
+  ]
+}

@@ -10,7 +10,7 @@ from auc.config import ModelConfig, load_merged_settings
 from auc.integration.evolution import EvolutionMemoryPort, make_evolution_tools
 from auc.loop.base import LoopConfig
 from auc.model.factory import create_model_client
-from auc.policy.autonomy import normalize_autonomy
+from auc.policy.autonomy import resolve_approval_prefs
 from auc.policy.escalation import merge_escalation_settings
 from auc.policy.privilege import ToolPrivilegeGate
 from auc.ports import FileRulesPort, SlicerPolicy
@@ -22,6 +22,7 @@ from auc.roles import (
     get_role,
     load_role_catalog,
 )
+from auc.roles.constants import render_sandbox_template
 from auc.tools.fetch import make_fetch_tool
 from auc.tools.files import make_file_tools
 from auc.tools.git import make_git_tools
@@ -37,7 +38,9 @@ from auc.work_mode import WORK_MODE_OVERVIEW
 
 # 兼容测试与外部引用：含 {sandbox} 占位符的完整模板
 DEFAULT_CHAT_BASE = (
-    get_role(DEFAULT_ROLE_ID).persona.format(sandbox="{sandbox}") + "\n\n" + CHAT_SHARED_TOOLS
+    render_sandbox_template(get_role(DEFAULT_ROLE_ID).persona, "{sandbox}")
+    + "\n\n"
+    + CHAT_SHARED_TOOLS
 )
 DEFAULT_CHAT_SYSTEM = DEFAULT_CHAT_BASE + "\n\n" + WORK_MODE_OVERVIEW
 
@@ -105,6 +108,7 @@ def build_chat_agent(
         )
     else:
         memory = None
+    prefs = resolve_approval_prefs(settings)
     shell_settings = settings.get("shell") or {}
     gate = ToolPrivilegeGate(
         approval=approval,
@@ -168,7 +172,8 @@ def build_chat_agent(
                     max_steps=min(opts.max_steps, 20),
                     context_token_limit=int(compaction.get("token_limit") or 96_000),
                 ),
-                autonomy=normalize_autonomy(str(settings.get("autonomy") or "")),
+                autonomy=prefs.autonomy,
+                auto_approve=prefs.auto_approve,
                 hooks=hooks,
             )
         )
@@ -209,7 +214,8 @@ def build_chat_agent(
             approval=approval,
             privilege_gate=gate,
             loop_config=loop_config,
-            autonomy=normalize_autonomy(str(settings.get("autonomy") or "")),
+            autonomy=prefs.autonomy,
+            auto_approve=prefs.auto_approve,
             hooks=hooks,
         )
     )

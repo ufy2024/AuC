@@ -21,7 +21,8 @@ def _reject_auc_metadata_path(rel_path: str) -> None:
         raise SandboxViolationError("路径 .auc/ 为框架元数据，禁止通过 workspace API 访问")
 
 
-def _resolve_workspace_path(sandbox_root: str, rel_path: str) -> Path:
+def resolve_workspace_path(sandbox_root: str, rel_path: str) -> Path:
+    """解析工作区相对路径：沙盒约束 + 拒绝 `.auc/` 框架元数据。"""
     _reject_auc_metadata_path(rel_path)
     return resolve_under_sandbox(sandbox_root, rel_path)
 
@@ -80,7 +81,7 @@ def read_image_file(sandbox_root: str, rel_path: str) -> dict[str, object]:
 
 
 def read_text_file(sandbox_root: str, rel_path: str) -> dict[str, object]:
-    resolved = _resolve_workspace_path(sandbox_root, rel_path)
+    resolved = resolve_workspace_path(sandbox_root, rel_path)
     if not resolved.is_file():
         raise FileNotFoundError(rel_path)
     content = resolved.read_text(encoding="utf-8", errors="replace")
@@ -93,7 +94,7 @@ def read_text_file(sandbox_root: str, rel_path: str) -> dict[str, object]:
 
 
 def write_text_file(sandbox_root: str, rel_path: str, content: str) -> dict[str, object]:
-    resolved = _resolve_workspace_path(sandbox_root, rel_path)
+    resolved = resolve_workspace_path(sandbox_root, rel_path)
     resolved.parent.mkdir(parents=True, exist_ok=True)
     resolved.write_text(content, encoding="utf-8")
     return {"path": rel_path, "size": len(content.encode("utf-8"))}

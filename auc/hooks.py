@@ -34,6 +34,23 @@ HOOK_EVENTS = (
 )
 _DEFAULT_TIMEOUT = 10.0
 
+# hook 子进程仅透传的环境变量白名单：剥除 *_API_KEY / *_TOKEN / *_SECRET 等，
+# 避免通过 hook 命令外泄模型密钥、IM token 等敏感信息。
+_HOOK_ENV_WHITELIST = (
+    "PATH",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "TERM",
+    "PYTHONPATH",
+    "VIRTUAL_ENV",
+    "TMPDIR",
+)
+
+
+def _hook_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k in _HOOK_ENV_WHITELIST}
+
 
 @dataclass
 class HookSpec:
@@ -127,7 +144,7 @@ class HookRunner:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self._sandbox or None,
-                env=os.environ.copy(),
+                env=_hook_env(),
             )
         except OSError as exc:
             return 1, "", f"hook 启动失败: {exc}"
@@ -220,13 +237,33 @@ class HookRunner:
         return warnings
 
 
+def _sandbox_hooks_trusted(settings: dict[str, Any] | None) -> bool:
+    """是否信任沙盒内 `.auc/hooks.json`。
+
+    安全默认：**不信任**。沙盒 hooks 文件可被智能体经 `write_file` 写入
+    （即使写 `.auc/` 需 L3 审批，一旦落盘便在每次工具调用时自动执行 shell，
+    构成持久化 RCE 面）。仅当用户在受信的 `settings.json` 中显式
+    `hooks_trust_sandbox_file: true`，或设置环境变量
+    `AUC_HOOKS_TRUST_SANDBOX_FILE=1` 时才加载。
+    settings.json 内的 hooks 属管理员/用户受信配置，始终生效。
+    """
+    if os.environ.get("AUC_HOOKS_TRUST_SANDBOX_FILE", "").strip() in ("1", "true", "True"):
+        return True
+    return bool((settings or {}).get("hooks_trust_sandbox_file"))
+
+
 def load_hooks(
     settings: dict[str, Any] | None, sandbox_root: str | None
 ) -> HookRunner | None:
-    """合并 settings.hooks 与沙盒 .auc/hooks.json；无配置返回 None。"""
+    """合并 settings.hooks 与（受信时的）沙盒 .auc/hooks.json；无配置返回 None。
+
+    settings.json 的 hooks 始终加载；沙盒 `.auc/hooks.json` 默认**不加载**，
+    仅在显式信任时合并（见 `_sandbox_hooks_trusted`），以关闭「智能体写入
+    hooks 文件 → 自动执行任意命令」的持久化 RCE 通道。
+    """
     from_settings = _parse_specs((settings or {}).get("hooks"))
     from_file: dict[str, list[HookSpec]] = {}
-    if sandbox_root:
+    if sandbox_root and _sandbox_hooks_trusted(settings):
         path = Path(sandbox_root) / ".auc" / "hooks.json"
         if path.is_file():
             try:

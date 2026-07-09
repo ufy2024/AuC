@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -9,6 +11,22 @@ import yaml
 from auc.messages import ChatMessage
 from auc.ports.memory import MemoryPort
 from auc.types import AgentId, RunId
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """写临时文件后 os.replace 原子替换，避免并发/崩溃损坏 YAML。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 @dataclass
@@ -56,7 +74,6 @@ class NuggetsStore:
 
     def save_yaml(self, path: str | Path) -> None:
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "nuggets": [
                 {
@@ -68,9 +85,9 @@ class NuggetsStore:
                 for n in self.nuggets
             ]
         }
-        path.write_text(
+        _atomic_write_text(
+            path,
             yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
-            encoding="utf-8",
         )
 
 

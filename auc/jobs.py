@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from auc.fslock import atomic_write_text, file_lock
+
 STATUS_QUEUED = "queued"
 STATUS_RUNNING = "running"
 STATUS_DONE = "done"
@@ -68,7 +70,12 @@ class Job:
 
 
 class JobStore:
-    """作业持久化到 `<sandbox>/.auc/jobs/`。单 worker 串行，无需跨进程锁。"""
+    """作业持久化到 `<sandbox>/.auc/jobs/`。
+
+    支持**多 worker 并发**：`claim_next` 在跨进程文件锁下读-改-写，
+    保证同一 queued 作业不被两个 worker 重复领取；`save` 原子写，避免其他
+    进程读到半截 JSON。
+    """
 
     def __init__(self, sandbox_root: str) -> None:
         self._root = Path(sandbox_root).resolve()
@@ -84,11 +91,15 @@ class JobStore:
     def log_path(self, job_id: str) -> Path:
         return self._base / f"{job_id}.log"
 
+    @property
+    def _lock_path(self) -> Path:
+        return self._base / ".claim.lock"
+
     def save(self, job: Job) -> None:
         self._base.mkdir(parents=True, exist_ok=True)
-        self._path(job.id).write_text(
+        atomic_write_text(
+            self._path(job.id),
             json.dumps(job.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
         )
 
     def enqueue(
@@ -143,16 +154,22 @@ class JobStore:
         return jobs
 
     def claim_next(self) -> Job | None:
-        """领取最早的 queued 作业并置 running（单 worker 串行，先到先得）。"""
-        queued = [j for j in self.list() if j.status == STATUS_QUEUED]
-        if not queued:
-            return None
-        queued.sort(key=lambda j: j.created_at)
-        job = queued[0]
-        job.status = STATUS_RUNNING
-        job.started_at = _now()
-        self.save(job)
-        return job
+        """领取最早的 queued 作业并置 running。
+
+        在跨进程文件锁下完成「扫描→选最早 queued→置 running→落盘」，防止
+        多个 worker 同时把同一作业置 running（重复执行）。
+        """
+        self._base.mkdir(parents=True, exist_ok=True)
+        with file_lock(self._lock_path):
+            queued = [j for j in self.list() if j.status == STATUS_QUEUED]
+            if not queued:
+                return None
+            queued.sort(key=lambda j: j.created_at)
+            job = queued[0]
+            job.status = STATUS_RUNNING
+            job.started_at = _now()
+            self.save(job)
+            return job
 
     def cancel(self, job_id: str) -> tuple[bool, str]:
         """取消作业：queued 直接置 cancelled；running 杀进程后置 cancelled。"""
@@ -173,8 +190,13 @@ class JobStore:
 
 
 def build_job_command(job: Job) -> list[str]:
-    """构造后台执行的子进程命令（无头跑 `auc chat`）。"""
-    cmd = [sys.executable, "-m", "auc.cli", "chat", "--no-stream"]
+    """构造后台执行的子进程命令（无头跑 `auc chat`）。
+
+    显式传入 `--run-id <job.id>`，使子 Run 的 run_id 确定为作业 id；回执因此落
+    `.auc/receipts/<job.id>.md`，`_attach_receipt` 据此**精确关联**，不再按 mtime
+    猜「最新回执」（并发/多 Run 时会张冠李戴）。
+    """
+    cmd = [sys.executable, "-m", "auc.cli", "chat", "--no-stream", "--run-id", job.id]
     if job.sandbox:
         cmd += ["--sandbox", job.sandbox]
     if job.repo:
@@ -194,6 +216,9 @@ def build_job_command(job: Job) -> list[str]:
         config = IsolationConfig(
             mode="docker", image=job.image or IsolationConfig().image
         )
+        # fail_closed=True（默认）：docker 不可用时 wrap_command 抛
+        # IsolationUnavailableError，由 run_job 捕获并落 failed 终态，
+        # 绝不静默降级到本机执行不受信代码。
         wrapped, _note = wrap_command(cmd, job.sandbox, config)
         return wrapped
     return cmd
@@ -212,8 +237,9 @@ def run_job(
     popen = popen or subprocess.Popen
     log_path = store.log_path(job.id)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    cmd = build_job_command(job)
     try:
+        # build_job_command 可能因 fail-closed 隔离不可用而抛错：一并落 failed。
+        cmd = build_job_command(job)
         with open(log_path, "w", encoding="utf-8") as log:
             log.write(f"$ {' '.join(cmd)}\n\n")
             log.flush()
@@ -244,15 +270,18 @@ def run_job(
 
 
 def _attach_receipt(job: Job) -> None:
-    """尽力关联该沙盒最新回执（R28）。"""
+    """按作业 id 精确关联本次 Run 的回执（R28）。
+
+    子进程以 `--run-id <job.id>` 运行，回执确定落 `<job.id>.md`；此处只认该
+    run_id，避免并发/多 Run 时按 mtime 误关联到别的回执。
+    """
     try:
         from auc.receipt import ReceiptStore
 
         rs = ReceiptStore(job.sandbox or ".")
-        runs = rs.list_runs()
-        if runs:
-            job.run_id = runs[0]
-            job.receipt_path = str(rs.path_for(runs[0]))
+        if rs.read_markdown(job.id) is not None:
+            job.run_id = job.id
+            job.receipt_path = str(rs.path_for(job.id))
     except Exception:  # noqa: BLE001 关联失败不影响作业终态
         pass
 

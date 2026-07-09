@@ -11,6 +11,7 @@ from auc.roles.constants import (
     CHAT_SHARED_TOOLS,
     DEFAULT_ROLE_ID,
     ROLE_TAG_PREFIX,
+    render_sandbox_template,
 )
 from auc.roles.loader import (
     active_role_path,
@@ -74,7 +75,7 @@ def build_role_system_prompt(
 ) -> str:
     cat = catalog or _builtin_catalog()
     spec = cat.get(role_id)
-    base = spec.persona.format(sandbox=sandbox) + "\n\n" + CHAT_SHARED_TOOLS
+    base = render_sandbox_template(spec.persona, sandbox) + "\n\n" + CHAT_SHARED_TOOLS
     return build_full_system_prompt(
         sandbox,
         base=base,

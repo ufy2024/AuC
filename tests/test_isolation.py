@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from auc import isolation
-from auc.isolation import IsolationConfig, wrap_command
+from auc.isolation import IsolationConfig, IsolationUnavailableError, wrap_command
 
 
 def test_mode_none_passthrough():
@@ -11,18 +13,33 @@ def test_mode_none_passthrough():
     assert note == ""
 
 
-def test_docker_unavailable_degrades(monkeypatch):
+def test_docker_unavailable_fail_closed(monkeypatch):
+    """默认 fail-closed：docker 缺失时拒绝执行，绝不静默降级本机。"""
     monkeypatch.setattr(isolation, "docker_available", lambda: False)
     cmd = ["auc", "chat", "hi"]
-    out, note = wrap_command(cmd, "/work", IsolationConfig(mode="docker"))
+    with pytest.raises(IsolationUnavailableError):
+        wrap_command(cmd, "/work", IsolationConfig(mode="docker"))
+
+
+def test_docker_unavailable_degrades_when_opted_out(monkeypatch):
+    monkeypatch.setattr(isolation, "docker_available", lambda: False)
+    cmd = ["auc", "chat", "hi"]
+    out, note = wrap_command(cmd, "/work", IsolationConfig(mode="docker", fail_closed=False))
     assert out == cmd
     assert "降级" in note
 
 
-def test_docker_missing_sandbox_degrades(monkeypatch):
+def test_docker_missing_sandbox_fail_closed(monkeypatch):
     monkeypatch.setattr(isolation, "docker_available", lambda: True)
     cmd = ["auc", "chat", "hi"]
-    out, note = wrap_command(cmd, "", IsolationConfig(mode="docker"))
+    with pytest.raises(IsolationUnavailableError):
+        wrap_command(cmd, "", IsolationConfig(mode="docker"))
+
+
+def test_docker_missing_sandbox_degrades_when_opted_out(monkeypatch):
+    monkeypatch.setattr(isolation, "docker_available", lambda: True)
+    cmd = ["auc", "chat", "hi"]
+    out, note = wrap_command(cmd, "", IsolationConfig(mode="docker", fail_closed=False))
     assert out == cmd
     assert "sandbox" in note
 
@@ -37,9 +54,21 @@ def test_docker_wrap(monkeypatch):
     assert "-w" in out and "/work" in out
     assert "--network" in out and "none" in out
     assert "myimg:1" in out
+    # 默认加固：no-new-privileges + cap-drop ALL
+    assert "no-new-privileges" in out
+    assert "--cap-drop" in out and "ALL" in out
     # 实际命令追加在镜像之后
     assert out[-len(cmd):] == cmd
     assert "docker" in note
+
+
+def test_docker_read_only_mount(monkeypatch):
+    monkeypatch.setattr(isolation, "docker_available", lambda: True)
+    cmd = ["echo", "hi"]
+    cfg = IsolationConfig(mode="docker", read_only=True)
+    out, note = wrap_command(cmd, "/abs/sandbox", cfg)
+    assert "/abs/sandbox:/work:ro" in out
+    assert "只读" in note
 
 
 def test_build_job_command_with_docker(monkeypatch):

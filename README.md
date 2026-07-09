@@ -4,6 +4,8 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
+**v0.4.0** — 安全与质量全面加固（代码审查 P0–P4）+ 技能库：清零 12 项高危（hooks RCE、WebSocket 绕过鉴权、API Key 明文回传、`/raw` 泄漏 `.auc`、eval shell 注入、isolation 静默降级、MCP 沙盒绕过、git 路径穿越、retry 重复计费等），并发正确性（subagent 生命周期超时+取消联动、jobs/metrics/索引跨进程锁+原子写，新增 `auc/fslock.py`），一致性（Anthropic 流式重试、metrics 召回/采纳解耦、回执↔run_id 显式映射、SSRF 连接期 IP 绑定+DNS fail-closed、worktree 冲突安全清理）；新增技能库（skill library）与审批设置面板。全量 701 测试通过。
+
 **v0.3.2** — 角色与模型广场：内置 agency-agents 中文角色库（256 角色）、智能选择 auto 路由、角色广场按领域浏览/自定义编辑；模型广场与连接设置分离、本地/网关智能路由；Web UI 树形角色选择、主题与对话框样式统一。
 
 **v0.3.1** — 大模型接入与对话体验增强：base_url + SK 配置、模型自动发现（多端点/多鉴权探测）与按系列/类型过滤、智能路由 `auto[:策略]`（成本/均衡/质量/低延迟）及网关不支持时的本地路由回退、运行时模型实时显示与切换提示、Token 用量按 K 显示；对话支持就地重试与「编辑后重答」（可临时切换模型/工作模式/角色）；Code 与 Chat 双界面均显示智能体状态；富渲染依赖（mermaid/marked）改为多 CDN 镜像懒加载并优雅降级，离线/内网不再白屏。
@@ -173,6 +175,7 @@ CI：GitHub Actions，Python 3.11 / 3.12，覆盖率门槛 ≥75%。
 | `docs/architecture.md` | 总体架构（现状 As-Is） |
 | `docs/model-config.md` | OpenAI / Anthropic / DeepSeek 配置 |
 | `docs/tool-privilege.md` | L1/L2/L3 工具权限 |
+| `docs/approval-modes.md` | 授权模式（每次都询问 / 危险时询问 / 全部通过） |
 | `docs/aum-compatibility.md` | AuM 联调与版本 |
 | `docs/test-reports/` | 测试报告与覆盖率（按日期归档） |
 

@@ -2,8 +2,23 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 
-from auc.messages import ChatMessage
-from auc.model.openai import OpenAICompatibleClient
+from auc.messages import ChatMessage, ToolCall
+from auc.model.openai import OpenAICompatibleClient, _messages_to_api
+
+
+def test_messages_to_api_fills_empty_tool_call_name() -> None:
+    """历史里的空 name tool_call 不应原样回送（会触发网关 400）。"""
+    messages = [
+        ChatMessage(
+            role="assistant",
+            content=None,
+            tool_calls=[ToolCall(id="", name="", arguments={"x": 1})],
+        ),
+    ]
+    out, _ = _messages_to_api(messages)
+    fn = out[0]["tool_calls"][0]["function"]
+    assert len(fn["name"]) >= 1
+    assert out[0]["tool_calls"][0]["id"]
 
 
 def test_openai_complete_parses_tool_calls() -> None:
@@ -45,6 +60,39 @@ def test_openai_complete_parses_tool_calls() -> None:
     assert result.tool_calls is not None
     assert result.tool_calls[0].name == "echo"
     assert result.tool_calls[0].arguments == {"x": 1}
+
+
+def test_openai_hoists_system_to_top_level() -> None:
+    captured: dict[str, object] = {}
+
+    async def _go():
+        client = OpenAICompatibleClient(api_key="test-key")
+        mock_http = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.is_error = False
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": "ok", "tool_calls": None}}],
+        }
+
+        async def _post(path, **kwargs):
+            captured["json"] = kwargs.get("json")
+            return mock_resp
+
+        mock_http.post = AsyncMock(side_effect=_post)
+        client._client = mock_http
+        await client.complete(
+            [
+                ChatMessage(role="system", content="You are helpful."),
+                ChatMessage(role="user", content="hi"),
+            ]
+        )
+        await client.aclose()
+
+    asyncio.run(_go())
+    body = captured["json"]
+    assert body["system"] == "You are helpful."
+    assert body["messages"] == [{"role": "user", "content": "hi"}]
 
 
 def test_complete_captures_resolved_model() -> None:
@@ -157,6 +205,48 @@ def test_local_route_skipped_for_fixed_model() -> None:
         disc.discover_models = orig  # type: ignore[assignment]
     assert raised
     assert discover_calls["n"] == 0  # 固定模型不应触发本地路由检索
+
+
+def test_local_route_skipped_when_gateway_lists_auto() -> None:
+    """模型列表含 auto 时，即使报错也不应本地顶替（由网关智能路由）。"""
+    import auc.model.discovery as disc
+
+    discover_calls = {"n": 0}
+
+    async def _fake_discover(**kwargs):
+        discover_calls["n"] += 1
+        return ["auto", "gpt-4o-mini", "mimo-v2-pro"]
+
+    async def _go():
+        client = OpenAICompatibleClient(api_key="k", model="auto:balanced")
+        mock_http = AsyncMock()
+        resp = MagicMock()
+        resp.is_error = True
+        resp.status_code = 400
+        resp.text = json.dumps(
+            {"error": {"message": "Unsupported model mimo-v2-pro"}}
+        )
+        mock_http.post = AsyncMock(return_value=resp)
+        client._client = mock_http
+        try:
+            await client.complete([ChatMessage(role="user", content="hi")])
+        finally:
+            await client.aclose()
+
+    orig = disc.discover_models
+    disc.discover_models = _fake_discover  # type: ignore[assignment]
+    try:
+        raised = False
+        try:
+            asyncio.run(_go())
+        except RuntimeError as exc:
+            raised = True
+            assert "mimo-v2-pro" in str(exc)
+    finally:
+        disc.discover_models = orig  # type: ignore[assignment]
+    assert raised
+    assert discover_calls["n"] == 1
+    # 不应把请求改成本地选中的 mimo / mini
 
 
 def test_format_api_error_extracts_message() -> None:

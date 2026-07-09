@@ -139,15 +139,19 @@ class VectorIndex:
         self.vectors = [list(map(float, v)) for v in (data.get("vectors") or [])]
 
     def save(self) -> None:
+        from auc.fslock import atomic_write_text, file_lock
+
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(
-                json.dumps(
-                    {"items": self.items, "vectors": self.vectors},
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
+            # 原子写 + 跨进程锁：避免并发 build/save 读到半截或互相覆盖损坏。
+            with file_lock(self._path.with_suffix(".json.lock")):
+                atomic_write_text(
+                    self._path,
+                    json.dumps(
+                        {"items": self.items, "vectors": self.vectors},
+                        ensure_ascii=False,
+                    ),
+                )
         except OSError:
             pass
 

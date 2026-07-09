@@ -18,6 +18,7 @@ from auc.vision_proxy import model_supports_vision, prepare_images_for_model
 from auc.web.conversations import ConversationStore, messages_for_ui
 from auc.web.editor_context import merge_message_with_context
 from auc.roles import format_role_note, load_role_catalog, set_active_role
+from auc.policy.autonomy import resolve_approval_prefs
 from auc.work_mode import AUTO_MODE, enrich_user_turn, format_mode_note
 
 
@@ -90,9 +91,14 @@ class WebSession:
         editor_context: dict[str, Any] | None = None,
         work_mode: str | None = AUTO_MODE,
         autonomy: str | None = None,
+        approval_mode: str | None = None,
+        auto_approve: bool | None = None,
+        bind_host: str | None = None,
         approved_plan: dict[str, Any] | None = None,
         role_id: str | None = None,
         role_locale: str | None = None,
+        skill_mode: str | None = None,
+        skill_ids: list[str] | None = None,
     ) -> tuple[RunRequest, list[str]]:
         if not self.active_conversation_id:
             self.active_conversation_id = self.store.create()
@@ -143,10 +149,22 @@ class WebSession:
             "role_id": rid,
             "conversation_id": self.active_conversation_id,
         }
-        if autonomy:
-            meta["autonomy"] = autonomy
+        prefs = resolve_approval_prefs(
+            settings,
+            bind_host=bind_host,
+            mode_override=approval_mode,
+            autonomy_override=autonomy,
+            auto_approve_override=auto_approve,
+        )
+        meta["autonomy"] = prefs.autonomy
+        meta["auto_approve"] = prefs.auto_approve
+        meta["approval_mode"] = prefs.mode_id
         if approved_plan:
             meta["approved_plan"] = approved_plan
+        if skill_mode:
+            meta["skill_mode"] = skill_mode
+        if skill_ids:
+            meta["skill_ids"] = skill_ids
         return RunRequest(input=self.history, metadata=meta), notes
 
     def apply_result(self, conversation_id: str | None = None) -> str | None:
@@ -166,6 +184,8 @@ class WebSession:
             messages,
             set_active=conv_id == self.active_conversation_id,
         )
+        if result.usage:
+            self.store.add_usage(conv_id, result.usage)
         if conv_id == self.active_conversation_id:
             self.history = messages
         return conv_id

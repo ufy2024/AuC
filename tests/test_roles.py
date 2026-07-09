@@ -5,6 +5,7 @@ import pytest
 import yaml
 
 from auc.integration.evolution import EvolutionMemoryPort, resolve_evolution_storage
+from auc.roles.constants import render_sandbox_template
 from auc.roles import (
     BUILTIN_ROLES,
     active_role_path,
@@ -36,6 +37,24 @@ def test_build_role_system_prompt() -> None:
     prompt = build_role_system_prompt("/tmp/ws", "engineering-code-reviewer")
     assert "/tmp/ws" in prompt
     assert "grep_search" in prompt
+
+
+def test_build_role_system_prompt_preserves_js_curly_braces() -> None:
+    """角色 prompt 含 React 解构等花括号时不应触发 str.format KeyError。"""
+    catalog = load_role_catalog()
+    prompt = build_role_system_prompt(
+        "/tmp/ws", "engineering-frontend-developer", catalog=catalog
+    )
+    assert "/tmp/ws" in prompt
+    assert "memo, useCallback, useMemo" in prompt
+
+
+def test_render_sandbox_template_only_replaces_sandbox() -> None:
+    text = "root={sandbox}; import { memo, useCallback, useMemo } from 'react';"
+    assert (
+        render_sandbox_template(text, "/ws")
+        == "root=/ws; import { memo, useCallback, useMemo } from 'react';"
+    )
 
 
 def test_matches_role_legacy_global() -> None:
@@ -88,6 +107,21 @@ async def test_evolution_remember_in_role_dir() -> None:
         ep = store.episodes[-1]
         assert ep.metadata.get("role_id") == "architect"
         assert store.path == sandbox_role_dir(tmp, "architect") / "evolution.yaml"
+
+
+def test_parse_role_from_agent_id_rejects_unsanitizable() -> None:
+    from auc.roles import parse_role_from_agent_id
+
+    # 合法 slug 正常消毒
+    assert parse_role_from_agent_id("chat:CODER") == "coder"
+    assert parse_role_from_agent_id("chat:my_role") == "my-role"
+    # 非 chat: 前缀返回 None
+    assert parse_role_from_agent_id("run:abc") is None
+    assert parse_role_from_agent_id(None) is None
+    # 消毒失败（含非法字符/路径片段）应返回 None，而非透出未消毒 slug
+    assert parse_role_from_agent_id("chat:../etc/passwd") is None
+    assert parse_role_from_agent_id("chat:@@@") is None
+    assert parse_role_from_agent_id("chat:") is None
 
 
 def test_normalize_role_id() -> None:

@@ -4,8 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AuC</title>
-  <link rel="stylesheet" href="/static/themes.css?v=34" />
-  <link rel="stylesheet" href="/static/styles.css?v=50" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/themes.css?v=35" />
+  <link rel="stylesheet" href="/static/styles.css?v=53" />
+  <link rel="stylesheet" href="/static/polish.css?v=3" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="/static/vendor/xterm.css?v=25" />
 </head>
@@ -36,8 +40,11 @@
             </div>
           </div>
         </div>
-        <span class="role-pill clickable" id="role-pill" data-i18n-title="plaza.roleOpen"></span>
-        <span class="model-pill clickable" id="model-pill" data-i18n-title="plaza.modelOpen"></span>
+        <div class="choice-pill-group">
+          <span class="choice-pill choice-pill-role clickable" id="role-pill" data-i18n-title="plaza.roleOpen"></span>
+          <span class="choice-pill choice-pill-skill clickable" id="skill-pill" data-i18n-title="plaza.skillOpen"></span>
+          <span class="choice-pill choice-pill-model clickable" id="model-pill" data-i18n-title="plaza.modelOpen"></span>
+        </div>
         <button type="button" class="btn ghost sm plaza-link-btn" id="model-conn-btn" data-i18n="plaza.modelConn" data-i18n-title="plaza.modelConn"></button>
         <span class="ws-pill" id="ws-pill" data-i18n-title="ws.pill"></span>
       </div>
@@ -183,27 +190,36 @@
             <button type="button" class="btn ghost sm" id="chat-update-dismiss" data-i18n="update.gotIt"></button>
           </div>
           <div class="agent-profile" id="agent-profile">
-            <div class="agent-avatar" aria-hidden="true">◆</div>
-            <h1 class="agent-title" id="agent-title"></h1>
-            <span class="agent-status" id="agent-status"></span>
-            <p class="agent-desc" id="agent-desc"></p>
-              <div class="agent-meta" id="agent-meta"></div>
-              <div class="agent-tags" id="agent-tags"></div>
-              <div class="work-mode-bar" id="work-mode-bar">
-                <label class="work-mode-label" data-i18n="agent.role"></label>
-                <div class="role-tree-select" id="role-tree-chat">
-                  <button type="button" class="role-tree-trigger work-mode-select" aria-haspopup="listbox" aria-expanded="false">
-                    <span class="role-tree-trigger-label"></span>
-                    <span class="role-tree-chevron" aria-hidden="true">▾</span>
-                  </button>
-                  <div class="role-tree-menu hidden" role="listbox"></div>
+            <div class="agent-profile-primary">
+              <div class="agent-avatar" aria-hidden="true">◆</div>
+              <div class="agent-profile-text">
+                <div class="agent-title-row">
+                  <h1 class="agent-title" id="agent-title"></h1>
+                  <span class="agent-status" id="agent-status"></span>
                 </div>
-                <label class="work-mode-label" for="work-mode-select" data-i18n="agent.mode"></label>
-                <select id="work-mode-select" class="work-mode-select" data-i18n-title="agent.modeTitle"></select>
+                <p class="agent-desc" id="agent-desc"></p>
+                <div class="agent-usage" id="agent-usage" hidden></div>
               </div>
             </div>
+            <div class="agent-meta" id="agent-meta" hidden></div>
+            <div class="agent-tags" id="agent-tags" hidden></div>
+            <div class="work-mode-bar" id="work-mode-bar">
+              <label class="work-mode-label" data-i18n="agent.role"></label>
+              <div class="role-tree-select" id="role-tree-chat">
+                <button type="button" class="role-tree-trigger work-mode-select" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="role-tree-trigger-label"></span>
+                  <span class="role-tree-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="role-tree-menu hidden" role="listbox"></div>
+              </div>
+              <label class="work-mode-label" for="work-mode-select" data-i18n="agent.mode"></label>
+              <select id="work-mode-select" class="work-mode-select" data-i18n-title="agent.modeTitle"></select>
+              <label class="work-mode-label" for="approval-mode-select" data-i18n="agent.approval"></label>
+              <select id="approval-mode-select" class="work-mode-select sm" data-i18n-title="agent.approvalTitle"></select>
+            </div>
           </div>
-        </header>
+        </div>
+      </header>
 
       <main class="chat-main" id="chat-main">
         <div class="chat-scroll">
@@ -237,6 +253,10 @@
             <label class="work-mode-inline" data-i18n-title="agent.mode">
               <span class="work-mode-label" data-i18n="agent.modeShort"></span>
               <select id="work-mode-agent" class="work-mode-select sm"></select>
+            </label>
+            <label class="work-mode-inline" data-i18n-title="agent.approvalTitle">
+              <span class="work-mode-label" data-i18n="agent.approvalShort"></span>
+              <select id="approval-mode-agent" class="work-mode-select sm"></select>
             </label>
             <label class="ctx-toggle" data-i18n-title="agent.autoAttach">
               <input type="checkbox" id="ctx-auto" checked />
@@ -350,6 +370,22 @@
       <div class="plaza-filters" id="role-plaza-filters"></div>
       <div class="plaza-sections" id="role-plaza-sections"></div>
       <div class="plaza-empty hidden" id="role-plaza-empty" data-i18n="plaza.roleEmpty"></div>
+    </div>
+  </div>
+
+  <div id="skill-plaza-overlay" class="approval-overlay hidden" role="dialog" aria-modal="true">
+    <div class="approval-card plaza-card">
+      <header class="plaza-head">
+        <h3 class="approval-title" data-i18n="plaza.skillTitle"></h3>
+        <div class="plaza-head-actions">
+          <input type="search" class="plaza-search" id="skill-plaza-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plaza.searchSkill" />
+          <button type="button" class="icon-btn" id="skill-plaza-close" aria-label="×">×</button>
+        </div>
+      </header>
+      <div class="skill-mode-bar" id="skill-mode-bar"></div>
+      <div class="plaza-filters" id="skill-plaza-filters"></div>
+      <div class="plaza-sections" id="skill-plaza-sections"></div>
+      <div class="plaza-empty hidden" id="skill-plaza-empty" data-i18n="plaza.skillEmpty"></div>
     </div>
   </div>
 
@@ -520,6 +556,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-  <script src="/static/app.js?v=70" type="module"></script>
+  <script src="/static/app.js?v=78" type="module"></script>
 </body>
 </html>

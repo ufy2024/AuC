@@ -110,18 +110,41 @@ def test_nonblocking_error_allows_with_warning(tmp_path: Path) -> None:
     assert d.warnings
 
 
-def test_load_hooks_merges_settings_and_file(tmp_path: Path) -> None:
+def test_load_hooks_merges_settings_and_trusted_file(tmp_path: Path) -> None:
     auc_dir = tmp_path / ".auc"
     auc_dir.mkdir(parents=True)
     (auc_dir / "hooks.json").write_text(
         json.dumps({"hooks": {"run_start": [{"command": "echo hi"}]}}),
         encoding="utf-8",
     )
-    settings = {"hooks": {"pre_tool_use": [{"matcher": "write_file", "command": "exit 0"}]}}
+    # 沙盒 hooks 文件默认不信任；需显式 opt-in 才合并
+    settings = {
+        "hooks_trust_sandbox_file": True,
+        "hooks": {"pre_tool_use": [{"matcher": "write_file", "command": "exit 0"}]},
+    }
     runner = load_hooks(settings, str(tmp_path))
     assert runner is not None
     assert runner.has("pre_tool_use")
     assert runner.has("run_start")
+
+
+def test_load_hooks_ignores_untrusted_sandbox_file(tmp_path: Path) -> None:
+    """安全默认：沙盒 .auc/hooks.json 未显式信任时不加载（防持久化 RCE）。"""
+    auc_dir = tmp_path / ".auc"
+    auc_dir.mkdir(parents=True)
+    (auc_dir / "hooks.json").write_text(
+        json.dumps({"hooks": {"run_start": [{"command": "echo hi"}]}}),
+        encoding="utf-8",
+    )
+    # 无 settings 信任标志 → 沙盒 hooks 被忽略 → 无任何 hook → None
+    assert load_hooks({}, str(tmp_path)) is None
+    # settings.hooks 仍然生效，沙盒 hooks 仍被忽略
+    runner = load_hooks(
+        {"hooks": {"pre_tool_use": [{"command": "exit 0"}]}}, str(tmp_path)
+    )
+    assert runner is not None
+    assert runner.has("pre_tool_use")
+    assert not runner.has("run_start")
 
 
 def test_load_hooks_none_when_empty(tmp_path: Path) -> None:

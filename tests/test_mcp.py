@@ -128,7 +128,8 @@ async def test_discover_and_register_filters_and_registers():
     assert reg.get("mcp__srv__secret") is None
     # 权限来自配置
     assert reg.get_policy("mcp__srv__echo").privilege == "L1"
-    assert reg.get_policy("mcp__srv__echo").sandbox_only is False
+    # 安全默认：MCP 工具默认 sandbox_only=True（即便 L1 也校验路径参数）
+    assert reg.get_policy("mcp__srv__echo").sandbox_only is True
 
     # 调用走 session
     tool = reg.get("mcp__srv__echo")

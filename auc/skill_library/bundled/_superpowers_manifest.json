@@ -1,0 +1,92 @@
+{
+  "source": "https://github.com/obra/superpowers",
+  "branch": "main",
+  "count": 14,
+  "skills": [
+    {
+      "slug": "brainstorming",
+      "name": "brainstorming",
+      "path": "skills/brainstorming/SKILL.md",
+      "dest": "auc/skill_library/bundled/brainstorming/SKILL.md"
+    },
+    {
+      "slug": "dispatching-parallel-agents",
+      "name": "dispatching-parallel-agents",
+      "path": "skills/dispatching-parallel-agents/SKILL.md",
+      "dest": "auc/skill_library/bundled/dispatching-parallel-agents/SKILL.md"
+    },
+    {
+      "slug": "executing-plans",
+      "name": "executing-plans",
+      "path": "skills/executing-plans/SKILL.md",
+      "dest": "auc/skill_library/bundled/executing-plans/SKILL.md"
+    },
+    {
+      "slug": "finishing-a-development-branch",
+      "name": "finishing-a-development-branch",
+      "path": "skills/finishing-a-development-branch/SKILL.md",
+      "dest": "auc/skill_library/bundled/finishing-a-development-branch/SKILL.md"
+    },
+    {
+      "slug": "receiving-code-review",
+      "name": "receiving-code-review",
+      "path": "skills/receiving-code-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/receiving-code-review/SKILL.md"
+    },
+    {
+      "slug": "requesting-code-review",
+      "name": "requesting-code-review",
+      "path": "skills/requesting-code-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/requesting-code-review/SKILL.md"
+    },
+    {
+      "slug": "subagent-driven-development",
+      "name": "subagent-driven-development",
+      "path": "skills/subagent-driven-development/SKILL.md",
+      "dest": "auc/skill_library/bundled/subagent-driven-development/SKILL.md"
+    },
+    {
+      "slug": "systematic-debugging",
+      "name": "systematic-debugging",
+      "path": "skills/systematic-debugging/SKILL.md",
+      "dest": "auc/skill_library/bundled/systematic-debugging/SKILL.md"
+    },
+    {
+      "slug": "test-driven-development",
+      "name": "test-driven-development",
+      "path": "skills/test-driven-development/SKILL.md",
+      "dest": "auc/skill_library/bundled/test-driven-development/SKILL.md"
+    },
+    {
+      "slug": "using-git-worktrees",
+      "name": "using-git-worktrees",
+      "path": "skills/using-git-worktrees/SKILL.md",
+      "dest": "auc/skill_library/bundled/using-git-worktrees/SKILL.md"
+    },
+    {
+      "slug": "using-superpowers",
+      "name": "using-superpowers",
+      "path": "skills/using-superpowers/SKILL.md",
+      "dest": "auc/skill_library/bundled/using-superpowers/SKILL.md"
+    },
+    {
+      "slug": "verification-before-completion",
+      "name": "verification-before-completion",
+      "path": "skills/verification-before-completion/SKILL.md",
+      "dest": "auc/skill_library/bundled/verification-before-completion/SKILL.md"
+    },
+    {
+      "slug": "writing-plans",
+      "name": "writing-plans",
+      "path": "skills/writing-plans/SKILL.md",
+      "dest": "auc/skill_library/bundled/writing-plans/SKILL.md"
+    },
+    {
+      "slug": "writing-skills",
+      "name": "writing-skills",
+      "path": "skills/writing-skills/SKILL.md",
+      "dest": "auc/skill_library/bundled/writing-skills/SKILL.md"
+    }
+  ],
+  "skipped": []
+}

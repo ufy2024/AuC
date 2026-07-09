@@ -1,0 +1,347 @@
+/* AuC Web 视觉增强 — 参考 UI/UX Pro Max 设计原则：
+   语义色、层次、微动效(150–300ms)、可访问焦点环、玻璃质感、触控友好间距 */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 220ms;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --focus-ring: 0 0 0 2px var(--app-bg, #111), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+  --elevation-1: 0 1px 2px color-mix(in srgb, #000 18%, transparent);
+  --elevation-2: 0 4px 16px color-mix(in srgb, #000 22%, transparent);
+  --elevation-glow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 8px 28px color-mix(in srgb, var(--accent) 12%, transparent);
+  --surface-glass: color-mix(in srgb, var(--topbar-bg) 78%, transparent);
+}
+
+/* 字体与排版 */
+html, body {
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 全局焦点（可访问性） */
+button:focus-visible,
+[role="tab"]:focus-visible,
+.choice-pill:focus-visible,
+.facet-chip:focus-visible,
+.role-card:focus-visible,
+.icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── 顶栏：玻璃质感 + 层次 ── */
+.topbar {
+  height: 46px;
+  padding: 0 .85rem;
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  background: var(--surface-glass);
+  box-shadow: var(--elevation-1);
+}
+.brand .logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  font-size: .72rem;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--logo-color), var(--accent));
+  color: var(--on-accent, #fff);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--logo-color) 35%, transparent);
+}
+.brand .name {
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, var(--text), color-mix(in srgb, var(--text) 72%, var(--muted)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Code / Chat 分段开关 */
+.mode-switch {
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+}
+.mode-btn {
+  min-width: 4.2rem;
+  transition: color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.mode-btn:hover:not(.active) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--hover) 80%, transparent);
+}
+.mode-btn.active {
+  box-shadow: var(--elevation-1), inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent);
+}
+
+/* 角色 / 技能 / 模型选择器 */
+.choice-pill-group {
+  gap: .28rem;
+  padding: .14rem .18rem;
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--pill-bg) 65%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
+}
+.choice-pill {
+  max-width: 188px;
+  min-height: 28px;
+  transition: transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.choice-pill-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+  border-radius: var(--radius-sm);
+}
+.choice-pill-kind::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+.choice-pill-role .choice-pill-kind::before { background: #c4b5fd; }
+.choice-pill-skill .choice-pill-kind::before { background: #fcd34d; }
+.choice-pill-model .choice-pill-kind::before { background: #67e8f9; }
+.choice-pill.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--elevation-1);
+}
+.choice-pill.clickable:active {
+  transform: translateY(0);
+}
+
+.ws-pill {
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 按钮系统 */
+.btn {
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.btn.primary {
+  box-shadow: 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+    0 2px 8px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.btn.primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+.btn.primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.icon-btn {
+  border-radius: var(--radius-sm);
+  min-width: 28px;
+  min-height: 28px;
+}
+.icon-btn:active {
+  transform: scale(0.96);
+}
+
+/* 广场 / 弹层 */
+.approval-overlay {
+  backdrop-filter: blur(6px);
+  animation: auc-fade-in var(--duration-normal) var(--ease-out);
+}
+.approval-card {
+  border-radius: var(--radius-lg);
+  animation: auc-slide-up var(--duration-normal) var(--ease-out);
+}
+.plaza-search {
+  border-radius: var(--radius-sm);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+.plaza-search:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.plaza-grid {
+  gap: .65rem;
+}
+.role-card {
+  border-radius: var(--radius-md);
+  transition: transform var(--duration-normal) var(--ease-out),
+    border-color var(--duration-fast),
+    box-shadow var(--duration-normal) var(--ease-out),
+    background var(--duration-fast);
+}
+.role-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--elevation-2);
+}
+.role-card.active {
+  box-shadow: var(--elevation-glow);
+}
+.facet-chip {
+  transition: background var(--duration-fast), border-color var(--duration-fast),
+    transform var(--duration-fast) var(--ease-out);
+}
+.facet-chip:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+.facet-chip.active {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent);
+}
+
+/* 对话消息 */
+.agent-messages,
+.chat-messages {
+  gap: .75rem;
+  scroll-behavior: smooth;
+}
+.msg-user {
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  box-shadow: var(--elevation-1);
+  line-height: 1.6;
+}
+.msg-assistant {
+  max-width: 96%;
+  padding: .55rem .7rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, var(--chat-bg));
+  line-height: 1.6;
+}
+.msg-assistant .marker {
+  opacity: .9;
+}
+.msg-tool {
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+/* 输入区 */
+.composer textarea,
+.chat-composer-inner {
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+.chat-composer-inner {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-2);
+}
+.chat-composer-inner:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  box-shadow: var(--elevation-glow);
+}
+.composer textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* 侧栏分区 */
+.section-head {
+  letter-spacing: .05em;
+}
+.sidebar-section {
+  transition: background var(--duration-fast);
+}
+
+/* 动效 */
+@keyframes auc-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes auc-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .role-card:hover,
+  .choice-pill.clickable:hover,
+  .btn.primary:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Chat 模式欢迎区 — 紧凑横向工具条 */
+.chat-header-inner {
+  max-width: none;
+  padding: .45rem 1.1rem;
+}
+.agent-profile {
+  gap: .4rem;
+}
+.agent-profile .agent-avatar {
+  box-shadow: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+.agent-profile .agent-title {
+  letter-spacing: -0.01em;
+}
+.agent-profile.compact .work-mode-bar .work-mode-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.agent-profile.compact .work-mode-select {
+  font-size: .72rem;
+  padding: .2rem .45rem;
+  max-width: 9.5rem;
+}
+.agent-profile.compact .agent-usage {
+  display: inline-block;
+  margin-left: .35rem;
+}
+.agent-meta,
+.agent-tags {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .agent-profile.compact {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .agent-profile.compact .work-mode-bar {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1100px) {
+  .choice-pill { max-width: 148px; }
+  .choice-pill-value { font-size: .68rem; }
+  .plaza-link-btn { display: none; }
+}

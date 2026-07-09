@@ -62,7 +62,9 @@ def parse_role_from_agent_id(agent_id: str | None) -> str | None:
         try:
             return sanitize_role_id(slug)
         except ValueError:
-            return slug or None
+            # 消毒失败即视为无有效角色，返回未消毒 slug 可能被下游当作
+            # 路径片段/标签，带来注入或误匹配风险。
+            return None
     return None
 
 

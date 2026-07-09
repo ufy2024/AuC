@@ -1,12 +1,30 @@
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """写临时文件后 os.replace 原子替换，避免并发/崩溃损坏 YAML。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 from auc.integration.nuggets import AuNugget, NuggetsStore
 from auc.messages import ChatMessage
@@ -105,9 +123,9 @@ class EvolutionStore:
                 for e in self.episodes
             ],
         }
-        self.path.write_text(
+        _atomic_write_text(
+            self.path,
             yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
-            encoding="utf-8",
         )
 
     def recall_episodes(self, query: str, limit: int = 5) -> list[Episode]:
@@ -225,6 +243,14 @@ class EvolutionMemoryPort:
         self._fixed_nuggets = nuggets_path
         self._fixed_evolution = evolution_path
         self._skill_store = skill_store
+        from auc.skills import SkillPrefs
+
+        self._skill_prefs = SkillPrefs()
+
+    def set_skill_prefs(self, prefs: SkillPrefs | None) -> None:
+        from auc.skills import SkillPrefs as _SkillPrefs
+
+        self._skill_prefs = (prefs or _SkillPrefs()).normalized()
 
     def _active_role_id(self, agent_id: AgentId | None) -> str:
         return parse_role_from_agent_id(agent_id) or self._default_role_id
@@ -277,7 +303,15 @@ class EvolutionMemoryPort:
             try:
                 from auc.skills import matched_skill_messages
 
-                msgs.extend(matched_skill_messages(self._skill_store, query, limit=2))
+                msgs.extend(
+                    matched_skill_messages(
+                        self._skill_store,
+                        query,
+                        limit=2,
+                        role_id=role_id,
+                        prefs=self._skill_prefs,
+                    )
+                )
             except Exception:  # noqa: BLE001 技能注入失败不影响召回
                 pass
         for n in store.nuggets.recall_by_query(query, limit=12):

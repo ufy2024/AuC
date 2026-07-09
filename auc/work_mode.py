@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from auc.plan import PLAN_MODE_PROMPT as _PLAN_MODE_RULES
+from auc.roles.constants import render_sandbox_template
 
 WorkModeId = Literal[
     "implement",
@@ -296,7 +297,7 @@ def build_full_system_prompt(
     include_work_mode: bool = True,
     extra: str | None = None,
 ) -> str:
-    parts = [base.format(sandbox=sandbox)]
+    parts = [render_sandbox_template(base, sandbox)]
     if include_work_mode:
         parts.append(WORK_MODE_OVERVIEW)
     if extra:

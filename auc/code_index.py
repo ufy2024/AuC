@@ -11,16 +11,19 @@ from __future__ import annotations
 
 import ast
 import json
+import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from auc.tools.search import SKIP_DIRS
+from auc.tools.search import MAX_FILE_BYTES, SKIP_DIRS
 
+logger = logging.getLogger("auc.code_index")
 _INDEX_VERSION = 1
-_MAX_FILE_BYTES = 1_500_000
+# 与 search.py / sandbox 保持一致的单文件大小上限，避免各处阈值不一致。
+_MAX_FILE_BYTES = MAX_FILE_BYTES
 
 
 @dataclass
@@ -173,6 +176,7 @@ class SymbolIndex:
         try:
             data = json.loads(self._index_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
+            logger.debug("符号索引加载失败，将重建", exc_info=True)
             return
         if int(data.get("version") or 0) != _INDEX_VERSION:
             return
@@ -181,18 +185,22 @@ class SymbolIndex:
                 self.files[path] = FileEntry.from_dict(path, entry)
 
     def save(self) -> None:
+        from auc.fslock import file_lock
+
         payload = {
             "version": _INDEX_VERSION,
             "files": {p: e.to_dict() for p, e in self.files.items()},
         }
         try:
             self._index_path.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=self._index_path.parent, suffix=".tmp")
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False)
-            os.replace(tmp, self._index_path)
+            # 跨进程锁 + 原子替换：并发 refresh 时避免互相覆盖或读到半截。
+            with file_lock(self._index_path.with_suffix(".json.lock")):
+                fd, tmp = tempfile.mkstemp(dir=self._index_path.parent, suffix=".tmp")
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, ensure_ascii=False)
+                os.replace(tmp, self._index_path)
         except OSError:
-            pass
+            logger.debug("符号索引保存失败", exc_info=True)
 
     # ── 扫描 / 增量构建 ──
     def _extra_exts(self) -> tuple[str, ...]:

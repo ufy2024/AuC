@@ -113,14 +113,47 @@ L2 工具必须满足：
 
 详见 [详细设计.md](详细设计.md) §12、[需求.md](需求.md) R24。
 
-## 会话自治级别（规划中 R6）
+## 会话授权模式（R6，已实现）
 
-在静态 L1/L2/L3 之上，规划三级会话开关：`confirm-all` / `auto-edit`（默认）/ `full-auto`。`full-auto` 仅放宽 L2，**L3 永不自动放行**。`confirm-all` 下写文件挂起并携带 unified diff，与 R9 Diff 审阅共用 `ApprovalPort`。
+在静态 L1/L2/L3 之上，会话级 **授权模式** 决定「哪些操作需要人工确认」。用户可见四档（详见 [approval-modes.md](approval-modes.md)）：
 
-完整裁决链（Hooks → Escalation → Autonomy → Gate → Checkpoint → invoke）见 [adr/006-tool-decision-chain.md](adr/006-tool-decision-chain.md) 与 [架构设计.md](架构设计.md) §4.4。
+| 用户模式 | 配置值 `autonomy` | 行为摘要 |
+|----------|-------------------|----------|
+| 每次都询问 | `confirm-all` | L2 写文件 + L2 改状态 + L3 均挂起审批 |
+| 改状态时询问（**默认**） | `auto-edit` | L2 写文件自动；改状态 + L3 挂起 |
+| 危险时询问 | `full-auto` | 仅 L3 与 Escalation 升级挂起 |
+| 全部通过（规划） | `auto-approve` + 门禁 | 含 L3 自动批准，仅沙盒开发环境 |
+
+实现：`auc/policy/autonomy.py` → `AutonomyPolicy.requires_approval()`。  
+**硬规则**：`ask-on-danger` / `full-auto` 下 L3 仍默认挂起；Escalation 锁定规则（`sudo`、`pipe-sh`、`dot-auc`）任何模式不可关。
+
+`confirm-all` 下 `write_file` 挂起并携带 unified diff，与 R9 Diff 审阅共用 `ApprovalPort`。
+
+### 配置入口
+
+```bash
+auc chat --autonomy auto-edit          # CLI 启动参数
+/autonomy confirm-all                  # REPL 斜杠命令
+```
+
+Web：`POST /api/chat/stream` 的 `autonomy` 字段；设置页授权模式选择器（规划 M3）。
+
+完整裁决链（Hooks → Escalation → Autonomy → Gate → Checkpoint → invoke）见 [adr/006-tool-decision-chain.md](adr/006-tool-decision-chain.md)。
+
+## 内置工具默认分级（摘要）
+
+| 工具 | 级别 | 备注 |
+|------|------|------|
+| `read_file`、`grep_search`、`list_dir` | L1 | 只读 |
+| `write_file`、`delete_path`、`run_command` | L2 | 写文件 / 改状态 |
+| `fetch_url`、`git_push` | L3 | 外链 / 远端推送 |
+| `git_commit` 等 | L2 | `mutates_state` |
+
+权限下限见 `auc/tools/privilege_floor.py`；项目 `.aurules` 只能升权。
 
 ## 相关文档
 
+- [approval-modes.md](approval-modes.md) — **授权模式**（每次都询问 / 危险时询问 / 全部通过）
 - [interfaces.md](interfaces.md) — `ApprovalPort`、`ToolPolicy`
 - [aum-integration.md](aum-integration.md) — IM 网关
 - [adr/005-tool-privilege-2fa.md](adr/005-tool-privilege-2fa.md)

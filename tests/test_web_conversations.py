@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from auc.config import ModelConfig
 from auc.messages import ChatMessage, RunResult
-from auc.web.conversations import ConversationStore, messages_for_ui, title_from_messages
+from auc.web.conversations import ConversationStore, ConversationUsage, messages_for_ui, title_from_messages
 from auc.web.server import create_app, init_web_state
 from auc.web.session import WebSession
 
@@ -128,6 +128,76 @@ def test_apply_result_saves_to_run_conversation_not_active() -> None:
         assert loaded_b[0].content == "B"
         assert session.history[0].content == "B"
         assert store.get_active_id() == conv_b
+
+
+def test_conversation_usage_accumulates() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ConversationStore(tmp)
+        conv_id = store.create()
+        store.add_usage(
+            conv_id,
+            {
+                "calls": 2,
+                "prompt_tokens": 100,
+                "completion_tokens": 40,
+                "total_tokens": 140,
+                "cost_usd": 0.001,
+            },
+        )
+        store.add_usage(
+            conv_id,
+            {
+                "calls": 1,
+                "prompt_tokens": 50,
+                "completion_tokens": 10,
+                "total_tokens": 60,
+                "cost_usd": 0.0005,
+            },
+        )
+        usage = store.get_usage(conv_id)
+        assert usage.total_tokens == 200
+        assert usage.prompt_tokens == 150
+        assert usage.completion_tokens == 50
+        assert usage.calls == 3
+        assert abs(usage.cost_usd - 0.0015) < 1e-9
+        summaries = store.list_summaries()
+        assert summaries[0].usage.total_tokens == 200
+
+
+def test_apply_result_records_usage() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        store = ConversationStore(tmp)
+        conv_id = store.create()
+        result_msgs = [
+            ChatMessage(role="user", content="Q"),
+            ChatMessage(role="assistant", content="A"),
+        ]
+        agent = MagicMock()
+        agent.last_run_result = RunResult(
+            output="A",
+            messages=result_msgs,
+            status="completed",
+            run_id="run-1",
+            usage={
+                "calls": 1,
+                "prompt_tokens": 20,
+                "completion_tokens": 8,
+                "total_tokens": 28,
+                "cost_usd": 0.0002,
+            },
+        )
+        session = WebSession(
+            agent=agent,
+            cfg=ModelConfig(provider="openai", model="test", api_key="x"),
+            sandbox=tmp,
+            store=store,
+            history=result_msgs,
+            active_conversation_id=conv_id,
+        )
+        session.apply_result(conv_id)
+        usage = store.get_usage(conv_id)
+        assert usage.total_tokens == 28
+        assert usage.cost_usd == 0.0002
 
 
 def _session_with_history(tmp: str, history: list[ChatMessage]) -> WebSession:

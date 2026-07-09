@@ -92,7 +92,49 @@ def test_build_job_command_includes_flags(tmp_path):
     assert "--repo" in cmd and "/repo" in cmd
     assert "--role" in cmd and "architect" in cmd
     assert "--autonomy" in cmd and "full-auto" in cmd
+    # 显式 run_id = 作业 id（用于精确关联回执）
+    assert "--run-id" in cmd
+    assert cmd[cmd.index("--run-id") + 1] == "x"
     assert cmd[-1] == "hello"
+
+
+def test_run_job_attaches_receipt_by_exact_run_id(tmp_path):
+    """回执按作业 id 精确关联，即使沙盒里有更新的其他回执也不误关联。"""
+    from auc.receipt import ReceiptStore, RunReceipt
+
+    store = JobStore(str(tmp_path))
+    job = store.enqueue("go")
+    job = store.claim_next()
+
+    rs = ReceiptStore(str(tmp_path))
+    # 本作业自己的回执（run_id == job.id）
+    rs.write(
+        RunReceipt(
+            run_id=job.id,
+            agent_id="chat:coder",
+            status="completed",
+            goal="mine",
+            commands=[],
+        )
+    )
+    # 一个「更新」的、属于别的 Run 的回执——按 mtime 会误选它
+    other = RunReceipt(
+        run_id="other-run-999",
+        agent_id="chat:coder",
+        status="completed",
+        goal="not mine",
+    )
+    other.changed_files = []
+    rs.write(other)
+
+    def fake_popen(cmd, stdout=None, stderr=None):
+        return FakeProc(pid=1, code=0)
+
+    done = run_job(job, store, popen=fake_popen)
+    assert done.status == STATUS_DONE
+    assert done.run_id == job.id
+    assert done.run_id != "other-run-999"
+    assert done.receipt_path == str(rs.path_for(job.id))
 
 
 def test_run_job_success(tmp_path):

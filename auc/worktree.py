@@ -57,6 +57,7 @@ class ParallelTaskResult:
     changed_files: list[str] = field(default_factory=list)
     merge: MergeResult | None = None
     error: str | None = None
+    cleaned: bool = False
 
 
 def sanitize_name(name: str) -> str:
@@ -255,6 +256,21 @@ def run_parallel(
     for r, _ in prepared:
         if merge and r.status == "done":
             r.merge = mgr.merge(r.name)
-        if cleanup:
-            mgr.remove(r.name)
+        # 仅在安全时清理：任务失败/出错，或合并失败（冲突已 abort）时保留
+        # worktree，避免丢失未合并的工作，供人工排查/解决冲突。
+        if cleanup and _safe_to_cleanup(r, merge=merge):
+            r.cleaned = mgr.remove(r.name)
     return results
+
+
+def _safe_to_cleanup(r: ParallelTaskResult, *, merge: bool) -> bool:
+    """判断某任务的 worktree 是否可安全清理。
+
+    - 任务未成功（failed/error）→ 保留，便于排查；
+    - 请求了合并但合并未成功（冲突/checkout 失败）→ 保留，防止丢失未合并改动。
+    """
+    if r.status != "done":
+        return False
+    if merge and (r.merge is None or not r.merge.ok):
+        return False
+    return True

@@ -1,0 +1,212 @@
+{
+  "source": "https://github.com/mattpocock/skills",
+  "branch": "main",
+  "count": 34,
+  "skills": [
+    {
+      "slug": "ask-matt",
+      "name": "ask-matt",
+      "path": "skills/engineering/ask-matt/SKILL.md",
+      "dest": "auc/skill_library/bundled/ask-matt/SKILL.md"
+    },
+    {
+      "slug": "code-review",
+      "name": "code-review",
+      "path": "skills/engineering/code-review/SKILL.md",
+      "dest": "auc/skill_library/bundled/code-review/SKILL.md"
+    },
+    {
+      "slug": "codebase-design",
+      "name": "codebase-design",
+      "path": "skills/engineering/codebase-design/SKILL.md",
+      "dest": "auc/skill_library/bundled/codebase-design/SKILL.md"
+    },
+    {
+      "slug": "diagnosing-bugs",
+      "name": "diagnosing-bugs",
+      "path": "skills/engineering/diagnosing-bugs/SKILL.md",
+      "dest": "auc/skill_library/bundled/diagnosing-bugs/SKILL.md"
+    },
+    {
+      "slug": "domain-modeling",
+      "name": "domain-modeling",
+      "path": "skills/engineering/domain-modeling/SKILL.md",
+      "dest": "auc/skill_library/bundled/domain-modeling/SKILL.md"
+    },
+    {
+      "slug": "grill-with-docs",
+      "name": "grill-with-docs",
+      "path": "skills/engineering/grill-with-docs/SKILL.md",
+      "dest": "auc/skill_library/bundled/grill-with-docs/SKILL.md"
+    },
+    {
+      "slug": "implement",
+      "name": "implement",
+      "path": "skills/engineering/implement/SKILL.md",
+      "dest": "auc/skill_library/bundled/implement/SKILL.md"
+    },
+    {
+      "slug": "improve-codebase-architecture",
+      "name": "improve-codebase-architecture",
+      "path": "skills/engineering/improve-codebase-architecture/SKILL.md",
+      "dest": "auc/skill_library/bundled/improve-codebase-architecture/SKILL.md"
+    },
+    {
+      "slug": "prototype",
+      "name": "prototype",
+      "path": "skills/engineering/prototype/SKILL.md",
+      "dest": "auc/skill_library/bundled/prototype/SKILL.md"
+    },
+    {
+      "slug": "research",
+      "name": "research",
+      "path": "skills/engineering/research/SKILL.md",
+      "dest": "auc/skill_library/bundled/research/SKILL.md"
+    },
+    {
+      "slug": "resolving-merge-conflicts",
+      "name": "resolving-merge-conflicts",
+      "path": "skills/engineering/resolving-merge-conflicts/SKILL.md",
+      "dest": "auc/skill_library/bundled/resolving-merge-conflicts/SKILL.md"
+    },
+    {
+      "slug": "setup-matt-pocock-skills",
+      "name": "setup-matt-pocock-skills",
+      "path": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
+      "dest": "auc/skill_library/bundled/setup-matt-pocock-skills/SKILL.md"
+    },
+    {
+      "slug": "tdd",
+      "name": "tdd",
+      "path": "skills/engineering/tdd/SKILL.md",
+      "dest": "auc/skill_library/bundled/tdd/SKILL.md"
+    },
+    {
+      "slug": "to-spec",
+      "name": "to-spec",
+      "path": "skills/engineering/to-spec/SKILL.md",
+      "dest": "auc/skill_library/bundled/to-spec/SKILL.md"
+    },
+    {
+      "slug": "to-tickets",
+      "name": "to-tickets",
+      "path": "skills/engineering/to-tickets/SKILL.md",
+      "dest": "auc/skill_library/bundled/to-tickets/SKILL.md"
+    },
+    {
+      "slug": "triage",
+      "name": "triage",
+      "path": "skills/engineering/triage/SKILL.md",
+      "dest": "auc/skill_library/bundled/triage/SKILL.md"
+    },
+    {
+      "slug": "wayfinder",
+      "name": "wayfinder",
+      "path": "skills/engineering/wayfinder/SKILL.md",
+      "dest": "auc/skill_library/bundled/wayfinder/SKILL.md"
+    },
+    {
+      "slug": "claude-handoff",
+      "name": "claude-handoff",
+      "path": "skills/in-progress/claude-handoff/SKILL.md",
+      "dest": "auc/skill_library/bundled/claude-handoff/SKILL.md"
+    },
+    {
+      "slug": "loop-me",
+      "name": "loop-me",
+      "path": "skills/in-progress/loop-me/SKILL.md",
+      "dest": "auc/skill_library/bundled/loop-me/SKILL.md"
+    },
+    {
+      "slug": "wizard",
+      "name": "wizard",
+      "path": "skills/in-progress/wizard/SKILL.md",
+      "dest": "auc/skill_library/bundled/wizard/SKILL.md"
+    },
+    {
+      "slug": "writing-beats",
+      "name": "writing-beats",
+      "path": "skills/in-progress/writing-beats/SKILL.md",
+      "dest": "auc/skill_library/bundled/writing-beats/SKILL.md"
+    },
+    {
+      "slug": "writing-fragments",
+      "name": "writing-fragments",
+      "path": "skills/in-progress/writing-fragments/SKILL.md",
+      "dest": "auc/skill_library/bundled/writing-fragments/SKILL.md"
+    },
+    {
+      "slug": "writing-shape",
+      "name": "writing-shape",
+      "path": "skills/in-progress/writing-shape/SKILL.md",
+      "dest": "auc/skill_library/bundled/writing-shape/SKILL.md"
+    },
+    {
+      "slug": "git-guardrails-claude-code",
+      "name": "git-guardrails-claude-code",
+      "path": "skills/misc/git-guardrails-claude-code/SKILL.md",
+      "dest": "auc/skill_library/bundled/git-guardrails-claude-code/SKILL.md"
+    },
+    {
+      "slug": "migrate-to-shoehorn",
+      "name": "migrate-to-shoehorn",
+      "path": "skills/misc/migrate-to-shoehorn/SKILL.md",
+      "dest": "auc/skill_library/bundled/migrate-to-shoehorn/SKILL.md"
+    },
+    {
+      "slug": "scaffold-exercises",
+      "name": "scaffold-exercises",
+      "path": "skills/misc/scaffold-exercises/SKILL.md",
+      "dest": "auc/skill_library/bundled/scaffold-exercises/SKILL.md"
+    },
+    {
+      "slug": "setup-pre-commit",
+      "name": "setup-pre-commit",
+      "path": "skills/misc/setup-pre-commit/SKILL.md",
+      "dest": "auc/skill_library/bundled/setup-pre-commit/SKILL.md"
+    },
+    {
+      "slug": "edit-article",
+      "name": "edit-article",
+      "path": "skills/personal/edit-article/SKILL.md",
+      "dest": "auc/skill_library/bundled/edit-article/SKILL.md"
+    },
+    {
+      "slug": "obsidian-vault",
+      "name": "obsidian-vault",
+      "path": "skills/personal/obsidian-vault/SKILL.md",
+      "dest": "auc/skill_library/bundled/obsidian-vault/SKILL.md"
+    },
+    {
+      "slug": "grill-me",
+      "name": "grill-me",
+      "path": "skills/productivity/grill-me/SKILL.md",
+      "dest": "auc/skill_library/bundled/grill-me/SKILL.md"
+    },
+    {
+      "slug": "grilling",
+      "name": "grilling",
+      "path": "skills/productivity/grilling/SKILL.md",
+      "dest": "auc/skill_library/bundled/grilling/SKILL.md"
+    },
+    {
+      "slug": "handoff",
+      "name": "handoff",
+      "path": "skills/productivity/handoff/SKILL.md",
+      "dest": "auc/skill_library/bundled/handoff/SKILL.md"
+    },
+    {
+      "slug": "teach",
+      "name": "teach",
+      "path": "skills/productivity/teach/SKILL.md",
+      "dest": "auc/skill_library/bundled/teach/SKILL.md"
+    },
+    {
+      "slug": "writing-great-skills",
+      "name": "writing-great-skills",
+      "path": "skills/productivity/writing-great-skills/SKILL.md",
+      "dest": "auc/skill_library/bundled/writing-great-skills/SKILL.md"
+    }
+  ],
+  "skipped": []
+}

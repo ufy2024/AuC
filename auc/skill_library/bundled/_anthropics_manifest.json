@@ -1,0 +1,110 @@
+{
+  "source": "https://github.com/anthropics/skills",
+  "branch": "main",
+  "count": 17,
+  "skills": [
+    {
+      "slug": "anthropic-algorithmic-art",
+      "name": "anthropic-algorithmic-art",
+      "path": "skills/algorithmic-art/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-algorithmic-art/SKILL.md"
+    },
+    {
+      "slug": "anthropic-brand-guidelines",
+      "name": "anthropic-brand-guidelines",
+      "path": "skills/brand-guidelines/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-brand-guidelines/SKILL.md"
+    },
+    {
+      "slug": "anthropic-canvas-design",
+      "name": "anthropic-canvas-design",
+      "path": "skills/canvas-design/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-canvas-design/SKILL.md"
+    },
+    {
+      "slug": "anthropic-claude-api",
+      "name": "anthropic-claude-api",
+      "path": "skills/claude-api/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-claude-api/SKILL.md"
+    },
+    {
+      "slug": "anthropic-doc-coauthoring",
+      "name": "anthropic-doc-coauthoring",
+      "path": "skills/doc-coauthoring/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-doc-coauthoring/SKILL.md"
+    },
+    {
+      "slug": "anthropic-docx",
+      "name": "anthropic-docx",
+      "path": "skills/docx/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-docx/SKILL.md"
+    },
+    {
+      "slug": "anthropic-frontend-design",
+      "name": "anthropic-frontend-design",
+      "path": "skills/frontend-design/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-frontend-design/SKILL.md"
+    },
+    {
+      "slug": "anthropic-internal-comms",
+      "name": "anthropic-internal-comms",
+      "path": "skills/internal-comms/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-internal-comms/SKILL.md"
+    },
+    {
+      "slug": "anthropic-mcp-builder",
+      "name": "anthropic-mcp-builder",
+      "path": "skills/mcp-builder/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-mcp-builder/SKILL.md"
+    },
+    {
+      "slug": "anthropic-pdf",
+      "name": "anthropic-pdf",
+      "path": "skills/pdf/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-pdf/SKILL.md"
+    },
+    {
+      "slug": "anthropic-pptx",
+      "name": "anthropic-pptx",
+      "path": "skills/pptx/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-pptx/SKILL.md"
+    },
+    {
+      "slug": "anthropic-skill-creator",
+      "name": "anthropic-skill-creator",
+      "path": "skills/skill-creator/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-skill-creator/SKILL.md"
+    },
+    {
+      "slug": "anthropic-slack-gif-creator",
+      "name": "anthropic-slack-gif-creator",
+      "path": "skills/slack-gif-creator/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-slack-gif-creator/SKILL.md"
+    },
+    {
+      "slug": "anthropic-theme-factory",
+      "name": "anthropic-theme-factory",
+      "path": "skills/theme-factory/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-theme-factory/SKILL.md"
+    },
+    {
+      "slug": "anthropic-web-artifacts-builder",
+      "name": "anthropic-web-artifacts-builder",
+      "path": "skills/web-artifacts-builder/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-web-artifacts-builder/SKILL.md"
+    },
+    {
+      "slug": "anthropic-webapp-testing",
+      "name": "anthropic-webapp-testing",
+      "path": "skills/webapp-testing/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-webapp-testing/SKILL.md"
+    },
+    {
+      "slug": "anthropic-xlsx",
+      "name": "anthropic-xlsx",
+      "path": "skills/xlsx/SKILL.md",
+      "dest": "auc/skill_library/bundled/anthropic-xlsx/SKILL.md"
+    }
+  ],
+  "skipped": []
+}

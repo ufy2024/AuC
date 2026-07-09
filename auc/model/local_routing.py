@@ -117,24 +117,23 @@ def score_model(model_id: str, strategy: str) -> float:
     return score
 
 
-def select_model(models: list[str], strategy: str = DEFAULT_STRATEGY) -> str | None:
-    """从候选模型中按策略选一个真实模型；无可用对话模型时返回 ``None``。
-
-    - 排除非对话模型；若排除后为空则退回全部候选（极端兜底）。
-    - 同分按候选原始顺序（稳定）取靠前者。
-    """
+def rank_models(models: list[str], strategy: str = DEFAULT_STRATEGY) -> list[str]:
+    """按策略对候选模型降序排列；同分保持原始顺序。"""
     candidates = [m for m in models if m and isinstance(m, str)]
     if not candidates:
-        return None
+        return []
     if strategy not in ROUTING_STRATEGIES:
         strategy = DEFAULT_STRATEGY
     chat = [m for m in candidates if is_chat_model(m)]
     pool = chat or candidates
-    best_idx = 0
-    best_score = float("-inf")
-    for idx, model in enumerate(pool):
-        sc = score_model(model, strategy)
-        if sc > best_score:
-            best_score = sc
-            best_idx = idx
-    return pool[best_idx]
+    scored = sorted(
+        ((score_model(m, strategy), idx, m) for idx, m in enumerate(pool)),
+        key=lambda t: (-t[0], t[1]),
+    )
+    return [m for _, _, m in scored]
+
+
+def select_model(models: list[str], strategy: str = DEFAULT_STRATEGY) -> str | None:
+    """从候选模型中按策略选一个真实模型；无可用对话模型时返回 ``None``。"""
+    ranked = rank_models(models, strategy)
+    return ranked[0] if ranked else None

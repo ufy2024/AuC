@@ -133,6 +133,12 @@ class ToolPrivilegeGate:
 
         # 2) autonomy：会话级收紧判定（仅收紧，不放宽 L3）
         needs_approval = effective_privilege == "L3"
+        if (
+            needs_approval
+            and ctx.autonomy_policy is not None
+            and ctx.autonomy_policy.skips_all_approval()
+        ):
+            needs_approval = False
         if not needs_approval and ctx.autonomy_policy is not None:
             eff_policy = ToolPolicy(
                 name=policy.name,

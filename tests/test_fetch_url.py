@@ -25,6 +25,67 @@ def test_validate_fetch_url_allows_https() -> None:
     assert validate_fetch_url("https://example.com/article") == "https://example.com/article"
 
 
+def test_validated_connect_ip_blocks_private_literal() -> None:
+    from auc.tools.fetch import _validated_connect_ip
+
+    for ip in ("127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.169.254", "::1"):
+        with pytest.raises(ValueError, match="禁止连接"):
+            _validated_connect_ip(ip)
+
+
+def test_validated_connect_ip_fail_closed_on_dns_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """连接期 DNS 解析失败必须拒绝（fail-closed），而非放行。"""
+    import auc.tools.fetch as fetch_mod
+
+    def _boom(host: str):
+        raise ValueError(f"无法解析主机: {host}")
+
+    monkeypatch.setattr(fetch_mod, "_resolve_host_ips", _boom)
+    with pytest.raises(ValueError, match="无法解析主机"):
+        fetch_mod._validated_connect_ip("public-but-unresolvable.example")
+
+
+def test_validated_connect_ip_blocks_rebinding_to_private(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """解析结果含内网 IP（DNS rebinding）→ 拒绝。"""
+    import auc.tools.fetch as fetch_mod
+
+    monkeypatch.setattr(fetch_mod, "_resolve_host_ips", lambda h: ["93.184.216.34", "127.0.0.1"])
+    with pytest.raises(ValueError, match="禁止连接"):
+        fetch_mod._validated_connect_ip("evil.example")
+
+
+def test_validated_connect_ip_returns_public(monkeypatch: pytest.MonkeyPatch) -> None:
+    import auc.tools.fetch as fetch_mod
+
+    monkeypatch.setattr(fetch_mod, "_resolve_host_ips", lambda h: ["93.184.216.34"])
+    assert fetch_mod._validated_connect_ip("example.com") == "93.184.216.34"
+
+
+def test_guarded_backend_pins_and_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """连接期后端：内网目标在真正连接前即被拒（不触网）。"""
+    import asyncio
+
+    import httpx
+
+    import auc.tools.fetch as fetch_mod
+
+    transport = fetch_mod._make_guarded_transport(httpx)
+    backend = transport._pool._network_backend
+
+    # 解析到内网 → connect_tcp 在调用真实后端前就抛错
+    monkeypatch.setattr(fetch_mod, "_resolve_host_ips", lambda h: ["10.1.2.3"])
+    with pytest.raises(ValueError, match="禁止连接"):
+        asyncio.run(backend.connect_tcp("intranet.example", 443))
+
+    # unix socket 一律拒绝
+    with pytest.raises(ValueError, match="unix socket"):
+        asyncio.run(backend.connect_unix_socket("/tmp/x.sock"))
+
+
 def test_web_approval_port_decide() -> None:
     port = WebApprovalPort()
 

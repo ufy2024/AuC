@@ -75,8 +75,9 @@ def model_settings_payload(
         "provider": cfg.provider,
         "model": cfg.model,
         "base_url": cfg.base_url or _default_base_url(cfg.provider),
+        # 安全：绝不回显明文 api_key（防被浏览器扩展/截屏/代理日志窃取）；
+        # 前端留空提交时后端沿用现有密钥，功能不受影响。
         "api_key_masked": cfg.masked_api_key(),
-        "api_key": cfg.api_key or "",
         "api_key_set": bool(cfg.api_key),
         "config_name": cfg.config_name,
         "config_id": cfg.config_id,

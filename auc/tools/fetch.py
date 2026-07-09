@@ -83,7 +83,9 @@ def _host_blocked(host: str) -> bool:
     try:
         ips = _resolve_host_ips(host)
     except ValueError:
-        # DNS 不可用时仅依赖主机名规则（公网域名由连接阶段再失败）
+        # 预校验阶段 DNS 不可用时仅依赖主机名规则；真正的 fail-closed 与 IP 绑定
+        # 在连接阶段由 _GuardedBackend 强制执行（见 make_fetch_tool），从而既不误
+        # 拦公网域名，又能堵住 DNS-rebinding TOCTOU。
         return False
     for ip in ips:
         try:
@@ -92,6 +94,40 @@ def _host_blocked(host: str) -> bool:
         except ValueError:
             return True
     return False
+
+
+def _validated_connect_ip(host: str) -> str:
+    """连接期解析并校验主机，返回可安全连接的 IP（fail-closed）。
+
+    - DNS 解析失败 → 抛错（拒绝，而非放行）；
+    - 任一解析 IP 命中内网/环回/保留段 → 拒绝（防混合应答 rebinding）；
+    - 字面 IP 直接校验。
+    返回首个（已确保全部通过校验的）IP，供 socket 连接**绑定**，杜绝校验后重解析
+    到内网的 TOCTOU。
+    """
+    h = (host or "").strip().lower().rstrip(".")
+    if not h:
+        raise ValueError("无效的主机")
+    # 字面 IP
+    try:
+        addr = ipaddress.ip_address(h)
+    except ValueError:
+        addr = None
+    if addr is not None:
+        if _ip_blocked(addr):
+            raise ValueError(f"禁止连接内网/本机地址: {host}")
+        return h
+    if _hostname_blocked(h):
+        raise ValueError(f"禁止连接内网/本机地址: {host}")
+    ips = _resolve_host_ips(h)  # DNS 失败在此抛错 → fail-closed
+    for ip in ips:
+        try:
+            blocked = _ip_blocked(ipaddress.ip_address(ip))
+        except ValueError:
+            blocked = True  # 无法解析的地址一律拒绝
+        if blocked:
+            raise ValueError(f"禁止连接内网/本机地址: {host} → {ip}")
+    return ips[0]
 
 
 def validate_fetch_url(url: str) -> str:
@@ -120,6 +156,50 @@ def _html_to_text(html: str) -> str:
     return text
 
 
+def _make_guarded_transport(httpx: Any) -> Any:
+    """构造在**连接期**做 SSRF 绑定的 httpx 传输层。
+
+    复用 httpx 默认传输的 TLS/连接池配置，仅替换其底层网络后端：连接前解析并校验
+    目标主机、把 socket **钉定**到已校验 IP（origin 主机名保持不变，故 Host 头 /
+    SNI / 证书校验 / 重定向语义均不受影响）。
+    """
+    import httpcore
+
+    inner_transport = httpx.AsyncHTTPTransport()
+    pool = inner_transport._pool
+    real_backend = pool._network_backend
+
+    class _GuardedBackend(httpcore.AsyncNetworkBackend):
+        async def connect_tcp(
+            self,
+            host: str,
+            port: int,
+            timeout: float | None = None,
+            local_address: str | None = None,
+            socket_options: Any = None,
+        ) -> Any:
+            # host 为 origin 主机名/字面 IP；解析+校验后连接到已校验 IP。
+            pinned = _validated_connect_ip(host)
+            return await real_backend.connect_tcp(
+                pinned,
+                port,
+                timeout=timeout,
+                local_address=local_address,
+                socket_options=socket_options,
+            )
+
+        async def connect_unix_socket(
+            self, path: str, timeout: float | None = None, socket_options: Any = None
+        ) -> Any:
+            raise ValueError("禁止连接 unix socket")
+
+        async def sleep(self, seconds: float) -> None:
+            await real_backend.sleep(seconds)
+
+    pool._network_backend = _GuardedBackend()
+    return inner_transport
+
+
 def make_fetch_tool(sandbox_root: str) -> list[tuple[Any, ToolPolicy]]:
     httpx = _require_httpx()
 
@@ -139,6 +219,7 @@ def make_fetch_tool(sandbox_root: str) -> list[tuple[Any, ToolPolicy]]:
             headers={"User-Agent": _USER_AGENT},
             event_hooks={"request": [_guard_request]},
             max_redirects=_MAX_REDIRECTS,
+            transport=_make_guarded_transport(httpx),
         ) as client:
             resp = await client.get(safe_url)
             final_host = urlparse(str(resp.url)).hostname or ""

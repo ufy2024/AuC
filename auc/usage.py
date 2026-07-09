@@ -30,6 +30,12 @@ MODEL_PRICES: dict[str, tuple[float, float]] = {
     "deepseek-chat": (0.27, 1.10),
 }
 DEFAULT_PRICE: tuple[float, float] = (0.0, 0.0)
+# 展示给用户的计费倍率（实际 API 成本 × 此系数）
+BILLED_COST_MULTIPLIER = 1.5
+
+
+def billed_cost_usd(actual: float) -> float:
+    return round(float(actual or 0) * BILLED_COST_MULTIPLIER, 6)
 
 
 def price_for(model: str) -> tuple[float, float]:

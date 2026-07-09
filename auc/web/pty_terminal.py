@@ -14,6 +14,8 @@ from typing import Any
 
 from auc.sandbox import resolve_under_sandbox
 
+_HEARTBEAT_INTERVAL = 20.0
+
 
 def _set_winsize(fd: int, rows: int, cols: int) -> None:
     winsize = struct.pack("HHHH", rows, cols, 0, 0)
@@ -46,6 +48,15 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
 
     loop = asyncio.get_running_loop()
     closed = asyncio.Event()
+    send_lock = asyncio.Lock()
+
+    async def _ws_send_text(data: str) -> None:
+        async with send_lock:
+            await websocket.send_text(data)
+
+    async def _ws_send_bytes(data: bytes) -> None:
+        async with send_lock:
+            await websocket.send_bytes(data)
 
     def _on_master_readable() -> None:
         if closed.is_set():
@@ -62,7 +73,7 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
 
     async def _send_bytes(ws: Any, data: bytes) -> None:
         try:
-            await ws.send_bytes(data)
+            await _ws_send_bytes(data)
         except Exception:  # noqa: BLE001
             closed.set()
 
@@ -74,6 +85,23 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
 
     watch_task = asyncio.create_task(_watch_proc())
     closed_task = asyncio.create_task(closed.wait())
+
+    async def _server_heartbeat() -> None:
+        while not closed.is_set():
+            try:
+                await asyncio.wait_for(closed.wait(), timeout=_HEARTBEAT_INTERVAL)
+                return
+            except asyncio.TimeoutError:
+                pass
+            if closed.is_set():
+                return
+            try:
+                await _ws_send_text(json.dumps({"type": "ping"}))
+            except Exception:  # noqa: BLE001
+                closed.set()
+                return
+
+    heartbeat_task = asyncio.create_task(_server_heartbeat())
 
     try:
         while not closed.is_set():
@@ -114,7 +142,16 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
                 except OSError:
                     break
                 continue
-            if payload.get("type") == "resize":
+            msg_type = payload.get("type")
+            if msg_type == "ping":
+                try:
+                    await _ws_send_text(json.dumps({"type": "pong"}))
+                except Exception:  # noqa: BLE001
+                    break
+                continue
+            if msg_type == "pong":
+                continue
+            if msg_type == "resize":
                 cols = int(payload.get("cols") or 80)
                 rows = int(payload.get("rows") or 24)
                 _set_winsize(master_fd, max(rows, 1), max(cols, 1))
@@ -123,6 +160,7 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
         loop.remove_reader(master_fd)
         watch_task.cancel()
         closed_task.cancel()
+        heartbeat_task.cancel()
         try:
             os.close(master_fd)
         except OSError:

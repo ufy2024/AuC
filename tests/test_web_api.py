@@ -360,7 +360,9 @@ def test_model_settings_get_and_put(client: TestClient) -> None:
     assert data["provider"] in ("openai", "anthropic", "deepseek")
     assert "model" in data
     assert "api_key_masked" in data
-    assert data.get("api_key") == "x"
+    # 安全：明文 api_key 绝不回显，仅返回掩码与 api_key_set
+    assert "api_key" not in data
+    assert data.get("api_key_set") is True
     assert "base_url" in data
     assert "layers" in data
     assert "active_scope" in data
