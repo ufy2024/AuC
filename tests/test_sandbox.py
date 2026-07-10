@@ -10,7 +10,11 @@ from auc.messages import ChatMessage, ToolCall
 from auc.model import AssistantMessage, InMemoryModelClient
 from auc.policy import ToolPrivilegeGate
 from auc.ports.rules import ProjectRules
-from auc.sandbox import SandboxViolationError, resolve_under_sandbox
+from auc.sandbox import (
+    SandboxViolationError,
+    resolve_under_sandbox,
+    resolve_workspace_safe,
+)
 from auc.tools.files import make_file_tools
 from auc.tools.registry import DefaultToolRegistry
 
@@ -31,6 +35,35 @@ def test_resolve_under_sandbox_escape(tmp_path) -> None:
     outside.write_text("x", encoding="utf-8")
     with pytest.raises(SandboxViolationError):
         resolve_under_sandbox(str(root), str(outside))
+
+
+def test_resolve_workspace_safe_ok(tmp_path) -> None:
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "a.txt").write_text("x", encoding="utf-8")
+    assert resolve_workspace_safe(str(root), "a.txt") == (root / "a.txt").resolve()
+
+
+def test_resolve_workspace_safe_rejects_auc(tmp_path) -> None:
+    root = tmp_path / "ws"
+    (root / ".auc").mkdir(parents=True)
+    with pytest.raises(SandboxViolationError):
+        resolve_workspace_safe(str(root), ".auc/settings.local.json")
+    with pytest.raises(SandboxViolationError):
+        resolve_workspace_safe(str(root), ".auc")
+
+
+def test_resolve_workspace_safe_rejects_symlink_to_auc(tmp_path) -> None:
+    """符号链接绕过：evil -> .auc/settings.local.json 必须被拒绝。"""
+    root = tmp_path / "ws"
+    auc = root / ".auc"
+    auc.mkdir(parents=True)
+    secret = auc / "settings.local.json"
+    secret.write_text('{"api_key": "sk-secret"}', encoding="utf-8")
+    link = root / "evil"
+    link.symlink_to(secret)
+    with pytest.raises(SandboxViolationError):
+        resolve_workspace_safe(str(root), "evil")
 
 
 def test_l2_tool_blocked_outside_sandbox(tmp_path) -> None:

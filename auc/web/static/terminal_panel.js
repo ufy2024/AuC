@@ -1,6 +1,6 @@
 /** Code 模式底部终端（VS Code 风格多标签 + xterm ESM + WebSocket PTY） */
 
-import { t } from "./i18n.js";
+import { t } from "./i18n.js?v=2";
 
 const $ = (sel) => document.querySelector(sel);
 

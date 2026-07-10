@@ -14,8 +14,6 @@ from typing import Any
 
 from auc.sandbox import resolve_under_sandbox
 
-_HEARTBEAT_INTERVAL = 20.0
-
 
 def _set_winsize(fd: int, rows: int, cols: int) -> None:
     winsize = struct.pack("HHHH", rows, cols, 0, 0)
@@ -49,6 +47,9 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
     loop = asyncio.get_running_loop()
     closed = asyncio.Event()
     send_lock = asyncio.Lock()
+    # PTY 输出经单一 writer 协程按 FIFO 顺序发送，避免每次可读就 create_task：
+    # 既保证字节顺序不被打乱，也避免高吞吐输出时任务无界堆积。
+    send_queue: asyncio.Queue[bytes] = asyncio.Queue()
 
     async def _ws_send_text(data: str) -> None:
         async with send_lock:
@@ -69,15 +70,24 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
         if not data:
             closed.set()
             return
-        asyncio.create_task(_send_bytes(websocket, data))
+        send_queue.put_nowait(data)
 
-    async def _send_bytes(ws: Any, data: bytes) -> None:
-        try:
-            await _ws_send_bytes(data)
-        except Exception:  # noqa: BLE001
-            closed.set()
+    async def _writer() -> None:
+        while True:
+            try:
+                data = await asyncio.wait_for(send_queue.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                if closed.is_set():
+                    return
+                continue
+            try:
+                await _ws_send_bytes(data)
+            except Exception:  # noqa: BLE001
+                closed.set()
+                return
 
     loop.add_reader(master_fd, _on_master_readable)
+    writer_task = asyncio.create_task(_writer())
 
     async def _watch_proc() -> None:
         await proc.wait()
@@ -86,22 +96,9 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
     watch_task = asyncio.create_task(_watch_proc())
     closed_task = asyncio.create_task(closed.wait())
 
-    async def _server_heartbeat() -> None:
-        while not closed.is_set():
-            try:
-                await asyncio.wait_for(closed.wait(), timeout=_HEARTBEAT_INTERVAL)
-                return
-            except asyncio.TimeoutError:
-                pass
-            if closed.is_set():
-                return
-            try:
-                await _ws_send_text(json.dumps({"type": "ping"}))
-            except Exception:  # noqa: BLE001
-                closed.set()
-                return
-
-    heartbeat_task = asyncio.create_task(_server_heartbeat())
+    # 连接保活由 uvicorn 的 WebSocket 协议级 ping（ws_ping_interval）负责，
+    # 不在应用层再发送 JSON 文本 ping：文本 ping 一旦被旧客户端当作 PTY 输出
+    # 渲染，会在终端里刷屏 {"type": "ping"}。
 
     try:
         while not closed.is_set():
@@ -160,7 +157,7 @@ async def bridge_pty_terminal(websocket: Any, sandbox_root: str) -> None:
         loop.remove_reader(master_fd)
         watch_task.cancel()
         closed_task.cancel()
-        heartbeat_task.cancel()
+        writer_task.cancel()
         try:
             os.close(master_fd)
         except OSError:

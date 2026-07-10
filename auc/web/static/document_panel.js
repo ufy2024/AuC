@@ -1,6 +1,6 @@
 /** 办公文档预览：PDF / Word / Excel */
 
-import { t } from "./i18n.js";
+import { t } from "./i18n.js?v=2";
 
 const $ = (sel) => document.querySelector(sel);
 

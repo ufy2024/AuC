@@ -5,6 +5,8 @@ const STORAGE_KEY = "auc-locale";
 const MESSAGES = {
   zh: {
     "lang.switch": "EN",
+    "mode.code": "代码",
+    "mode.chat": "聊天",
     "nav.workspace": "工作区",
     "nav.projects": "项目",
     "nav.conversations": "对话",
@@ -334,6 +336,8 @@ const MESSAGES = {
   },
   en: {
     "lang.switch": "中文",
+    "mode.code": "Code",
+    "mode.chat": "Chat",
     "nav.workspace": "Workspace",
     "nav.projects": "Projects",
     "nav.conversations": "Chats",

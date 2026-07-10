@@ -4,6 +4,8 @@
 
 AuC 基于 asyncio，提供可插拔推理循环（默认 ReAct）、LLM 适配、工具权限分级（L1/L2/L3）与可观测事件流。与 [AuM](https://github.com/ufy2024/AuM) 协同时，吸收 **Claude Code** 式工程纪律：**上下文切片**、**项目军规（`.aurules`）**、**高危操作 IM 二次授权**。
 
+**v0.4.1** — Web 工作区与终端加固：`.auc/` 元数据经符号链接绕过防护（`resolve_workspace_safe` 双重路径校验）；PTY 输出改为 FIFO 单 writer 队列，移除应用层 JSON ping 刷屏；项目运行器 drain 子进程 stdout/stderr 防 PIPE 死锁；git diff 路径沙盒校验；Chat SSE `done` 状态与真实结果一致。
+
 **v0.4.0** — 安全与质量全面加固（代码审查 P0–P4）+ 技能库：清零 12 项高危（hooks RCE、WebSocket 绕过鉴权、API Key 明文回传、`/raw` 泄漏 `.auc`、eval shell 注入、isolation 静默降级、MCP 沙盒绕过、git 路径穿越、retry 重复计费等），并发正确性（subagent 生命周期超时+取消联动、jobs/metrics/索引跨进程锁+原子写，新增 `auc/fslock.py`），一致性（Anthropic 流式重试、metrics 召回/采纳解耦、回执↔run_id 显式映射、SSRF 连接期 IP 绑定+DNS fail-closed、worktree 冲突安全清理）；新增技能库（skill library）与审批设置面板。全量 701 测试通过。
 
 **v0.3.2** — 角色与模型广场：内置 agency-agents 中文角色库（256 角色）、智能选择 auto 路由、角色广场按领域浏览/自定义编辑；模型广场与连接设置分离、本地/网关智能路由；Web UI 树形角色选择、主题与对话框样式统一。

@@ -27,12 +27,12 @@ import {
   initTerminalPanel,
   refreshTerminalTheme,
   isTerminalOpen,
-} from "./terminal_panel.js";
+} from "./terminal_panel.js?v=2";
 import {
   hideDocumentPreview,
   showDocumentPreview,
-} from "./document_panel.js";
-import { applyI18n, getLocale, t, toggleLocale } from "./i18n.js";
+} from "./document_panel.js?v=2";
+import { applyI18n, getLocale, t, toggleLocale } from "./i18n.js?v=2";
 
 const $ = (sel) => document.querySelector(sel);
 const state = {

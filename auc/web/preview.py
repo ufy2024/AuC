@@ -3,7 +3,7 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-from auc.sandbox import resolve_under_sandbox
+from auc.sandbox import resolve_workspace_safe
 
 _HTML_EXTS = {".html", ".htm"}
 _PREVIEWABLE = _HTML_EXTS | {
@@ -24,7 +24,7 @@ def is_previewable(path: str) -> bool:
 
 
 def resolve_preview_file(sandbox_root: str, rel_path: str) -> Path:
-    resolved = resolve_under_sandbox(sandbox_root, rel_path)
+    resolved = resolve_workspace_safe(sandbox_root, rel_path)
     if resolved.is_dir():
         index = resolved / "index.html"
         if index.is_file():

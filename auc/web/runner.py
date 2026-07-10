@@ -39,6 +39,17 @@ async def _read_process_error(proc: asyncio.subprocess.Process) -> str:
     return data.decode(errors="replace").strip()
 
 
+async def _drain_stream(stream: asyncio.StreamReader | None) -> None:
+    """持续读弃子进程输出，防止 PIPE 缓冲区写满导致子进程阻塞（死锁）。"""
+    if stream is None:
+        return
+    try:
+        while await stream.read(4096):
+            pass
+    except (asyncio.CancelledError, Exception):  # noqa: BLE001
+        return
+
+
 async def _wait_for_ready(
     proc: asyncio.subprocess.Process,
     port: int,
@@ -68,6 +79,7 @@ class RunInstance:
     url: str | None
     error: str | None = None
     process: asyncio.subprocess.Process | None = field(default=None, repr=False)
+    drain_task: asyncio.Task | None = field(default=None, repr=False)
 
 
 class ProjectRunner:
@@ -223,6 +235,14 @@ class ProjectRunner:
             url=url,
             process=proc,
         )
+        inst.drain_task = asyncio.create_task(
+            asyncio.wait(
+                [
+                    asyncio.ensure_future(_drain_stream(proc.stdout)),
+                    asyncio.ensure_future(_drain_stream(proc.stderr)),
+                ]
+            )
+        )
         self._runs[run_id] = inst
         self._by_project[project.id] = run_id
         return inst
@@ -231,6 +251,8 @@ class ProjectRunner:
         inst = self._runs.get(run_id)
         if inst is None:
             return False
+        if inst.drain_task is not None and not inst.drain_task.done():
+            inst.drain_task.cancel()
         if inst.process is not None and inst.process.returncode is None:
             try:
                 inst.process.terminate()

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
 
-from auc.sandbox import resolve_under_sandbox
+from auc.sandbox import resolve_workspace_safe
 
 DocType = Literal["pdf", "word", "word_legacy", "excel", "ppt", "unsupported"]
 
@@ -42,7 +42,7 @@ def read_document_file(sandbox_root: str, rel_path: str) -> dict[str, object]:
     kind = document_type(rel_path)
     if kind is None:
         raise ValueError(f"not a document: {rel_path}")
-    resolved = resolve_under_sandbox(sandbox_root, rel_path)
+    resolved = resolve_workspace_safe(sandbox_root, rel_path)
     if not resolved.is_file():
         raise FileNotFoundError(rel_path)
     previewable = kind in _PREVIEWABLE

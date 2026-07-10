@@ -142,6 +142,8 @@ def _git_diff_text(sandbox: str, *, staged: bool, path: str | None) -> str:
     if staged:
         cmd.append("--cached")
     if path:
+        # 限定在沙盒内，避免 `../` 泄露仓库外或选项注入
+        resolve_under_sandbox(sandbox, path)
         cmd += ["--", path]
     try:
         out = subprocess.run(
@@ -1611,6 +1613,7 @@ def create_app():  # noqa: ANN201
             body = {"__parse_error__": str(exc)}
 
         async def _gen():  # noqa: ANN202
+            status = "error"
             try:
                 if not isinstance(body, dict) or "__parse_error__" in body:
                     yield _sse({"type": "error", "payload": {"message": "无效 JSON"}})
@@ -1694,11 +1697,12 @@ def create_app():  # noqa: ANN201
                         },
                     }
                 )
+                status = "completed"
             except Exception as exc:  # noqa: BLE001
                 session.active_run_id = None
                 yield _sse({"type": "error", "payload": {"message": str(exc)}})
             finally:
-                yield _sse({"type": "done", "payload": {"status": "completed"}})
+                yield _sse({"type": "done", "payload": {"status": status}})
 
         return StreamingResponse(
             _gen(),
